@@ -7,5 +7,7 @@
         "index": {
             "label": "UPSide"
         }
-    }
+    },
+
+    "preload": [ "index" ]
 }
