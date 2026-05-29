@@ -125,6 +125,14 @@ $upside-amber: #f59e0b;
     --pf-v6-l-gallery--GridTemplateColumns: repeat(auto-fill, minmax(20rem, 1fr));
 }
 
+// Content area below the full-bleed masthead. hasBodyWrapper={false} drops the
+// section's body wrapper (so the masthead can run edge-to-edge), which also
+// drops its padding — restore it here, inset to match the masthead's 1.5rem.
+.upside-content {
+    padding-block: 1rem;
+    padding-inline: 1.5rem;
+}
+
 // Detail page: stack the header, gauges, group cards and the full table.
 .upside-detail {
     display: flex;

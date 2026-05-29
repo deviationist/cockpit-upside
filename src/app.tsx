@@ -575,7 +575,7 @@ export const Application = () => {
                     <GithubMark />
                 </a>
             </header>
-            <PageSection hasBodyWrapper={false} padding={{ default: "padding" }}>
+            <PageSection hasBodyWrapper={false} className="upside-content">
                 {view}
             </PageSection>
         </Page>
