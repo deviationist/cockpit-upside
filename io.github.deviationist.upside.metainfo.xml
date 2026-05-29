@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="addon">
+  <id>io.github.deviationist.upside</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LGPL-2.1-or-later</project_license>
+  <name>UPSide</name>
+  <summary>UPS monitoring for Cockpit, powered by NUT</summary>
+  <description>
+    <p>
+      UPSide surfaces the state of a UPS managed by NUT (Network UPS Tools)
+      directly in the Cockpit web console: battery charge and runtime,
+      line/load status, input/output voltage, and the other variables
+      exposed by upsd. Supports multiple UPSes, with an overview of all
+      devices and a detail view per device.
+    </p>
+  </description>
+  <extends>org.cockpit_project.cockpit</extends>
+  <launchable type="cockpit-manifest">upside</launchable>
+  <url type="homepage">https://github.com/deviationist/cockpit-upside</url>
+  <url type="bugtracker">https://github.com/deviationist/cockpit-upside/issues</url>
+  <developer id="io.github.deviationist">
+    <name>deviationist</name>
+  </developer>
+</component>

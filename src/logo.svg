@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PLACEHOLDER LOGO — replace with the real UPSide SVG.
+  Kept intentionally simple so the GUI header and README render until the
+  final artwork lands. Served by Cockpit at /upside/logo.svg.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="UPSide logo">
+  <rect x="8" y="8" width="144" height="144" rx="28" fill="#0066cc"/>
+  <!-- battery body -->
+  <rect x="44" y="58" width="64" height="52" rx="6" fill="none" stroke="#fff" stroke-width="6"/>
+  <!-- battery terminal -->
+  <rect x="108" y="72" width="10" height="24" rx="3" fill="#fff"/>
+  <!-- bolt -->
+  <path d="M82 62 L62 90 H76 L70 110 L94 80 H80 Z" fill="#ffd700"/>
+</svg>
