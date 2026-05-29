@@ -3,7 +3,7 @@
         "cockpit": "137"
     },
 
-    "tools": {
+    "menu": {
         "index": {
             "label": "UPSide"
         }
