@@ -24,6 +24,8 @@ export interface UpsideConfig {
     costRate: number;
     /** Currency label for the cost estimate, e.g. "NOK". */
     costCurrency: string;
+    /** Custom display names per UPS, keyed by NUT name (overrides desc/model). */
+    names: Record<string, string>;
 }
 
 // Region (ISO 3166) → currency (ISO 4217), for a locale-derived default
@@ -93,6 +95,7 @@ export function defaultConfig(): UpsideConfig {
         overviewCard: false,
         costRate: 1.5,
         costCurrency: localeCurrency(),
+        names: {},
     };
 }
 

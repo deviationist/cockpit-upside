@@ -17,6 +17,7 @@ import { MenuToggle } from "@patternfly/react-core/dist/esm/components/MenuToggl
 import { Page, PageSection } from "@patternfly/react-core/dist/esm/components/Page/index.js";
 import { Progress, ProgressMeasureLocation, ProgressVariant } from "@patternfly/react-core/dist/esm/components/Progress/index.js";
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
+import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/index.js";
 import { Flex, FlexItem } from "@patternfly/react-core/dist/esm/layouts/Flex/index.js";
 import { Gallery } from "@patternfly/react-core/dist/esm/layouts/Gallery/index.js";
 
@@ -26,9 +27,9 @@ import { page_status } from 'notifications';
 import { Gauge } from './Gauge';
 import { Settings } from './Settings';
 import { Trends } from './Trends';
-import { UpsideConfig, useConfig } from './lib/config';
+import { UpsideConfig, saveConfig, useConfig } from './lib/config';
 import { formatElapsed, monthsBetween, parseNutDate } from './lib/derive';
-import { Ups, UpsState, UpsStatus, UpsVars, formatRuntime, listUps, num, readUps, stateLabel } from './lib/nut';
+import { Ups, UpsState, UpsStatus, UpsVars, formatRuntime, listUps, num, readDescriptions, readUps, stateLabel } from './lib/nut';
 
 const _ = cockpit.gettext;
 
@@ -83,6 +84,17 @@ function navStatus(upses: Ups[]): { type: "warning" | "error", title: string } |
         type: worst,
         title: worst === "error" ? _("UPS needs attention") : _("UPS on battery"),
     };
+}
+
+/* Friendly display name: custom override → NUT desc → mfr+model → NUT name. */
+function displayName(ups: Ups, descs: Record<string, string>, names: Record<string, string>): string {
+    if (names[ups.ref.name])
+        return names[ups.ref.name];
+    if (descs[ups.ref.name])
+        return descs[ups.ref.name];
+    const mfr = ups.vars["device.mfr"] || ups.vars["ups.mfr"];
+    const model = ups.vars["device.model"] || ups.vars["ups.model"];
+    return [mfr, model].filter(Boolean).join(" ") || ups.ref.name;
 }
 
 const StatusLabels = ({ status }: { status: UpsStatus }) => (
@@ -210,8 +222,9 @@ const TableRows = ({ rows }: { rows: { label: string, value: string }[] }) => (
 
 /* ---- overview ---- */
 
-const UpsCard = ({ ups }: { ups: Ups }) => {
+const UpsCard = ({ ups, descs, names }: { ups: Ups, descs: Record<string, string>, names: Record<string, string> }) => {
     const { vars, status } = ups;
+    const title = displayName(ups, descs, names);
     const charge = num(vars, "battery.charge");
     const load = num(vars, "ups.load");
     const model = vars["device.model"] || vars["ups.model"];
@@ -239,7 +252,10 @@ const UpsCard = ({ ups }: { ups: Ups }) => {
                     justifyContent={{ default: "justifyContentSpaceBetween" }}
                     alignItems={{ default: "alignItemsCenter" }}
                 >
-                    <FlexItem>{ups.ref.name}</FlexItem>
+                    <FlexItem>
+                        <div>{title}</div>
+                        {title !== ups.ref.name && <div className="upside-subname">{ups.ref.name}</div>}
+                    </FlexItem>
                     <FlexItem><StatusLabels status={status} /></FlexItem>
                 </Flex>
             </CardTitle>
@@ -269,7 +285,10 @@ const UpsCard = ({ ups }: { ups: Ups }) => {
     );
 };
 
-const Overview = ({ upses, error }: { upses: Ups[] | null, error: string | null }) => {
+const Overview = ({ upses, error, descs, names }: {
+    upses: Ups[] | null, error: string | null,
+    descs: Record<string, string>, names: Record<string, string>,
+}) => {
     if (error !== null)
         return <NutError error={error} />;
     if (upses === null)
@@ -285,21 +304,24 @@ const Overview = ({ upses, error }: { upses: Ups[] | null, error: string | null 
     }
     return (
         <Gallery className="upside-gallery" hasGutter>
-            {upses.map(ups => <UpsCard key={ups.id} ups={ups} />)}
+            {upses.map(ups => <UpsCard key={ups.id} ups={ups} descs={descs} names={names} />)}
         </Gallery>
     );
 };
 
 /* ---- detail ---- */
 
-const Detail = ({ upses, error, name, obSince, config }: {
+const Detail = ({ upses, error, name, obSince, config, descs }: {
     upses: Ups[] | null,
     error: string | null,
     name: string,
     obSince: Record<string, number>,
     config: UpsideConfig,
+    descs: Record<string, string>,
 }) => {
     const [open, setOpen] = useState(false);
+    const [renaming, setRenaming] = useState(false);
+    const [nameDraft, setNameDraft] = useState("");
 
     if (error !== null)
         return <NutError error={error} />;
@@ -320,9 +342,20 @@ const Detail = ({ upses, error, name, obSince, config }: {
     }
 
     const { vars, status } = ups;
+    const title = displayName(ups, descs, config.names);
     const charge = num(vars, "battery.charge");
     const load = num(vars, "ups.load");
     const runtime = vars["battery.runtime"];
+
+    const saveName = () => {
+        const names = { ...config.names };
+        const v = nameDraft.trim();
+        if (v)
+            names[ups.ref.name] = v;
+        else
+            delete names[ups.ref.name];
+        saveConfig({ ...config, names }).finally(() => setRenaming(false));
+    };
 
     // Derived: battery age, running cost, time on battery.
     let batteryAge: string | undefined;
@@ -395,7 +428,7 @@ const Detail = ({ upses, error, name, obSince, config }: {
                                                 isExpanded={open}
                                                 onClick={() => setOpen(!open)}
                                             >
-                                                {ups.ref.name}
+                                                {title}
                                             </MenuToggle>
                                         )}
                                     >
@@ -406,15 +439,41 @@ const Detail = ({ upses, error, name, obSince, config }: {
                                                     isSelected={u.ref.name === name}
                                                     onClick={() => cockpit.location.go(["ups", u.ref.name])}
                                                 >
-                                                    {u.ref.name}
+                                                    {displayName(u, descs, config.names)}
                                                 </DropdownItem>
                                             ))}
                                         </DropdownList>
                                     </Dropdown>
                                 )
-                                : ups.ref.name}
+                                : title}
                         </BreadcrumbItem>
                     </Breadcrumb>
+                </FlexItem>
+                <FlexItem>
+                    {renaming
+                        ? (
+                            <Flex spaceItems={{ default: "spaceItemsSm" }} alignItems={{ default: "alignItemsCenter" }}>
+                                <FlexItem>
+                                    <TextInput
+                                        value={nameDraft}
+                                        onChange={(_ev, v) => setNameDraft(v)}
+                                        aria-label={_("Custom name")}
+                                        placeholder={ups.ref.name}
+                                    />
+                                </FlexItem>
+                                <Button variant="primary" onClick={saveName}>{_("Save")}</Button>
+                                <Button variant="link" onClick={() => setRenaming(false)}>{_("Cancel")}</Button>
+                            </Flex>
+                        )
+                        : (
+                            <Button
+                                variant="link"
+                                isInline
+                                onClick={() => { setNameDraft(config.names[ups.ref.name] || ""); setRenaming(true) }}
+                            >
+                                {_("Rename")}
+                            </Button>
+                        )}
                 </FlexItem>
                 <FlexItem align={{ default: "alignRight" }}><StatusLabels status={status} /></FlexItem>
             </Flex>
@@ -516,7 +575,15 @@ export const Application = () => {
     const { config } = useConfig();
     const [upses, setUpses] = useState<Ups[] | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [descs, setDescs] = useState<Record<string, string>>({});
     const obSince = useRef<Record<string, number>>({});
+
+    // NUT ups.conf descriptions (friendly names); refresh when settings change
+    // too, in case a description was just edited.
+    useEffect(() => {
+        readDescriptions().then(setDescs)
+                .catch(() => { /* fall back to model */ });
+    }, [config.names]);
 
     useEffect(() => {
         let cancelled = false;
@@ -577,13 +644,13 @@ export const Application = () => {
 
     let view;
     if (path[0] === "ups" && path[1])
-        view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} config={config} />;
+        view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} config={config} descs={descs} />;
     else if (path[0] === "settings")
         view = <Settings />;
     else if (path[0] === "about")
         view = <About />;
     else
-        view = <Overview upses={upses} error={error} />;
+        view = <Overview upses={upses} error={error} descs={descs} names={config.names} />;
 
     return (
         <Page className="pf-m-no-sidebar">
