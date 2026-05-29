@@ -1,11 +1,8 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="src/logo-dark.svg">
-    <img src="src/logo-light.svg" alt="UPSide logo" width="140">
-  </picture>
+  <img src="upside-github-banner.svg" alt="UPSide — UPS monitoring for Cockpit, powered by NUT" width="100%">
 </p>
 
-<h1 align="center">UPSide</h1>
+# UPSide
 
 UPS monitoring for [Cockpit](https://cockpit-project.org/), powered by
 [NUT (Network UPS Tools)](https://networkupstools.org/).
