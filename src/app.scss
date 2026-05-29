@@ -29,6 +29,14 @@ $upside-amber: #f59e0b;
     box-shadow: 0 2px 10px rgb(0 0 0 / 35%);
 }
 
+// Cockpit's dark theme has a dark page background too, so the navy masthead
+// recedes. Lift it (lighter navy + a faint top highlight + stronger shadow)
+// so it reads as a distinct bar against the dark content below.
+.pf-v6-theme-dark .upside-masthead {
+    background: linear-gradient(180deg, #1c2a4d 0%, #16223f 100%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%), 0 3px 12px rgb(0 0 0 / 60%);
+}
+
 .upside-masthead__brand {
     display: flex;
     align-items: center;
