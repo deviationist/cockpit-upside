@@ -208,10 +208,10 @@ $upside-amber: #f59e0b;
 }
 
 // The UPS switcher is the breadcrumb's leaf (a MenuToggle). Size it to the
-// breadcrumb item font (Cockpit breadcrumbs are font-size-sm, e.g. on /metrics)
-// so it doesn't read larger than the rest of the trail.
+// breadcrumb item font (Cockpit breadcrumbs use body--default = 14px, e.g. on
+// /metrics) so it doesn't read larger than the rest of the trail.
 .upside-detail .pf-v6-c-breadcrumb .pf-v6-c-menu-toggle {
-    font-size: var(--pf-t--global--font--size--sm);
+    font-size: var(--pf-t--global--font--size--body--default);
 }
 
 // SVG donut gauge.
