@@ -47,9 +47,9 @@ function instanceMatches(name: string, ups: string): boolean {
 }
 
 export interface HistoryOptions {
-    interval?: number;   // ms between points (default 60s, matches pmlogger)
-    windowMs?: number;   // how far back to try first (default 6h)
-    timeoutMs?: number;  // safety cap per channel
+    interval?: number; // ms between points (default 60s, matches pmlogger)
+    windowMs?: number; // how far back to try first (default 6h)
+    timeoutMs?: number; // safety cap per channel
 }
 
 // One archive read for a single window. Resolves the points (possibly empty);
