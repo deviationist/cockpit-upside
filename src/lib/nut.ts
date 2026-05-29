@@ -61,6 +61,35 @@ export async function readUps(ref: UpsRef): Promise<Ups> {
     };
 }
 
+/**
+ * Read the human descriptions configured in NUT's ups.conf (the `desc = "..."`
+ * per `[section]`), keyed by UPS name. upsc doesn't expose `desc` to clients, so
+ * we read the file directly (needs admin; falls back to {} if unreadable).
+ * Used as a friendly display name when the device only reports generic strings.
+ */
+export async function readDescriptions(): Promise<Record<string, string>> {
+    const out: Record<string, string> = {};
+    try {
+        const file = cockpit.file("/etc/nut/ups.conf", { superuser: "try" });
+        const text: string = await file.read();
+        file.close();
+        let section = "";
+        for (const line of (text || "").split("\n")) {
+            const sec = /^\s*\[(.+?)\]/.exec(line);
+            if (sec) {
+                section = sec[1];
+                continue;
+            }
+            const d = /^\s*desc\s*=\s*"?(.*?)"?\s*$/.exec(line);
+            if (section && d && d[1])
+                out[section] = d[1];
+        }
+    } catch {
+        /* unreadable (no admin / no file) — names fall back to mfr/model */
+    }
+    return out;
+}
+
 /** Human label for a status state. */
 export function stateLabel(state: UpsState): string {
     switch (state) {
