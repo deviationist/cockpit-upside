@@ -391,7 +391,7 @@ const Detail = ({ upses, error, name, obSince }: {
                             </DropdownList>
                         </Dropdown>
                     </FlexItem>}
-                <FlexItem><StatusLabels status={status} /></FlexItem>
+                <FlexItem align={{ default: "alignRight" }}><StatusLabels status={status} /></FlexItem>
             </Flex>
 
             <Card>
@@ -575,7 +575,7 @@ export const Application = () => {
                     <GithubMark />
                 </a>
             </header>
-            <PageSection hasBodyWrapper={false}>
+            <PageSection hasBodyWrapper={false} padding={{ default: "padding" }}>
                 {view}
             </PageSection>
         </Page>
