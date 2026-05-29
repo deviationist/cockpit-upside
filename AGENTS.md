@@ -86,7 +86,7 @@ Integration tests live in `test/` (Cockpit test framework).
   (`io.github.deviationist.upside.metainfo.xml`).
 - **Static assets** must be added to the `copy-assets` plugin in `build.js` —
   esbuild does not copy them automatically, and `*.svg` is marked external.
-- **Brand kit lives in `logo/`** (canonical): `logo-colored.svg` (light-inked,
+- **Brand kit lives in `logos/`** (canonical): `logo-colored.svg` (light-inked,
   for dark backgrounds), `logo-colored-dark.svg` (dark-inked, for light
   backgrounds), plus monochrome black/white. `build.js` copies the two colored
   variants into `dist/` as `logo-light.svg` (light mode = dark-inked) and
@@ -136,7 +136,7 @@ src/app.scss        app styles
 src/manifest.json   Cockpit manifest (sidebar label, required cockpit version)
 io.github.deviationist.upside.metainfo.xml   AppStream metadata
 build.js            esbuild build
-logo/               brand kit (canonical SVGs); build.js picks two for dist/
+logos/              brand kit (canonical SVGs); build.js picks two for dist/
 upside-github-banner.svg   README header banner (GitHub only)
 packaging/          RPM spec + Arch PKGBUILD
 test/               Cockpit integration tests
