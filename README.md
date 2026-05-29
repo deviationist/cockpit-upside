@@ -71,21 +71,35 @@ npm run eslint
 npm run stylelint
 ```
 
+## Features
+
+- **Overview** — a card per UPS (status badge, battery, runtime, load),
+  capability-driven (only shows what the device reports).
+- **Detail view** per UPS — battery/load donut gauges, runtime, the full NUT
+  variable table, and **derived values** (battery age, estimated running cost,
+  time-on-battery). A UPS **switcher** in the breadcrumb.
+- **Friendly names** — shows the NUT `desc` from `ups.conf`, or a **custom name**
+  you set in the UI, falling back to make/model, with the technical NUT name
+  alongside.
+- **Live updates** via `cockpit.spawn(upsc)` polling (NUT has no push model).
+- **Historical trends** from **PCP** — a small OpenMetrics scraper feeds NUT into
+  PCP (`pmlogger` archives it), read back with **`pmrep`** and charted on the
+  detail page. No embedded database; no NUT PMDA needed.
+- **Navigation status** — a status icon next to UPSide in the Cockpit menu when a
+  UPS needs attention (via `page_status`), opt-in.
+- **Settings** — feature toggles + electricity rate/currency in
+  `/etc/cockpit/upside.json`; UI preferences in `cockpit.localStorage`.
+
 ## Roadmap
 
-- [ ] NUT data layer: `upsc -l` enumeration + per-UPS polling via `cockpit.spawn`
-- [ ] Overview page (card grid, status badges)
-- [ ] Detail view with battery/load gauges (PatternFly charts) + variable table
-- [ ] UPS selector ("tenant" switch) between devices
-- [ ] Live updates via interval polling (NUT has no push model, so polling is
-      the idiomatic approach) + short in-memory window for sparkline trends
-- [ ] Historical data — **tiered**: NUT's own `upslog` as the zero-dependency
-      default (read via `cockpit.file()`), with optional **PCP** integration via
-      `cockpit.metrics()` where PCP is present (needs a NUT→PCP shim — there is
-      no NUT PMDA). No embedded database, per Cockpit convention.
-- [ ] Remote `upsd` support (`name@host`) for monitoring UPSes on other hosts
-- [ ] Surface a compact UPS health card on Cockpit's system **Overview** page
+- [ ] Remote `upsd` support (`name@host`) for UPSes on other hosts
+- [ ] History spanning multiple `pmlogger` archive volumes (reads the latest now)
+- [ ] One-click "enable history" that installs the PCP scraper automatically
 - [ ] (later) Control actions — battery test, etc. — gated behind privilege
+
+> **Note on history setup:** the PCP ingestion (OpenMetrics scraper +
+> `pmlogger` rule) is host-side configuration, not shipped by the plugin yet —
+> see the openmetrics scraper approach in the commit history / `lib/history.ts`.
 
 ## Contributing
 

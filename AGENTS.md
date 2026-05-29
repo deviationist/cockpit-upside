@@ -28,22 +28,27 @@ It is based on the official
   `name` or `name@host`. Enumerate with `upsc -l`, read each with
   `upsc <name>`. UI = Overview (card per UPS) ⇄ Detail (one UPS) with a
   selector to switch devices. A single-UPS install must still look right.
-- **Visualization via PatternFly charts** (`@patternfly/react-charts`,
-  Victory-based): battery-charge donut gauge, load gauge, runtime as a
-  threshold-coloured duration.
-- **Historical data — tiered (decided, see research):**
-  1. **Live sparklines** from a short in-memory poll window — always on.
-  2. **Default persistent history = NUT's own `upslog`** (ships with NUT, zero
-     extra deps, fully portable). The plugin offers a one-click "Enable history"
-     that drops an `upslog` service/config, and reads the log via
-     `cockpit.file()`.
-  3. **Optional power-user tier = PCP** via the `cockpit.metrics()` API
-     (`metrics1` channel; `cockpit-pcp` is the bridge). Auto-detected, never
-     required. Note: there is **no NUT PMDA**, so feeding NUT into PCP needs a
-     small MMV/openmetrics shim — that's why PCP is the optional, not default,
-     tier.
-  - **Do NOT embed a database** (sqlite/rrd). Against Cockpit's "don't reinvent
-    subsystems" philosophy; no Cockpit plugin does this.
+- **Visualization** via a small dependency-free SVG gauge (`Gauge.tsx`) and
+  line chart (`Chart.tsx`) — we deliberately avoided `@patternfly/react-charts`
+  (heavy Victory bundle) since the needs are simple.
+- **Historical data — PCP, read with `pmrep` (as built):**
+  - **Ingestion is host-side** (NOT shipped by the plugin): an OpenMetrics
+    scraper feeds NUT into PCP. There is **no NUT PMDA**, so a tiny script in the
+    openmetrics PMDA's `config.d/` emits `openmetrics.nut.<metric>` (one instance
+    per UPS, labelled `ups:<name>`), and a `log mandatory` rule in pmlogger's
+    config archives it. (See the project memory / commit history for the exact
+    files on the deployment host.)
+  - **Reading: `pmrep -o csv` via `cockpit.spawn`** (`lib/history.ts`), parsing
+    the CSV and picking the `ups:<name>` column. We first tried the `metrics1`
+    pcp-archive channel (`cockpit.metrics()`), but it returned nothing here
+    (`meta:0/data:0`) despite data being present — **abandoned**; `pmrep` is
+    reliable and matches the live `upsc` spawn pattern. Archives are
+    world-readable, so no privileges needed.
+  - **Do NOT embed a database** (sqlite/rrd). Reuse PCP — Cockpit's convention.
+- **Friendly names** (`displayName()` in `app.tsx`): custom (`config.names`) →
+  NUT `desc` (read from `ups.conf` via `readDescriptions()`, privileged
+  `cockpit.file`) → mfr+model → NUT name. Identity/routing always uses the unique
+  NUT name; the display name is purely presentational.
 
 ## Build / lint / test
 
