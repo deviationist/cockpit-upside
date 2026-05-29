@@ -40,9 +40,16 @@ It is based on the official
 npm install
 npm run watch        # rebuild dist/ on change (dev)
 npm run build        # one-shot build
+npm test             # unit tests (Node's built-in runner; strips TS types natively)
 npm run eslint
 npm run stylelint
 ```
+
+**Testability convention:** keep pure logic (parsing, formatting, status
+derivation) in Cockpit-free modules like `src/lib/nut-parse.ts` so it can be
+unit-tested under plain Node (`*.test.ts` via `node --test`). Anything that
+imports `cockpit` (spawn, gettext) goes in a sibling module (`src/lib/nut.ts`)
+and is exercised by the integration tests, not the Node unit tests.
 
 Deploy locally for manual testing:
 

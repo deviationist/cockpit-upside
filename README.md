@@ -83,6 +83,7 @@ npm run stylelint
       page uses, already deployed in some environments) and a self-contained
       sampler (`upslog`/sqlite/RRD)
 - [ ] Remote `upsd` support (`name@host`) for monitoring UPSes on other hosts
+- [ ] Surface a compact UPS health card on Cockpit's system **Overview** page
 - [ ] (later) Control actions — battery test, etc. — gated behind privilege
 
 ## Contributing

@@ -64,11 +64,16 @@ goes through the `cockpit` JS API (e.g. `cockpit.spawn`), not a custom backend.
 ## Linting & tests
 
 ```sh
+npm test           # unit tests for pure logic (Node's built-in runner)
 npm run eslint
 npm run stylelint
 ```
 
-Integration tests live under `test/` and use Cockpit's test framework (see the
+**Unit tests** cover the Cockpit-free logic (parsing, status derivation,
+formatting) — keep that logic in modules like `src/lib/nut-parse.ts` so it can
+be tested without a browser, and add `*.test.ts` files alongside.
+
+**Integration tests** live under `test/` and use Cockpit's test framework (see the
 [starter-kit testing docs](https://github.com/cockpit-project/starter-kit#tests)).
 
 ## Pull requests
