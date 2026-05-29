@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 @use "page.scss";
 
+// Full-height chain so .ct-page-fill on #app actually fills the viewport (and
+// the page background covers the whole window). Cockpit's shell normally
+// supplies this; set it here so the plugin is self-contained.
+html,
+body,
+#app {
+    block-size: 100%;
+}
+
 // Brand palette, taken from the UPSide banner: deep navy header with the amber
 // "bolt" as the accent colour.
 $upside-navy-top: #0d1526;
