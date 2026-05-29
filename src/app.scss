@@ -207,6 +207,13 @@ $upside-amber: #f59e0b;
     gap: 1rem;
 }
 
+// Cockpit's breadcrumbs render at body--default (14px, e.g. on /metrics), but
+// ours inherited a smaller size from an ancestor. Set it on the container; the
+// links and our toggle both use font-size: inherit, so they follow.
+.upside-detail .pf-v6-c-breadcrumb {
+    font-size: var(--pf-t--global--font--size--body--default);
+}
+
 // The UPS switcher is the breadcrumb's leaf (a MenuToggle). Its font is already
 // body--default (14px) like the links; what makes it read larger is the button
 // chrome — vertical/inline padding that grows the row. PatternFly's native
