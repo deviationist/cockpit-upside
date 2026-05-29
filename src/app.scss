@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 @use "page.scss";
 
+// Logo sizing. The HTML height attribute is overridden by PatternFly's
+// `img { height: auto }` reset, so constrain the size here (the portrait SVG
+// would otherwise render at its intrinsic 232px). width auto keeps the ratio.
+.upside-logo {
+    display: block;
+    block-size: 1.75rem;
+    inline-size: auto;
+}
+
 // Theme-aware logo: show the light-mode artwork by default, swap to the
 // dark-mode artwork when Cockpit's dark theme is active. The `cockpit-dark-theme`
 // import in index.tsx propagates Cockpit's theme into this iframe and sets the
@@ -15,7 +24,7 @@
     }
 
     .upside-logo--dark {
-        display: inline-block;
+        display: block;
     }
 }
 
