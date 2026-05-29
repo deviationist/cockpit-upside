@@ -1,0 +1,15 @@
+pkgname=cockpit-upside
+pkgver=VERSION
+pkgrel=1
+pkgdesc='UPS monitoring for Cockpit, powered by NUT'
+arch=('x86_64')
+url='https://github.com/deviationist/cockpit-upside'
+license=(LGPL)
+source=("SOURCE")
+sha256sums=('SKIP')
+
+package() {
+  depends=(cockpit)
+  cd $pkgname
+  make DESTDIR="$pkgdir" install PREFIX=/usr
+}
