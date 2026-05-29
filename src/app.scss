@@ -192,8 +192,11 @@ $upside-amber: #f59e0b;
 // the cards natural breathing room against the page background. Inset matches
 // the masthead's 1.5rem so the left edges line up.
 .upside-content {
-    padding-block: 1rem;
-    padding-inline: 1.5rem;
+    // Same tokens PatternFly uses for .pf-v6-c-page__main-section on Cockpit's
+    // pages (md block / lg inline) — we apply them ourselves because
+    // hasBodyWrapper={false} drops the body wrapper that normally carries them.
+    padding-block: var(--pf-t--global--spacer--md);
+    padding-inline: var(--pf-t--global--spacer--lg);
 }
 
 // Detail page: stack the header, gauges, group cards and the full table.

@@ -23,18 +23,15 @@ import { Gallery } from "@patternfly/react-core/dist/esm/layouts/Gallery/index.j
 import cockpit from 'cockpit';
 
 import { Gauge } from './Gauge';
+import { Settings } from './Settings';
 import { Trends } from './Trends';
+import { UpsideConfig, useConfig } from './lib/config';
 import { formatElapsed, monthsBetween, parseNutDate } from './lib/derive';
 import { Ups, UpsState, UpsStatus, UpsVars, formatRuntime, listUps, num, readUps, stateLabel } from './lib/nut';
 
 const _ = cockpit.gettext;
 
 const POLL_INTERVAL = 5000;
-
-// Electricity price for the derived running-cost estimate. TODO: make this a
-// per-install setting (see roadmap) rather than a baked-in default.
-const ELECTRICITY_RATE = 1.5; // currency units per kWh
-const CURRENCY = "NOK";
 
 /* ---- helpers (UI concerns; data lives in lib/nut + lib/derive) ---- */
 
@@ -277,11 +274,12 @@ const Overview = ({ upses, error }: { upses: Ups[] | null, error: string | null 
 
 /* ---- detail ---- */
 
-const Detail = ({ upses, error, name, obSince }: {
+const Detail = ({ upses, error, name, obSince, config }: {
     upses: Ups[] | null,
     error: string | null,
     name: string,
     obSince: Record<string, number>,
+    config: UpsideConfig,
 }) => {
     const [open, setOpen] = useState(false);
 
@@ -327,7 +325,7 @@ const Detail = ({ upses, error, name, obSince }: {
 
     const rp = num(vars, "ups.realpower");
     const cost = rp !== undefined
-        ? cockpit.format("≈ $0 $1/h", ((rp / 1000) * ELECTRICITY_RATE).toFixed(2), CURRENCY)
+        ? cockpit.format("≈ $0 $1/h", ((rp / 1000) * config.costRate).toFixed(2), config.costCurrency)
         : undefined;
 
     const since = obSince[ups.id];
@@ -425,7 +423,7 @@ const Detail = ({ upses, error, name, obSince }: {
                 </CardBody>
             </Card>
 
-            <Trends ups={ups.ref.name} />
+            {config.history && <Trends ups={ups.ref.name} />}
 
             <Gallery className="upside-gallery" hasGutter>
                 {groups.map(g => (
@@ -479,6 +477,7 @@ const GithubMark = () => (
 
 const NAV: { key: string, label: string }[] = [
     { key: "overview", label: _("Overview") },
+    { key: "settings", label: _("Settings") },
     { key: "about", label: _("About") },
 ];
 
@@ -494,6 +493,7 @@ function usePageLocation() {
 
 export const Application = () => {
     const location = usePageLocation();
+    const { config } = useConfig();
     const [upses, setUpses] = useState<Ups[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const obSince = useRef<Record<string, number>>({});
@@ -541,11 +541,13 @@ export const Application = () => {
     }, []);
 
     const path = location.path;
-    const section = path[0] === "about" ? "about" : "overview";
+    const section = (path[0] === "about" || path[0] === "settings") ? path[0] : "overview";
 
     let view;
     if (path[0] === "ups" && path[1])
-        view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} />;
+        view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} config={config} />;
+    else if (path[0] === "settings")
+        view = <Settings />;
     else if (path[0] === "about")
         view = <About />;
     else
@@ -568,7 +570,7 @@ export const Application = () => {
                             type="button"
                             className={"upside-tab" + (section === item.key ? " upside-tab--active" : "")}
                             aria-current={section === item.key ? "page" : undefined}
-                            onClick={() => cockpit.location.go(item.key === "about" ? ["about"] : [])}
+                            onClick={() => cockpit.location.go(item.key === "overview" ? [] : [item.key])}
                         >
                             {item.label}
                         </button>
