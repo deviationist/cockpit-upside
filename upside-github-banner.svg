@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 440" fill="none">
+  <title>UPSide — UPS monitoring for Cockpit, powered by NUT</title>
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 H0 V40" stroke="#1e293b" stroke-width="1" fill="none"/>
+    </pattern>
+    <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0b1220" stop-opacity="0"/>
+      <stop offset="1" stop-color="#0b1220" stop-opacity="1"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="440" fill="#0b1220"/>
+  <rect width="1280" height="440" fill="url(#grid)" opacity="0.5"/>
+  <rect width="1280" height="440" fill="url(#fade)"/>
+
+  <!-- amber accent line -->
+  <rect x="80" y="100" width="64" height="4" fill="#f59e0b"/>
+
+  <!-- logo mark -->
+  <g transform="translate(80 130)">
+    <path d="M0 0 V112 a80 80 0 0 0 160 0 V0"
+          stroke="#e2e8f0" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M92 22 L48 98 H80 L68 150 L120 68 H88 Z"
+          fill="#f59e0b"/>
+  </g>
+
+  <!-- wordmark -->
+  <text x="280" y="222" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+        font-size="148" font-weight="800" fill="#f8fafc" letter-spacing="-6">
+    UP<tspan fill="#f59e0b">S</tspan>ide
+  </text>
+
+  <!-- tagline -->
+  <text x="284" y="282" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+        font-size="30" font-weight="500" fill="#94a3b8" letter-spacing="0.5">
+    UPS monitoring for Cockpit, powered by NUT
+  </text>
+
+  <!-- meta strip -->
+  <g transform="translate(80 390)" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" fill="#64748b">
+    <text x="0" y="0">cockpit-upside</text>
+    <circle cx="180" cy="-6" r="3" fill="#475569"/>
+    <text x="200" y="0">Linux</text>
+    <circle cx="280" cy="-6" r="3" fill="#475569"/>
+    <text x="300" y="0">Network UPS Tools</text>
+    <circle cx="510" cy="-6" r="3" fill="#475569"/>
+    <text x="530" y="0">Dashboard</text>
+  </g>
+
+  <!-- corner bracket accents -->
+  <path d="M1200 40 H1240 V80" stroke="#1e293b" stroke-width="2" fill="none"/>
+  <path d="M1240 360 V400 H1200" stroke="#1e293b" stroke-width="2" fill="none"/>
+</svg>

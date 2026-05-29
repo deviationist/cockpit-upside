@@ -66,15 +66,20 @@ Integration tests live in `test/` (Cockpit test framework).
   Cockpit route are `upside` → served at `/upside/`.
 - **AppStream id:** `io.github.deviationist.upside`
   (`io.github.deviationist.upside.metainfo.xml`).
-- **Static assets** (e.g. the logos) must be added to the `copy-assets`
-  plugin in `build.js` — esbuild does not copy them automatically, and `*.svg`
-  is marked external. Logos are served at `/upside/logo-{light,dark}.svg`.
-- **Theme-aware logo:** two variants, `src/logo-light.svg` (light mode) and
-  `src/logo-dark.svg` (dark mode). The suffix names the *theme*, not the ink
-  colour. GUI swaps via the `.pf-v6-theme-dark` class (see `app.scss`); the
-  README swaps via a `<picture>` + `prefers-color-scheme`. Do not use a
-  `prefers-color-scheme` media query for the GUI — Cockpit's theme is
-  user-selectable and independent of the OS setting.
+- **Static assets** must be added to the `copy-assets` plugin in `build.js` —
+  esbuild does not copy them automatically, and `*.svg` is marked external.
+- **Brand kit lives in `logo/`** (canonical): `logo-colored.svg` (light-inked,
+  for dark backgrounds), `logo-colored-dark.svg` (dark-inked, for light
+  backgrounds), plus monochrome black/white. `build.js` copies the two colored
+  variants into `dist/` as `logo-light.svg` (light mode = dark-inked) and
+  `logo-dark.svg` (dark mode = light-inked) — served at
+  `/upside/logo-{light,dark}.svg`. The mapping is by *visibility*: dark ink on
+  light backgrounds, light ink on dark.
+- **GUI theme swap** is via the `.pf-v6-theme-dark` class (see `app.scss`),
+  with both `<img>`s rendered. Do **not** use a `prefers-color-scheme` media
+  query for the GUI — Cockpit's theme is user-selectable and independent of the
+  OS setting. (The README, on GitHub, is the exception: the banner is a single
+  dark SVG that reads on both GitHub themes.)
 - **Secrets:** never commit credentials or real `upsc` dumps containing
   sensitive values; redact before adding to docs/tests/issues.
 
@@ -86,10 +91,10 @@ src/index.tsx       React entrypoint
 src/app.tsx         top-level component
 src/app.scss        app styles
 src/manifest.json   Cockpit manifest (sidebar label, required cockpit version)
-src/logo-light.svg  app logo, light theme (copied to dist/ by build.js)
-src/logo-dark.svg   app logo, dark theme (copied to dist/ by build.js)
 io.github.deviationist.upside.metainfo.xml   AppStream metadata
 build.js            esbuild build
+logo/               brand kit (canonical SVGs); build.js picks two for dist/
+upside-github-banner.svg   README header banner (GitHub only)
 packaging/          RPM spec + Arch PKGBUILD
 test/               Cockpit integration tests
 ```

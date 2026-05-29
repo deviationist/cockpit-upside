@@ -117,8 +117,9 @@ const context = await esbuild.context({
                     if (output?.errors.length === 0) {
                         fs.copyFileSync('./src/manifest.json', './dist/manifest.json');
                         fs.copyFileSync('./src/index.html', './dist/index.html');
-                        fs.copyFileSync('./src/logo-light.svg', './dist/logo-light.svg');
-                        fs.copyFileSync('./src/logo-dark.svg', './dist/logo-dark.svg');
+                        // Theme logos: dark-inked artwork for light mode, light-inked for dark mode.
+                        fs.copyFileSync('./logo/logo-colored-dark.svg', './dist/logo-light.svg');
+                        fs.copyFileSync('./logo/logo-colored.svg', './dist/logo-dark.svg');
                     }
                 });
             }
