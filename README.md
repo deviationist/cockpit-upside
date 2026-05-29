@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="upside-github-banner.svg" alt="UPSide — UPS monitoring for Cockpit, powered by NUT" width="100%">
+  <img src="banner.svg?v=2" alt="UPSide — UPS monitoring for Cockpit, powered by NUT" width="100%">
 </p>
 
 # UPSide
