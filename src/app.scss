@@ -125,6 +125,15 @@ $upside-amber: #f59e0b;
     --pf-v6-l-gallery--GridTemplateColumns: repeat(auto-fill, minmax(20rem, 1fr));
 }
 
+// PatternFly 6's default card border references --pf-t--global--border--color--subtle,
+// a token the curated cockpit PatternFly bundle doesn't define — so the border
+// (and the card's elevation) never paints and cards look flat. Give cards an
+// explicit, theme-aware border using a token that IS defined (same approach as
+// Cockpit's own insights card).
+.pf-v6-c-card {
+    border: 1px solid var(--pf-t--global--border--color--default);
+}
+
 // Detail page: stack the header, gauges, group cards and the full table.
 .upside-detail {
     display: flex;
