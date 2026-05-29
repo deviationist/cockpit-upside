@@ -52,9 +52,18 @@ export interface HistoryOptions {
     timeoutMs?: number; // safety cap per channel
 }
 
-// One archive read for a single window. Resolves the points (possibly empty);
-// rejects only on a channel problem.
-function fetchWindow(metric: string, ups: string, windowMs: number, interval: number, timeoutMs: number): Promise<HistPoint[]> {
+interface WindowResult {
+    points: HistPoint[];
+    meta: number; // # of meta messages seen
+    data: number; // # of data messages seen
+    instances: string[]; // instance names from the last meta
+    instIndex: number; // matched column for our UPS
+    firstMeta?: string; // raw first meta message (truncated), for diagnosis
+}
+
+// One archive read for a single window. Resolves a result (points possibly
+// empty, plus diagnostics); rejects only on a channel problem.
+function fetchWindow(metric: string, ups: string, windowMs: number, interval: number, timeoutMs: number): Promise<WindowResult> {
     const limit = Math.max(1, Math.round(windowMs / interval));
     const start = Date.now() - windowMs;
 
@@ -62,6 +71,10 @@ function fetchWindow(metric: string, ups: string, windowMs: number, interval: nu
         const points: HistPoint[] = [];
         const state: State = [];
         let instIndex = -1;
+        let metaCount = 0;
+        let dataCount = 0;
+        let instances: string[] = [];
+        let firstMeta: string | undefined;
         let t = start;
         let settled = false;
 
@@ -83,7 +96,7 @@ function fetchWindow(metric: string, ups: string, windowMs: number, interval: nu
             if (err)
                 reject(err);
             else
-                resolve(points);
+                resolve({ points, meta: metaCount, data: dataCount, instances, instIndex, firstMeta });
         };
 
         const timer = window.setTimeout(() => finish(), timeoutMs);
@@ -91,12 +104,21 @@ function fetchWindow(metric: string, ups: string, windowMs: number, interval: nu
         channel.addEventListener("message", (_event: unknown, raw: string) => {
             const message = JSON.parse(raw);
             if (!Array.isArray(message)) {
+                metaCount++;
+                if (firstMeta === undefined)
+                    firstMeta = raw.slice(0, 300);
                 if (typeof message.timestamp === "number")
                     t = message.timestamp;
                 const insts: string[] = message.metrics?.[0]?.instances ?? [];
-                instIndex = insts.length ? insts.findIndex(name => instanceMatches(name, ups)) : 0;
+                if (insts.length) {
+                    instances = insts;
+                    instIndex = insts.findIndex(name => instanceMatches(name, ups));
+                } else {
+                    instIndex = 0;
+                }
                 return;
             }
+            dataCount++;
             (message as Sample[]).forEach(sample => {
                 decompress(sample, state);
                 const col = state[0];
@@ -123,16 +145,21 @@ export async function fetchHistory(metric: string, ups: string, opts: HistoryOpt
     const windows = [...new Set([base, 10_800_000, 3_600_000, 1_800_000, 600_000, 300_000].filter(w => w <= base))];
 
     let lastErr: Error | undefined;
+    let lastResult: WindowResult | undefined;
     for (const w of windows) {
         try {
-            const points = await fetchWindow(metric, ups, w, interval, timeoutMs);
-            if (points.length)
-                return points;
+            const r = await fetchWindow(metric, ups, w, interval, timeoutMs);
+            if (r.points.length)
+                return r.points;
+            lastResult = r;
         } catch (e) {
             lastErr = e instanceof Error ? e : new Error(String(e));
         }
     }
     if (lastErr)
         throw lastErr;
+    if (lastResult)
+        // Channel worked but produced no usable points — surface why.
+        throw new Error(`0 samples (meta:${lastResult.meta}, data:${lastResult.data}, idx:${lastResult.instIndex}, insts:${JSON.stringify(lastResult.instances)}, firstMeta:${lastResult.firstMeta ?? "none"})`);
     return [];
 }
