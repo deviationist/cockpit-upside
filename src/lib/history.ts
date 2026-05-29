@@ -61,6 +61,8 @@ export function fetchHistory(metric: string, ups: string, opts: HistoryOptions =
         let t = start;
         let settled = false;
 
+        console.info("[UPSide history] open", metric, "ups=" + ups, { start, interval, limit });
+
         const channel = cockpit.channel({
             payload: "metrics1",
             source: "pcp-archive",
@@ -82,7 +84,10 @@ export function fetchHistory(metric: string, ups: string, opts: HistoryOptions =
                 resolve(points);
         };
 
-        const timer = window.setTimeout(() => finish(), timeoutMs);
+        const timer = window.setTimeout(() => {
+            console.warn("[UPSide history]", metric, "timed out after", timeoutMs, "ms; points:", points.length, "instIndex:", instIndex);
+            finish();
+        }, timeoutMs);
 
         channel.addEventListener("message", (_event: unknown, raw: string) => {
             const message = JSON.parse(raw);
@@ -95,7 +100,7 @@ export function fetchHistory(metric: string, ups: string, opts: HistoryOptions =
                     instIndex = insts.findIndex(name => instanceMatches(name, ups));
                 else
                     instIndex = 0; // singular metric (single UPS, no instances)
-                console.debug("[UPSide history]", metric, "meta:", JSON.stringify(message), "instances:", insts, "→ index", instIndex);
+                console.info("[UPSide history]", metric, "meta:", JSON.stringify(message), "instances:", insts, "→ index", instIndex);
                 return;
             }
             (message as Sample[]).forEach(sample => {
@@ -112,7 +117,7 @@ export function fetchHistory(metric: string, ups: string, opts: HistoryOptions =
             if (options?.problem)
                 console.warn("[UPSide history]", metric, "channel closed with problem:", options.problem);
             else
-                console.debug("[UPSide history]", metric, "closed; points:", points.length);
+                console.info("[UPSide history]", metric, "closed; points:", points.length);
             finish(options?.problem ? new Error(options.problem) : undefined);
         });
     });

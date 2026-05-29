@@ -212,6 +212,16 @@ $upside-amber: #f59e0b;
     gap: 1rem;
 }
 
+// PatternFly's spaceItems sets a symmetric gap, which wastes vertical space
+// when a row wraps. Keep the (larger) column gap but shrink the row gap.
+.upside-detail__head {
+    row-gap: var(--pf-t--global--spacer--sm);
+}
+
+.upside-gauges {
+    row-gap: var(--pf-t--global--spacer--md);
+}
+
 // .pf-v6-c-breadcrumb__item sets its own font-size via this token (defaults to
 // the small body size, ~12px), and __link uses font-size: inherit — so a plain
 // font-size on the container is bypassed. Override the item token instead;

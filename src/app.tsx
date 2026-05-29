@@ -368,6 +368,7 @@ const Detail = ({ upses, error, name, obSince, config }: {
     return (
         <div className="upside-detail">
             <Flex
+                className="upside-detail__head"
                 alignItems={{ default: "alignItemsCenter" }}
                 spaceItems={{ default: "spaceItemsLg" }}
                 flexWrap={{ default: "wrap" }}
@@ -421,6 +422,7 @@ const Detail = ({ upses, error, name, obSince, config }: {
             <Card>
                 <CardBody>
                     <Flex
+                        className="upside-gauges"
                         justifyContent={{ default: "justifyContentSpaceAround" }}
                         alignItems={{ default: "alignItemsCenter" }}
                         flexWrap={{ default: "wrap" }}
