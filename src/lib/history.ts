@@ -58,6 +58,9 @@ export function fetchHistory(metric: string, ups: string, opts: HistoryOptions =
         const points: HistPoint[] = [];
         const state: State = [];
         let instIndex = -1;
+        let lastInstances: string[] = [];
+        let metaCount = 0;
+        let dataMsgs = 0;
         let t = start;
         let settled = false;
 
@@ -80,6 +83,9 @@ export function fetchHistory(metric: string, ups: string, opts: HistoryOptions =
             channel.close();
             if (err)
                 reject(err);
+            else if (points.length === 0)
+                // No error, but nothing usable — say why (instance match vs empty window).
+                reject(new Error(`0 samples (meta msgs: ${metaCount}, data msgs: ${dataMsgs}, instances: ${JSON.stringify(lastInstances)}, matched index: ${instIndex})`));
             else
                 resolve(points);
         };
@@ -95,14 +101,18 @@ export function fetchHistory(metric: string, ups: string, opts: HistoryOptions =
                 // meta message: record base timestamp + our instance column
                 if (typeof message.timestamp === "number")
                     t = message.timestamp;
+                metaCount++;
                 const insts: string[] = message.metrics?.[0]?.instances ?? [];
-                if (insts.length)
+                if (insts.length) {
+                    lastInstances = insts;
                     instIndex = insts.findIndex(name => instanceMatches(name, ups));
-                else
+                } else {
                     instIndex = 0; // singular metric (single UPS, no instances)
+                }
                 console.info("[UPSide history]", metric, "meta:", JSON.stringify(message), "instances:", insts, "→ index", instIndex);
                 return;
             }
+            dataMsgs++;
             (message as Sample[]).forEach(sample => {
                 decompress(sample, state);
                 const col = state[0];
