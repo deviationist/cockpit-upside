@@ -44,29 +44,35 @@ const WINDOW_MS = 6 * 3600_000; // last 6 hours
 export const Trends = ({ ups }: { ups: string }) => {
     const [data, setData] = useState<Record<string, HistPoint[]> | null>(null);
     const [failed, setFailed] = useState(false);
+    const [diag, setDiag] = useState<string | null>(null);
 
     useEffect(() => {
         let cancelled = false;
         setData(null);
         setFailed(false);
+        setDiag(null);
 
         Promise.all(SERIES.map(s =>
             fetchHistory(`openmetrics.nut.${s.key}`, ups, { windowMs: WINDOW_MS })
-                    .then(points => [s.key, points] as const)
-                    .catch(() => [s.key, [] as HistPoint[]] as const)
-        )).then(entries => {
+                    .then(points => ({ key: s.key, points, err: undefined as string | undefined }))
+                    .catch((e: { message?: string }) => ({ key: s.key, points: [] as HistPoint[], err: e?.message || String(e) }))
+        )).then(results => {
             if (cancelled)
                 return;
-            const map = Object.fromEntries(entries);
-            // If every series came back empty, treat history as unavailable.
-            if (Object.values(map).every(p => p.length === 0))
+            const map = Object.fromEntries(results.map(r => [r.key, r.points]));
+            if (results.every(r => r.points.length === 0)) {
+                const firstErr = results.find(r => r.err)?.err;
+                setDiag(firstErr ? `channel error: ${firstErr}` : "the PCP channel returned 0 samples for this UPS");
                 setFailed(true);
-            else
+            } else {
                 setData(map);
+            }
         })
-                .catch(() => {
-                    if (!cancelled)
+                .catch((e: { message?: string }) => {
+                    if (!cancelled) {
+                        setDiag(e?.message || String(e));
                         setFailed(true);
+                    }
                 });
 
         return () => { cancelled = true };
@@ -76,7 +82,8 @@ export const Trends = ({ ups }: { ups: string }) => {
     if (failed) {
         body = (
             <Alert variant="info" isInline title={_("No history yet")}>
-                {_("History comes from PCP (pmlogger). It will appear here once a few samples have been recorded; if PCP isn't collecting NUT metrics, there's nothing to show.")}
+                <p>{_("History comes from PCP (pmlogger). It will appear here once a few samples have been recorded; if PCP isn't collecting NUT metrics, there's nothing to show.")}</p>
+                {diag && <p className="pf-v6-u-mt-sm"><strong>{_("Diagnostic:")}</strong> {diag}</p>}
             </Alert>
         );
     } else if (data === null) {
