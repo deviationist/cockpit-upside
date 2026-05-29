@@ -112,6 +112,13 @@ $upside-amber: #f59e0b;
     fill: currentcolor;
 }
 
+// Status pills in a card title: give them room to breathe.
+.upside-status-labels {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
 // Responsive card grid (mirrors Cockpit's system overview): fill the row with
 // cards of a sensible minimum width rather than a fixed column count.
 .upside-gallery {
