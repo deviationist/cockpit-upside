@@ -11,7 +11,6 @@ import { Card, CardBody, CardTitle } from "@patternfly/react-core/dist/esm/compo
 import { Content } from "@patternfly/react-core/dist/esm/components/Content/index.js";
 import { EmptyState, EmptyStateBody } from "@patternfly/react-core/dist/esm/components/EmptyState/index.js";
 import { Label } from "@patternfly/react-core/dist/esm/components/Label/index.js";
-import { Nav, NavItem, NavList } from "@patternfly/react-core/dist/esm/components/Nav/index.js";
 import { Page, PageSection } from "@patternfly/react-core/dist/esm/components/Page/index.js";
 import { Progress, ProgressMeasureLocation, ProgressVariant } from "@patternfly/react-core/dist/esm/components/Progress/index.js";
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
@@ -202,37 +201,51 @@ const NAV: { key: TabKey, label: string }[] = [
     { key: "about", label: _("About") },
 ];
 
+/* GitHub mark, inlined so it ships with the bundle (no icon dependency). */
+const GithubMark = () => (
+    <svg viewBox="0 0 16 16" aria-hidden="true" className="upside-masthead__github-icon">
+        <path fillRule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+    </svg>
+);
+
 export const Application = () => {
     const [tab, setTab] = useState<TabKey>("overview");
 
     return (
         <Page className="pf-m-no-sidebar">
-            <PageSection hasBodyWrapper={false} className="upside-header" padding={{ default: "padding" }}>
-                <Flex alignItems={{ default: "alignItemsCenter" }} spaceItems={{ default: "spaceItemsLg" }}>
-                    <FlexItem>
-                        {/* Icon-only logo; app.scss shows one variant per Cockpit theme. */}
-                        <img className="upside-logo upside-logo--light" src="logo-light.svg" alt="UPSide" height="28" />
-                        <img className="upside-logo upside-logo--dark" src="logo-dark.svg" alt="UPSide" height="28" />
-                    </FlexItem>
-                    <FlexItem>
-                        <Nav
-variant="horizontal-subnav"
-                             onSelect={(_event, result) => setTab(result.itemId as TabKey)}
+            <header className="upside-masthead">
+                <div className="upside-masthead__brand">
+                    {/* Light-inked logo on the dark brand bar. */}
+                    <img className="upside-logo" src="logo-dark.svg" alt="" />
+                    <div className="upside-masthead__titles">
+                        <span className="upside-masthead__name">UPSide</span>
+                        <span className="upside-masthead__tagline">{_("UPS monitoring · NUT")}</span>
+                    </div>
+                </div>
+                <nav className="upside-masthead__nav" aria-label={_("Sections")}>
+                    {NAV.map(item => (
+                        <button
+                            key={item.key}
+                            type="button"
+                            className={"upside-tab" + (tab === item.key ? " upside-tab--active" : "")}
+                            aria-current={tab === item.key ? "page" : undefined}
+                            onClick={() => setTab(item.key)}
                         >
-                            <NavList>
-                                {NAV.map(item => (
-                                    <NavItem
-key={item.key} itemId={item.key}
-                                             isActive={tab === item.key} preventDefault
-                                    >
-                                        {item.label}
-                                    </NavItem>
-                                ))}
-                            </NavList>
-                        </Nav>
-                    </FlexItem>
-                </Flex>
-            </PageSection>
+                            {item.label}
+                        </button>
+                    ))}
+                </nav>
+                <a
+                    className="upside-masthead__action"
+                    href="https://github.com/deviationist/cockpit-upside"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={_("UPSide on GitHub")}
+                    title={_("UPSide on GitHub")}
+                >
+                    <GithubMark />
+                </a>
+            </header>
             <PageSection hasBodyWrapper={false}>
                 {tab === "overview" ? <Overview /> : <About />}
             </PageSection>

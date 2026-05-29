@@ -1,42 +1,115 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 @use "page.scss";
 
-// Logo sizing. The HTML height attribute is overridden by PatternFly's
-// `img { height: auto }` reset, so constrain the size here (the portrait SVG
-// would otherwise render at its intrinsic 232px). width auto keeps the ratio.
+// Brand palette, taken from the UPSide banner: deep navy header with the amber
+// "bolt" as the accent colour.
+$upside-navy-top: #0d1526;
+$upside-navy: #0b1220;
+$upside-amber: #f59e0b;
+
+// Branded masthead — owns the top of the plugin's space.
+.upside-masthead {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    padding-block: 0.75rem;
+    padding-inline: 1.5rem;
+    background: linear-gradient(180deg, $upside-navy-top 0%, $upside-navy 100%);
+    border-block-end: 3px solid $upside-amber;
+    box-shadow: 0 2px 10px rgb(0 0 0 / 35%);
+}
+
+.upside-masthead__brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
 .upside-logo {
     display: block;
-    block-size: 1.75rem;
+    block-size: 2.25rem; // ~36px; HTML attr is overridden by PF's img reset
     inline-size: auto;
 }
 
-// Theme-aware logo: show the light-mode artwork by default, swap to the
-// dark-mode artwork when Cockpit's dark theme is active. The `cockpit-dark-theme`
-// import in index.tsx propagates Cockpit's theme into this iframe and sets the
-// PatternFly 6 dark class on the document root.
-.upside-logo--dark {
-    display: none;
+.upside-masthead__titles {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
 }
 
-.pf-v6-theme-dark {
-    .upside-logo--light {
-        display: none;
+.upside-masthead__name {
+    color: #f8fafc;
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+.upside-masthead__tagline {
+    color: #94a3b8;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+}
+
+// Tab navigation living inside the branded bar.
+.upside-masthead__nav {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-inline-start: 0.5rem;
+}
+
+.upside-tab {
+    appearance: none;
+    border: 0;
+    border-block-end: 2px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: #cbd5e1;
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding-block: 0.4rem;
+    padding-inline: 0.9rem;
+    cursor: pointer;
+    transition: color 0.1s, background-color 0.1s, border-color 0.1s;
+
+    &:hover {
+        color: #fff;
+        background: rgb(255 255 255 / 6%);
     }
 
-    .upside-logo--dark {
-        display: block;
+    &:focus-visible {
+        outline: 2px solid $upside-amber;
+        outline-offset: 2px;
     }
 }
 
-// Top bar: logo + horizontal sub-nav. Drop the section's default bottom padding
-// so the sub-nav's own underline sits flush against the content below.
-.upside-header {
-    padding-block-end: 0;
+.upside-tab--active {
+    color: #fff;
+    background: rgb(255 255 255 / 8%);
+    border-block-end-color: $upside-amber;
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+}
 
-    .pf-v6-c-nav {
-        // Let the logo and nav share one baseline without the nav stretching.
-        align-self: stretch;
+// Right-aligned actions (GitHub link).
+.upside-masthead__action {
+    margin-inline-start: auto;
+    display: inline-flex;
+    align-items: center;
+    color: #94a3b8;
+
+    &:hover {
+        color: #fff;
     }
+}
+
+.upside-masthead__github-icon {
+    inline-size: 1.35rem;
+    block-size: 1.35rem;
+    fill: currentcolor;
 }
 
 // Responsive card grid (mirrors Cockpit's system overview): fill the row with
