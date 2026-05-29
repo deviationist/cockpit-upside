@@ -589,7 +589,7 @@ export const Application = () => {
                 <div className="upside-masthead__brand">
                     <img className="upside-logo" src="logo-dark.svg" alt="" />
                     <div className="upside-masthead__titles">
-                        <span className="upside-masthead__name">UPSide</span>
+                        <span className="upside-masthead__name">UP<span className="upside-masthead__name-accent">S</span>ide</span>
                         <span className="upside-masthead__tagline">{_("UPS monitoring · NUT")}</span>
                     </div>
                 </div>
