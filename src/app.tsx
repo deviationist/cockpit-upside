@@ -351,7 +351,6 @@ const Detail = ({ upses, error, name, obSince }: {
     return (
         <div className="upside-detail">
             <Flex
-                className="upside-detail__bar"
                 alignItems={{ default: "alignItemsCenter" }}
                 spaceItems={{ default: "spaceItemsLg" }}
                 flexWrap={{ default: "wrap" }}
@@ -583,7 +582,7 @@ export const Application = () => {
                     <GithubMark />
                 </a>
             </header>
-            <PageSection hasBodyWrapper={false}>
+            <PageSection hasBodyWrapper={false} className="upside-content">
                 {view}
             </PageSection>
         </Page>
