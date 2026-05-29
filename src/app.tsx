@@ -343,6 +343,10 @@ const Detail = ({ upses, error, name, obSince, config, descs }: {
 
     const { vars, status } = ups;
     const title = displayName(ups, descs, config.names);
+    const draftName = nameDraft.trim();
+    const dupUps = renaming && draftName
+        ? upses.find(u => u.ref.name !== ups.ref.name && displayName(u, descs, config.names) === draftName)
+        : undefined;
     const charge = num(vars, "battery.charge");
     const load = num(vars, "ups.load");
     const runtime = vars["battery.runtime"];
@@ -433,15 +437,19 @@ const Detail = ({ upses, error, name, obSince, config, descs }: {
                                         )}
                                     >
                                         <DropdownList>
-                                            {upses.map(u => (
-                                                <DropdownItem
-                                                    key={u.id}
-                                                    isSelected={u.ref.name === name}
-                                                    onClick={() => cockpit.location.go(["ups", u.ref.name])}
-                                                >
-                                                    {displayName(u, descs, config.names)}
-                                                </DropdownItem>
-                                            ))}
+                                            {upses.map(u => {
+                                                const dn = displayName(u, descs, config.names);
+                                                return (
+                                                    <DropdownItem
+                                                        key={u.id}
+                                                        isSelected={u.ref.name === name}
+                                                        description={dn !== u.ref.name ? u.ref.name : undefined}
+                                                        onClick={() => cockpit.location.go(["ups", u.ref.name])}
+                                                    >
+                                                        {dn}
+                                                    </DropdownItem>
+                                                );
+                                            })}
                                         </DropdownList>
                                     </Dropdown>
                                 )
@@ -452,18 +460,24 @@ const Detail = ({ upses, error, name, obSince, config, descs }: {
                 <FlexItem>
                     {renaming
                         ? (
-                            <Flex spaceItems={{ default: "spaceItemsSm" }} alignItems={{ default: "alignItemsCenter" }}>
-                                <FlexItem>
-                                    <TextInput
-                                        value={nameDraft}
-                                        onChange={(_ev, v) => setNameDraft(v)}
-                                        aria-label={_("Custom name")}
-                                        placeholder={ups.ref.name}
-                                    />
-                                </FlexItem>
-                                <Button variant="primary" onClick={saveName}>{_("Save")}</Button>
-                                <Button variant="link" onClick={() => setRenaming(false)}>{_("Cancel")}</Button>
-                            </Flex>
+                            <div>
+                                <Flex spaceItems={{ default: "spaceItemsSm" }} alignItems={{ default: "alignItemsCenter" }}>
+                                    <FlexItem>
+                                        <TextInput
+                                            value={nameDraft}
+                                            onChange={(_ev, v) => setNameDraft(v)}
+                                            aria-label={_("Custom name")}
+                                            placeholder={ups.ref.name}
+                                        />
+                                    </FlexItem>
+                                    <Button variant="primary" onClick={saveName}>{_("Save")}</Button>
+                                    <Button variant="link" onClick={() => setRenaming(false)}>{_("Cancel")}</Button>
+                                </Flex>
+                                {dupUps &&
+                                    <Content component="small" className="upside-warn">
+                                        {cockpit.format(_("\"$0\" is already used by $1"), draftName, dupUps.ref.name)}
+                                    </Content>}
+                            </div>
                         )
                         : (
                             <Button
