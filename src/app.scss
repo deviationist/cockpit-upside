@@ -134,6 +134,45 @@ $upside-amber: #f59e0b;
     --pf-v6-l-gallery--GridTemplateColumns: repeat(auto-fill, minmax(20rem, 1fr));
 }
 
+// Trends: a responsive grid of small history charts.
+.upside-trends {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    gap: 1.25rem;
+}
+
+.upside-chart {
+    margin: 0;
+}
+
+.upside-chart__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-block-end: 0.25rem;
+}
+
+.upside-chart__label {
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+    font-size: 0.9rem;
+}
+
+.upside-chart__current {
+    font-weight: 700;
+}
+
+.upside-chart__svg {
+    display: block;
+    inline-size: 100%;
+}
+
+.upside-chart__empty {
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+    font-size: 0.85rem;
+    text-align: center;
+    padding-block: 1.5rem;
+}
+
 // Drop the border PatternFly draws on the page's main container so our content
 // area reads as a single surface under the masthead.
 .pf-v6-c-page__main-container {

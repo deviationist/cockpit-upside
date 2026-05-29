@@ -23,6 +23,7 @@ import { Gallery } from "@patternfly/react-core/dist/esm/layouts/Gallery/index.j
 import cockpit from 'cockpit';
 
 import { Gauge } from './Gauge';
+import { Trends } from './Trends';
 import { formatElapsed, monthsBetween, parseNutDate } from './lib/derive';
 import { Ups, UpsState, UpsStatus, UpsVars, formatRuntime, listUps, num, readUps, stateLabel } from './lib/nut';
 
@@ -423,6 +424,8 @@ const Detail = ({ upses, error, name, obSince }: {
                     </Flex>
                 </CardBody>
             </Card>
+
+            <Trends ups={ups.ref.name} />
 
             <Gallery className="upside-gallery" hasGutter>
                 {groups.map(g => (
