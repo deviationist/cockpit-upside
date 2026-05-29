@@ -93,6 +93,16 @@ Integration tests live in `test/` (Cockpit test framework).
   `logo-dark.svg` (dark mode = light-inked) — served at
   `/upside/logo-{light,dark}.svg`. The mapping is by *visibility*: dark ink on
   light backgrounds, light ink on dark.
+- **PatternFly CSS is curated — some component styles must be imported
+  explicitly.** `index.tsx` imports `patternfly/patternfly-6-cockpit.scss`,
+  Cockpit's *curated* PatternFly bundle. It covers most components (Card, Label,
+  Menu, Breadcrumb, Progress, EmptyState, …) but **omits some** — notably the
+  **Table** component, so we `import "@patternfly/patternfly/components/Table/table.css"`
+  separately. If you start using a `pf-v6-c-*` class (or a react-core component)
+  that renders unstyled, check `dist/index.css` for its class count; if missing,
+  import the standalone compiled CSS from
+  `@patternfly/patternfly/components/<Name>/<name>.css`. Don't try to load
+  another Cockpit page's bundled CSS — it isn't a stable interface.
 - **GUI theme swap** is via the `.pf-v6-theme-dark` class (see `app.scss`),
   with both `<img>`s rendered. Do **not** use a `prefers-color-scheme` media
   query for the GUI — Cockpit's theme is user-selectable and independent of the
