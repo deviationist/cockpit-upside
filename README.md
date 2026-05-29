@@ -79,9 +79,10 @@ npm run stylelint
 - [ ] UPS selector ("tenant" switch) between devices
 - [ ] Live updates via interval polling (NUT has no push model, so polling is
       the idiomatic approach) + short in-memory window for sparkline trends
-- [ ] Historical data — decide between reusing **PCP** (what Cockpit's Metrics
-      page uses, already deployed in some environments) and a self-contained
-      sampler (`upslog`/sqlite/RRD)
+- [ ] Historical data — **tiered**: NUT's own `upslog` as the zero-dependency
+      default (read via `cockpit.file()`), with optional **PCP** integration via
+      `cockpit.metrics()` where PCP is present (needs a NUT→PCP shim — there is
+      no NUT PMDA). No embedded database, per Cockpit convention.
 - [ ] Remote `upsd` support (`name@host`) for monitoring UPSes on other hosts
 - [ ] Surface a compact UPS health card on Cockpit's system **Overview** page
 - [ ] (later) Control actions — battery test, etc. — gated behind privilege
