@@ -18,3 +18,20 @@
         display: inline-block;
     }
 }
+
+// Top bar: logo + horizontal sub-nav. Drop the section's default bottom padding
+// so the sub-nav's own underline sits flush against the content below.
+.upside-header {
+    padding-block-end: 0;
+
+    .pf-v6-c-nav {
+        // Let the logo and nav share one baseline without the nav stretching.
+        align-self: stretch;
+    }
+}
+
+// Responsive card grid (mirrors Cockpit's system overview): fill the row with
+// cards of a sensible minimum width rather than a fixed column count.
+.upside-gallery {
+    --pf-v6-l-gallery--GridTemplateColumns: repeat(auto-fill, minmax(20rem, 1fr));
+}

@@ -62,7 +62,8 @@ export function parseVars(text: string): UpsVars {
  * BYPASS, OFF, CHRG charging, DISCHRG discharging, RB replace battery.
  */
 export function parseStatus(raw: string | undefined): UpsStatus {
-    const flags = (raw ?? "").trim().split(/\s+/).filter(Boolean);
+    const flags = (raw ?? "").trim().split(/\s+/)
+            .filter(Boolean);
     const has = (f: string) => flags.includes(f);
 
     let state: UpsState = "unknown";
