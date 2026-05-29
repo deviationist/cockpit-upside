@@ -351,6 +351,7 @@ const Detail = ({ upses, error, name, obSince }: {
     return (
         <div className="upside-detail">
             <Flex
+                className="upside-detail__bar"
                 alignItems={{ default: "alignItemsCenter" }}
                 spaceItems={{ default: "spaceItemsLg" }}
                 flexWrap={{ default: "wrap" }}
@@ -363,34 +364,41 @@ const Detail = ({ upses, error, name, obSince }: {
                         >
                             {_("Overview")}
                         </BreadcrumbItem>
-                        <BreadcrumbItem isActive>{ups.ref.name}</BreadcrumbItem>
+                        <BreadcrumbItem isActive>
+                            {upses.length > 1
+                                ? (
+                                    <Dropdown
+                                        isOpen={open}
+                                        onOpenChange={(o: boolean) => setOpen(o)}
+                                        onSelect={() => setOpen(false)}
+                                        toggle={toggleRef => (
+                                            <MenuToggle
+                                                ref={toggleRef}
+                                                variant="plainText"
+                                                isExpanded={open}
+                                                onClick={() => setOpen(!open)}
+                                            >
+                                                {ups.ref.name}
+                                            </MenuToggle>
+                                        )}
+                                    >
+                                        <DropdownList>
+                                            {upses.map(u => (
+                                                <DropdownItem
+                                                    key={u.id}
+                                                    isSelected={u.ref.name === name}
+                                                    onClick={() => cockpit.location.go(["ups", u.ref.name])}
+                                                >
+                                                    {u.ref.name}
+                                                </DropdownItem>
+                                            ))}
+                                        </DropdownList>
+                                    </Dropdown>
+                                )
+                                : ups.ref.name}
+                        </BreadcrumbItem>
                     </Breadcrumb>
                 </FlexItem>
-                {upses.length > 1 &&
-                    <FlexItem>
-                        <Dropdown
-                            isOpen={open}
-                            onOpenChange={(o: boolean) => setOpen(o)}
-                            onSelect={() => setOpen(false)}
-                            toggle={toggleRef => (
-                                <MenuToggle ref={toggleRef} isExpanded={open} onClick={() => setOpen(!open)}>
-                                    {ups.ref.name}
-                                </MenuToggle>
-                            )}
-                        >
-                            <DropdownList>
-                                {upses.map(u => (
-                                    <DropdownItem
-                                        key={u.id}
-                                        isSelected={u.ref.name === name}
-                                        onClick={() => cockpit.location.go(["ups", u.ref.name])}
-                                    >
-                                        {u.ref.name}
-                                    </DropdownItem>
-                                ))}
-                            </DropdownList>
-                        </Dropdown>
-                    </FlexItem>}
                 <FlexItem align={{ default: "alignRight" }}><StatusLabels status={status} /></FlexItem>
             </Flex>
 
@@ -575,7 +583,7 @@ export const Application = () => {
                     <GithubMark />
                 </a>
             </header>
-            <PageSection hasBodyWrapper={false} className="upside-content">
+            <PageSection hasBodyWrapper={false}>
                 {view}
             </PageSection>
         </Page>
