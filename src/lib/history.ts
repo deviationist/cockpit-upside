@@ -4,12 +4,17 @@
  * Copyright (C) 2026 deviationist
  *
  * Read a single NUT metric's history for one UPS from PCP archives via the
- * Cockpit "metrics1" channel (source "pcp-archive"). The channel streams a
- * meta message (instance order) followed by delta-compressed sample arrays;
- * we decompress, pick our UPS's instance column, and return time-ordered points.
+ * Cockpit "metrics1" channel (source "pcp-archive"). The channel streams a meta
+ * message (instance order) followed by delta-compressed sample arrays; we
+ * decompress, pick our UPS's instance column, and return time-ordered points.
  *
  * NUT metrics are published to PCP by the openmetrics scraper as
  * openmetrics.nut.<metric>, one instance per UPS named "<n> ups:<name>".
+ *
+ * fetchHistory() tries progressively smaller windows: the metrics1 channel
+ * returns nothing if the requested start predates where the metric exists in
+ * the archive (e.g. a freshly-started archive younger than the window). The
+ * ladder returns the largest window that actually has data.
  */
 
 import cockpit from 'cockpit';
@@ -42,15 +47,14 @@ function instanceMatches(name: string, ups: string): boolean {
 }
 
 export interface HistoryOptions {
-    interval?: number; // ms between points (default 60s, matches pmlogger)
-    windowMs?: number; // how far back (default 6h)
-    timeoutMs?: number; // safety cap if the channel never closes
+    interval?: number;   // ms between points (default 60s, matches pmlogger)
+    windowMs?: number;   // how far back to try first (default 6h)
+    timeoutMs?: number;  // safety cap per channel
 }
 
-export function fetchHistory(metric: string, ups: string, opts: HistoryOptions = {}): Promise<HistPoint[]> {
-    const interval = opts.interval ?? 60_000;
-    const windowMs = opts.windowMs ?? 6 * 3600_000;
-    const timeoutMs = opts.timeoutMs ?? 10_000;
+// One archive read for a single window. Resolves the points (possibly empty);
+// rejects only on a channel problem.
+function fetchWindow(metric: string, ups: string, windowMs: number, interval: number, timeoutMs: number): Promise<HistPoint[]> {
     const limit = Math.max(1, Math.round(windowMs / interval));
     const start = Date.now() - windowMs;
 
@@ -58,13 +62,8 @@ export function fetchHistory(metric: string, ups: string, opts: HistoryOptions =
         const points: HistPoint[] = [];
         const state: State = [];
         let instIndex = -1;
-        let lastInstances: string[] = [];
-        let metaCount = 0;
-        let dataMsgs = 0;
         let t = start;
         let settled = false;
-
-        console.info("[UPSide history] open", metric, "ups=" + ups, { start, interval, limit });
 
         const channel = cockpit.channel({
             payload: "metrics1",
@@ -83,36 +82,21 @@ export function fetchHistory(metric: string, ups: string, opts: HistoryOptions =
             channel.close();
             if (err)
                 reject(err);
-            else if (points.length === 0)
-                // No error, but nothing usable — say why (instance match vs empty window).
-                reject(new Error(`0 samples (meta msgs: ${metaCount}, data msgs: ${dataMsgs}, instances: ${JSON.stringify(lastInstances)}, matched index: ${instIndex})`));
             else
                 resolve(points);
         };
 
-        const timer = window.setTimeout(() => {
-            console.warn("[UPSide history]", metric, "timed out after", timeoutMs, "ms; points:", points.length, "instIndex:", instIndex);
-            finish();
-        }, timeoutMs);
+        const timer = window.setTimeout(() => finish(), timeoutMs);
 
         channel.addEventListener("message", (_event: unknown, raw: string) => {
             const message = JSON.parse(raw);
             if (!Array.isArray(message)) {
-                // meta message: record base timestamp + our instance column
                 if (typeof message.timestamp === "number")
                     t = message.timestamp;
-                metaCount++;
                 const insts: string[] = message.metrics?.[0]?.instances ?? [];
-                if (insts.length) {
-                    lastInstances = insts;
-                    instIndex = insts.findIndex(name => instanceMatches(name, ups));
-                } else {
-                    instIndex = 0; // singular metric (single UPS, no instances)
-                }
-                console.info("[UPSide history]", metric, "meta:", JSON.stringify(message), "instances:", insts, "→ index", instIndex);
+                instIndex = insts.length ? insts.findIndex(name => instanceMatches(name, ups)) : 0;
                 return;
             }
-            dataMsgs++;
             (message as Sample[]).forEach(sample => {
                 decompress(sample, state);
                 const col = state[0];
@@ -124,11 +108,31 @@ export function fetchHistory(metric: string, ups: string, opts: HistoryOptions =
         });
 
         channel.addEventListener("close", (_event: unknown, options: { problem?: string }) => {
-            if (options?.problem)
-                console.warn("[UPSide history]", metric, "channel closed with problem:", options.problem);
-            else
-                console.info("[UPSide history]", metric, "closed; points:", points.length);
             finish(options?.problem ? new Error(options.problem) : undefined);
         });
     });
+}
+
+export async function fetchHistory(metric: string, ups: string, opts: HistoryOptions = {}): Promise<HistPoint[]> {
+    const interval = opts.interval ?? 60_000;
+    const timeoutMs = opts.timeoutMs ?? 8_000;
+    const base = opts.windowMs ?? 6 * 3600_000;
+
+    // Largest-first ladder of windows (all ≤ base), so we return the widest
+    // span that has data even when the archive is younger than `base`.
+    const windows = [...new Set([base, 10_800_000, 3_600_000, 1_800_000, 600_000, 300_000].filter(w => w <= base))];
+
+    let lastErr: Error | undefined;
+    for (const w of windows) {
+        try {
+            const points = await fetchWindow(metric, ups, w, interval, timeoutMs);
+            if (points.length)
+                return points;
+        } catch (e) {
+            lastErr = e instanceof Error ? e : new Error(String(e));
+        }
+    }
+    if (lastErr)
+        throw lastErr;
+    return [];
 }
