@@ -26,12 +26,38 @@ export interface UpsideConfig {
     costCurrency: string;
 }
 
-export const DEFAULT_CONFIG: UpsideConfig = {
-    history: true,
-    overviewCard: false,
-    costRate: 1.5,
-    costCurrency: "NOK",
+// Region (ISO 3166) → currency (ISO 4217), for a locale-derived default
+// currency. Compact, common set; eurozone members all map to EUR.
+const REGION_CURRENCY: Record<string, string> = {
+    NO: "NOK", SE: "SEK", DK: "DKK", IS: "ISK", GB: "GBP", US: "USD", CA: "CAD",
+    AU: "AUD", NZ: "NZD", CH: "CHF", JP: "JPY", CN: "CNY", IN: "INR", KR: "KRW",
+    BR: "BRL", MX: "MXN", RU: "RUB", ZA: "ZAR", PL: "PLN", CZ: "CZK", HU: "HUF",
+    TR: "TRY", AE: "AED", SG: "SGD", HK: "HKD",
+    AT: "EUR", BE: "EUR", CY: "EUR", EE: "EUR", FI: "EUR", FR: "EUR", DE: "EUR",
+    GR: "EUR", IE: "EUR", IT: "EUR", LV: "EUR", LT: "EUR", LU: "EUR", MT: "EUR",
+    NL: "EUR", PT: "EUR", SK: "EUR", SI: "EUR", ES: "EUR",
 };
+
+// Best-effort default currency from the Cockpit (or browser) locale's region.
+function localeCurrency(): string {
+    try {
+        const lang = (cockpit as { language?: string }).language || navigator.language || "en";
+        const region = new Intl.Locale(lang).maximize().region;
+        return (region && REGION_CURRENCY[region]) || "USD";
+    } catch {
+        return "USD";
+    }
+}
+
+/** Defaults: currency follows the Cockpit locale; the rest are fixed. */
+export function defaultConfig(): UpsideConfig {
+    return {
+        history: true,
+        overviewCard: false,
+        costRate: 1.5,
+        costCurrency: localeCurrency(),
+    };
+}
 
 const PATH = "/etc/cockpit/upside.json";
 
@@ -51,13 +77,13 @@ export function saveConfig(config: UpsideConfig): Promise<void> {
  * reflects whether the current session can write the file (admin).
  */
 export function useConfig(): { config: UpsideConfig, loading: boolean } {
-    const [config, setConfig] = useState<UpsideConfig>(DEFAULT_CONFIG);
+    const [config, setConfig] = useState<UpsideConfig>(defaultConfig());
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const file = cockpit.file(PATH, { superuser: "try", syntax });
         const handler = (content: Partial<UpsideConfig> | null) => {
-            setConfig({ ...DEFAULT_CONFIG, ...(content ?? {}) });
+            setConfig({ ...defaultConfig(), ...(content ?? {}) });
             setLoading(false);
         };
         file.watch(handler);
