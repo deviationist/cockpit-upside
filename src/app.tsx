@@ -21,6 +21,7 @@ import { Flex, FlexItem } from "@patternfly/react-core/dist/esm/layouts/Flex/ind
 import { Gallery } from "@patternfly/react-core/dist/esm/layouts/Gallery/index.js";
 
 import cockpit from 'cockpit';
+import { page_status } from 'notifications';
 
 import { Gauge } from './Gauge';
 import { Settings } from './Settings';
@@ -65,6 +66,23 @@ function loadColor(pct: number): string {
     if (pct > 70)
         return "#f59e0b";
     return "#3e8635";
+}
+
+/* Worst-case status across all UPSes, for the Cockpit nav status indicator. */
+function navStatus(upses: Ups[]): { type: "warning" | "error", title: string } | null {
+    let worst: "warning" | "error" | null = null;
+    for (const u of upses) {
+        if (u.status.state === "lowBattery" || u.status.state === "offline" || u.status.replaceBattery)
+            worst = "error";
+        else if (u.status.state === "onBattery" && worst !== "error")
+            worst = "warning";
+    }
+    if (!worst)
+        return null;
+    return {
+        type: worst,
+        title: worst === "error" ? _("UPS needs attention") : _("UPS on battery"),
+    };
 }
 
 const StatusLabels = ({ status }: { status: UpsStatus }) => (
@@ -539,6 +557,18 @@ export const Application = () => {
             window.clearInterval(timer);
         };
     }, []);
+
+    // Surface UPS status next to the UPSide entry in Cockpit's navigation
+    // (shell shows an icon for a page's status). Opt-in via settings; cleared
+    // when healthy or disabled. Works in the background thanks to manifest preload.
+    useEffect(() => {
+        if (!config.overviewCard || upses === null) {
+            page_status.set_own(null);
+            return;
+        }
+        const st = navStatus(upses);
+        page_status.set_own(st ? { type: st.type, title: st.title, details: { link: true } } : null);
+    }, [upses, config.overviewCard]);
 
     const path = location.path;
     const section = (path[0] === "about" || path[0] === "settings") ? path[0] : "overview";

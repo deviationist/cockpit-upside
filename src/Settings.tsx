@@ -67,12 +67,12 @@ export const Settings = () => {
                         />
                     </FormGroup>
 
-                    <FormGroup label={_("System Overview card")} fieldId="upside-overview">
+                    <FormGroup label={_("Navigation status")} fieldId="upside-overview">
                         <Switch
                             id="upside-overview"
                             isChecked={draft.overviewCard}
                             onChange={(_ev, v) => update({ overviewCard: v })}
-                            label={_("Show a UPS health card on Cockpit's Overview page")}
+                            label={_("Show a status icon next to UPSide in the Cockpit menu when a UPS needs attention")}
                         />
                     </FormGroup>
 
