@@ -141,6 +141,11 @@ $upside-amber: #f59e0b;
     gap: 0.5rem;
 }
 
+// Soft warning under the rename field when a custom name is already in use.
+.upside-warn {
+    color: var(--pf-t--global--text--color--status--warning--default, #b98412);
+}
+
 // Technical NUT name shown under a friendly display name (card title).
 .upside-subname {
     font-size: var(--pf-t--global--font--size--sm);
