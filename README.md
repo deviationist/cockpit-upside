@@ -45,6 +45,50 @@ A single-UPS install simply shows one card and one detail view.
 - Cockpit
 - NUT (`upsd` running, at least one UPS configured in `ups.conf`)
 
+## Installation
+
+Install on the host that runs Cockpit and NUT.
+
+**Runtime:** a host running **Cockpit**, and **NUT** (`nut-server` + `nut-client`)
+with `upsd` running and at least one UPS in `ups.conf`.
+
+**To build from source:** **Node.js ≥ 18** and **npm**.
+
+### Build & install
+
+```sh
+git clone https://github.com/deviationist/cockpit-upside.git
+cd cockpit-upside
+make                 # fetches Cockpit's pkg/lib, installs deps, builds dist/
+sudo make install    # → /usr/local/share/cockpit/upside
+```
+
+Install under `/usr` (where distro packages go) instead of `/usr/local`:
+
+```sh
+sudo make install PREFIX=/usr
+```
+
+Reload Cockpit (or log out/in) → **UPSide** appears under **System**.
+
+### Per-user (no root, for trying it out)
+
+```sh
+make devel-install     # symlinks ~/.local/share/cockpit/upside → dist/
+make devel-uninstall   # remove it
+```
+
+### Uninstall
+
+```sh
+sudo rm -rf /usr/local/share/cockpit/upside   # or $PREFIX/share/cockpit/upside
+```
+
+### Historical trends (optional)
+
+Live monitoring works out of the box. For the **Trends** charts, do the one-time
+PCP setup in **[docs/enabling-history.md](docs/enabling-history.md)**.
+
 ## Development
 
 ```sh
@@ -52,15 +96,13 @@ npm install        # install build/runtime deps
 npm run watch      # rebuild dist/ on change (esbuild)
 ```
 
-To try it in a local Cockpit, symlink the built plugin into your user's
-Cockpit package path:
+Symlink the build into your user's Cockpit path once, then just `npm run watch`:
 
 ```sh
-mkdir -p ~/.local/share/cockpit
-ln -s "$(pwd)/dist" ~/.local/share/cockpit/upside
+make devel-install   # ~/.local/share/cockpit/upside → dist/
 ```
 
-Then open Cockpit and find **UPSide** in the sidebar. See
+Then open Cockpit and find **UPSide** in the sidebar (reload after rebuilds). See
 [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full setup, conventions, and how
 to run the tests.
 
