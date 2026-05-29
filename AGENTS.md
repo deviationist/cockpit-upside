@@ -30,9 +30,20 @@ It is based on the official
   selector to switch devices. A single-UPS install must still look right.
 - **Visualization via PatternFly charts** (`@patternfly/react-charts`,
   Victory-based): battery-charge donut gauge, load gauge, runtime as a
-  threshold-coloured duration. Keep a short in-memory poll window for
-  sparkline trends; persistent history is a separate, later decision
-  (PCP vs a self-contained sampler).
+  threshold-coloured duration.
+- **Historical data — tiered (decided, see research):**
+  1. **Live sparklines** from a short in-memory poll window — always on.
+  2. **Default persistent history = NUT's own `upslog`** (ships with NUT, zero
+     extra deps, fully portable). The plugin offers a one-click "Enable history"
+     that drops an `upslog` service/config, and reads the log via
+     `cockpit.file()`.
+  3. **Optional power-user tier = PCP** via the `cockpit.metrics()` API
+     (`metrics1` channel; `cockpit-pcp` is the bridge). Auto-detected, never
+     required. Note: there is **no NUT PMDA**, so feeding NUT into PCP needs a
+     small MMV/openmetrics shim — that's why PCP is the optional, not default,
+     tier.
+  - **Do NOT embed a database** (sqlite/rrd). Against Cockpit's "don't reinvent
+    subsystems" philosophy; no Cockpit plugin does this.
 
 ## Build / lint / test
 
