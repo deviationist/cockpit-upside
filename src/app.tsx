@@ -82,11 +82,13 @@ const UpsCard = ({ ups }: { ups: Ups }) => {
                 >
                     <FlexItem>{ups.ref.name}</FlexItem>
                     <FlexItem>
-                        <Label color={stateColor(status.state)}>{stateLabel(status.state)}</Label>
-                        {status.charging &&
-                            <Label color="blue" className="pf-v6-u-ml-xs">{_("Charging")}</Label>}
-                        {status.replaceBattery &&
-                            <Label color="red" className="pf-v6-u-ml-xs">{_("Replace battery")}</Label>}
+                        <span className="upside-status-labels">
+                            <Label color={stateColor(status.state)}>{stateLabel(status.state)}</Label>
+                            {status.charging &&
+                                <Label color="blue">{_("Charging")}</Label>}
+                            {status.replaceBattery &&
+                                <Label color="red">{_("Replace battery")}</Label>}
+                        </span>
                     </FlexItem>
                 </Flex>
             </CardTitle>
@@ -107,6 +109,7 @@ const UpsCard = ({ ups }: { ups: Ups }) => {
                             label={_("Manufacturer / model")}
                             value={[mfr, model].filter(Boolean).join(" · ") || undefined}
                         />
+                        <Row label={_("Battery type")} value={vars["battery.type"]} />
                         <Row
                             label={_("Runtime")}
                             value={vars["battery.runtime"] !== undefined ? formatRuntime(vars["battery.runtime"]) : undefined}
