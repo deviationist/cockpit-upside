@@ -95,6 +95,7 @@ export function fetchHistory(metric: string, ups: string, opts: HistoryOptions =
                     instIndex = insts.findIndex(name => instanceMatches(name, ups));
                 else
                     instIndex = 0; // singular metric (single UPS, no instances)
+                console.debug("[UPSide history]", metric, "meta:", JSON.stringify(message), "instances:", insts, "→ index", instIndex);
                 return;
             }
             (message as Sample[]).forEach(sample => {
@@ -108,6 +109,10 @@ export function fetchHistory(metric: string, ups: string, opts: HistoryOptions =
         });
 
         channel.addEventListener("close", (_event: unknown, options: { problem?: string }) => {
+            if (options?.problem)
+                console.warn("[UPSide history]", metric, "channel closed with problem:", options.problem);
+            else
+                console.debug("[UPSide history]", metric, "closed; points:", points.length);
             finish(options?.problem ? new Error(options.problem) : undefined);
         });
     });
