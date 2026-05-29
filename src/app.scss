@@ -212,11 +212,13 @@ $upside-amber: #f59e0b;
     gap: 1rem;
 }
 
-// Cockpit's breadcrumbs render at body--default (14px, e.g. on /metrics), but
-// ours inherited a smaller size from an ancestor. Set it on the container; the
-// links and our toggle both use font-size: inherit, so they follow.
+// .pf-v6-c-breadcrumb__item sets its own font-size via this token (defaults to
+// the small body size, ~12px), and __link uses font-size: inherit — so a plain
+// font-size on the container is bypassed. Override the item token instead;
+// links and the switcher toggle (both inherit) then follow to body--default
+// (14px), matching Cockpit's /metrics breadcrumb.
 .upside-detail .pf-v6-c-breadcrumb {
-    font-size: var(--pf-t--global--font--size--body--default);
+    --pf-v6-c-breadcrumb__item--FontSize: var(--pf-t--global--font--size--body--default);
 }
 
 // The UPS switcher is the breadcrumb's leaf (a MenuToggle). Its font is already
