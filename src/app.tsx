@@ -5,19 +5,18 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import {
-    Alert,
-    Card, CardBody, CardTitle,
-    Content,
-    EmptyState, EmptyStateBody,
-    Flex, FlexItem,
-    Gallery,
-    Label,
-    PageSection,
-    Progress, ProgressMeasureLocation, ProgressSize,
-    Spinner,
-    Title,
-} from "@patternfly/react-core";
+import { Alert } from "@patternfly/react-core/dist/esm/components/Alert/index.js";
+import { Button } from "@patternfly/react-core/dist/esm/components/Button/index.js";
+import { Card, CardBody, CardTitle } from "@patternfly/react-core/dist/esm/components/Card/index.js";
+import { Content } from "@patternfly/react-core/dist/esm/components/Content/index.js";
+import { EmptyState, EmptyStateBody } from "@patternfly/react-core/dist/esm/components/EmptyState/index.js";
+import { Label } from "@patternfly/react-core/dist/esm/components/Label/index.js";
+import { Nav, NavItem, NavList } from "@patternfly/react-core/dist/esm/components/Nav/index.js";
+import { Page, PageSection } from "@patternfly/react-core/dist/esm/components/Page/index.js";
+import { Progress, ProgressMeasureLocation, ProgressVariant } from "@patternfly/react-core/dist/esm/components/Progress/index.js";
+import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
+import { Flex, FlexItem } from "@patternfly/react-core/dist/esm/layouts/Flex/index.js";
+import { Gallery } from "@patternfly/react-core/dist/esm/layouts/Gallery/index.js";
 
 import cockpit from 'cockpit';
 
@@ -26,6 +25,8 @@ import { Ups, UpsState, formatRuntime, listUps, num, readUps, stateLabel } from 
 const _ = cockpit.gettext;
 
 const POLL_INTERVAL = 5000;
+
+type TabKey = "overview" | "about";
 
 /* PatternFly Label colour for a status state (UI concern, kept out of the data layer). */
 function stateColor(state: UpsState): "green" | "gold" | "orange" | "red" | "grey" {
@@ -44,28 +45,15 @@ function stateColor(state: UpsState): "green" | "gold" | "orange" | "red" | "gre
     }
 }
 
-const Header = () => (
-    <Flex alignItems={{ default: "alignItemsCenter" }} spaceItems={{ default: "spaceItemsMd" }}>
-        <FlexItem>
-            {/* Two variants; app.scss shows one per Cockpit theme. */}
-            <img className="upside-logo upside-logo--light" src="logo-light.svg" alt="" height="44" />
-            <img className="upside-logo upside-logo--dark" src="logo-dark.svg" alt="" height="44" />
-        </FlexItem>
-        <FlexItem>
-            <Title headingLevel="h1" size="2xl">UPSide</Title>
-        </FlexItem>
-    </Flex>
-);
-
-/* A single labelled value, rendered only when the value is present. */
-const Stat = ({ label, value }: { label: string, value: string | undefined }) => {
+/* A compact table row, rendered only when the value is present. */
+const Row = ({ label, value }: { label: string, value: string | undefined }) => {
     if (value === undefined)
         return null;
     return (
-        <FlexItem>
-            <Content component="small">{label}</Content>
-            <div>{value}</div>
-        </FlexItem>
+        <tr className="pf-v6-c-table__tr">
+            <th className="pf-v6-c-table__th" scope="row">{label}</th>
+            <td className="pf-v6-c-table__td">{value}</td>
+        </tr>
     );
 };
 
@@ -73,49 +61,69 @@ const UpsCard = ({ ups }: { ups: Ups }) => {
     const { vars, status } = ups;
     const charge = num(vars, "battery.charge");
     const load = num(vars, "ups.load");
-    const model = vars["device.model"] || vars["ups.model"];
-    const mfr = vars["device.mfr"] || vars["ups.mfr"];
     const inV = num(vars, "input.voltage");
     const outV = num(vars, "output.voltage");
+    const model = vars["device.model"] || vars["ups.model"];
+    const mfr = vars["device.mfr"] || vars["ups.mfr"];
+
+    let batteryVariant;
+    if (charge !== undefined && charge < 20)
+        batteryVariant = ProgressVariant.danger;
+    else if (charge !== undefined && charge < 50)
+        batteryVariant = ProgressVariant.warning;
+    else
+        batteryVariant = ProgressVariant.success;
 
     return (
-        <Card isCompact>
+        <Card>
             <CardTitle>
-                <Flex justifyContent={{ default: "justifyContentSpaceBetween" }}
-                      alignItems={{ default: "alignItemsCenter" }}>
+                <Flex
+                    justifyContent={{ default: "justifyContentSpaceBetween" }}
+                    alignItems={{ default: "alignItemsCenter" }}
+                >
                     <FlexItem>{ups.ref.name}</FlexItem>
                     <FlexItem>
                         <Label color={stateColor(status.state)}>{stateLabel(status.state)}</Label>
-                        {status.charging && <Label color="blue" className="pf-v6-u-ml-xs">{_("Charging")}</Label>}
-                        {status.replaceBattery && <Label color="red" className="pf-v6-u-ml-xs">{_("Replace battery")}</Label>}
+                        {status.charging &&
+                            <Label color="blue" className="pf-v6-u-ml-xs">{_("Charging")}</Label>}
+                        {status.replaceBattery &&
+                            <Label color="red" className="pf-v6-u-ml-xs">{_("Replace battery")}</Label>}
                     </FlexItem>
                 </Flex>
             </CardTitle>
             <CardBody>
-                {(mfr || model) &&
-                    <Content component="small">{[mfr, model].filter(Boolean).join(" · ")}</Content>}
-
                 {charge !== undefined &&
                     <Progress
                         value={charge}
-                        title={_("Battery")}
+                        title={_("Battery charge")}
                         label={`${charge}%`}
-                        size={ProgressSize.sm}
+                        className="pf-m-sm"
+                        variant={batteryVariant}
                         measureLocation={ProgressMeasureLocation.outside}
                     />}
 
-                <Flex spaceItems={{ default: "spaceItemsXl" }} className="pf-v6-u-mt-sm">
-                    <Stat label={_("Runtime")} value={vars["battery.runtime"] !== undefined ? formatRuntime(vars["battery.runtime"]) : undefined} />
-                    <Stat label={_("Load")} value={load !== undefined ? `${load}%` : undefined} />
-                    <Stat label={_("Input")} value={inV !== undefined ? `${inV} V` : undefined} />
-                    <Stat label={_("Output")} value={outV !== undefined ? `${outV} V` : undefined} />
-                </Flex>
+                <table className="pf-v6-c-table pf-m-grid-md pf-m-compact pf-v6-u-mt-sm">
+                    <tbody className="pf-v6-c-table__tbody">
+                        <Row
+                            label={_("Manufacturer / model")}
+                            value={[mfr, model].filter(Boolean).join(" · ") || undefined}
+                        />
+                        <Row
+                            label={_("Runtime")}
+                            value={vars["battery.runtime"] !== undefined ? formatRuntime(vars["battery.runtime"]) : undefined}
+                        />
+                        <Row label={_("Load")} value={load !== undefined ? `${load}%` : undefined} />
+                        <Row label={_("Input voltage")} value={inV !== undefined ? `${inV} V` : undefined} />
+                        <Row label={_("Output voltage")} value={outV !== undefined ? `${outV} V` : undefined} />
+                        <Row label={_("Status")} value={status.flags.join(" ") || undefined} />
+                    </tbody>
+                </table>
             </CardBody>
         </Card>
     );
 };
 
-export const Application = () => {
+const Overview = () => {
     const [upses, setUpses] = useState<Ups[] | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -130,9 +138,9 @@ export const Application = () => {
                     setUpses(list);
                     setError(null);
                 }
-            } catch (ex: any) {
+            } catch (ex) {
                 if (!cancelled)
-                    setError(ex?.message || String(ex));
+                    setError(ex instanceof Error ? ex.message : String(ex));
             }
         };
 
@@ -144,40 +152,90 @@ export const Application = () => {
         };
     }, []);
 
-    let content;
     if (error !== null) {
-        content = (
+        return (
             <Alert variant="warning" isInline title={_("Could not read UPS data")}>
                 <p>{error}</p>
-                <p>{_("Is NUT installed and is upsd running? UPSide reads UPS state with the `upsc` client.")}</p>
+                <p>{_("Is NUT installed and is upsd running? UPSide reads UPS state with the upsc client.")}</p>
             </Alert>
         );
-    } else if (upses === null) {
-        content = <Spinner aria-label={_("Loading UPS data")} />;
-    } else if (upses.length === 0) {
-        content = (
+    }
+    if (upses === null)
+        return <Spinner aria-label={_("Loading UPS data")} />;
+    if (upses.length === 0) {
+        return (
             <EmptyState headingLevel="h2" titleText={_("No UPS devices found")}>
                 <EmptyStateBody>
                     {_("No UPS is configured in NUT on this host. Define one in ups.conf and start upsd, then it will appear here.")}
                 </EmptyStateBody>
             </EmptyState>
         );
-    } else {
-        content = (
-            <Gallery hasGutter minWidths={{ default: "300px" }}>
-                {upses.map(ups => <UpsCard key={ups.id} ups={ups} />)}
-            </Gallery>
-        );
     }
+    return (
+        <Gallery className="upside-gallery" hasGutter>
+            {upses.map(ups => <UpsCard key={ups.id} ups={ups} />)}
+        </Gallery>
+    );
+};
+
+const About = () => (
+    <Card>
+        <CardTitle>{_("About UPSide")}</CardTitle>
+        <CardBody>
+            <Content component="p">
+                {_("UPSide is a Cockpit plugin for monitoring UPS devices managed by NUT (Network UPS Tools).")}
+            </Content>
+            <Content component="p">
+                <Button
+                    isInline variant="link" component="a"
+                    href="https://github.com/deviationist/cockpit-upside" target="_blank" rel="noopener noreferrer"
+                >
+                    {_("Project on GitHub")}
+                </Button>
+            </Content>
+        </CardBody>
+    </Card>
+);
+
+const NAV: { key: TabKey, label: string }[] = [
+    { key: "overview", label: _("Overview") },
+    { key: "about", label: _("About") },
+];
+
+export const Application = () => {
+    const [tab, setTab] = useState<TabKey>("overview");
 
     return (
-        <>
-            <PageSection>
-                <Header />
+        <Page className="pf-m-no-sidebar">
+            <PageSection hasBodyWrapper={false} className="upside-header" padding={{ default: "padding" }}>
+                <Flex alignItems={{ default: "alignItemsCenter" }} spaceItems={{ default: "spaceItemsLg" }}>
+                    <FlexItem>
+                        {/* Icon-only logo; app.scss shows one variant per Cockpit theme. */}
+                        <img className="upside-logo upside-logo--light" src="logo-light.svg" alt="UPSide" height="28" />
+                        <img className="upside-logo upside-logo--dark" src="logo-dark.svg" alt="UPSide" height="28" />
+                    </FlexItem>
+                    <FlexItem>
+                        <Nav
+variant="horizontal-subnav"
+                             onSelect={(_event, result) => setTab(result.itemId as TabKey)}
+                        >
+                            <NavList>
+                                {NAV.map(item => (
+                                    <NavItem
+key={item.key} itemId={item.key}
+                                             isActive={tab === item.key} preventDefault
+                                    >
+                                        {item.label}
+                                    </NavItem>
+                                ))}
+                            </NavList>
+                        </Nav>
+                    </FlexItem>
+                </Flex>
             </PageSection>
-            <PageSection>
-                {content}
+            <PageSection hasBodyWrapper={false}>
+                {tab === "overview" ? <Overview /> : <About />}
             </PageSection>
-        </>
+        </Page>
     );
 };
