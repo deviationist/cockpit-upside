@@ -97,9 +97,10 @@ npm run stylelint
 - [ ] One-click "enable history" that installs the PCP scraper automatically
 - [ ] (later) Control actions — battery test, etc. — gated behind privilege
 
-> **Note on history setup:** the PCP ingestion (OpenMetrics scraper +
-> `pmlogger` rule) is host-side configuration, not shipped by the plugin yet —
-> see the openmetrics scraper approach in the commit history / `lib/history.ts`.
+> **Enabling history:** the Trends charts need a one-time host setup (an
+> OpenMetrics scraper + a `pmlogger` rule that feed NUT into PCP). See
+> **[docs/enabling-history.md](docs/enabling-history.md)**. Live monitoring works
+> without it.
 
 ## Contributing
 

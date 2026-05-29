@@ -12,9 +12,9 @@ import { test } from 'node:test';
 
 import { formatRuntime, num, parseStatus, parseVars } from './nut-parse.ts';
 
-// Real `upsc powerwalker` sample (PowerWalker VI 1200 SH) — used to keep the
-// parser honest against actual hardware output, but the parser must stay
-// generic: nothing below is model-specific.
+// A representative `upsc` dump (a generic offline UPS) — keeps the parser honest
+// against real hardware output. The parser stays generic: nothing below is
+// model-specific.
 const SAMPLE = `battery.charge: 100
 battery.runtime: 7200
 battery.type: PbAc
