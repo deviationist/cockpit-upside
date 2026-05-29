@@ -19,8 +19,10 @@ export const Application = () => {
             <CardTitle>
                 <Flex alignItems={{ default: "alignItemsCenter" }} spaceItems={{ default: "spaceItemsMd" }}>
                     <FlexItem>
-                        {/* Served by Cockpit at /upside/logo.svg (copied from src/logo.svg at build) */}
-                        <img src="logo.svg" alt="UPSide" height="40" width="40" />
+                        {/* Two variants; CSS in app.scss shows one per Cockpit theme.
+                            Served at /upside/logo-{light,dark}.svg (copied at build). */}
+                        <img className="upside-logo upside-logo--light" src="logo-light.svg" alt="UPSide" height="40" width="40" />
+                        <img className="upside-logo upside-logo--dark" src="logo-dark.svg" alt="UPSide" height="40" width="40" />
                     </FlexItem>
                     <FlexItem>UPSide</FlexItem>
                 </Flex>

@@ -1,6 +1,20 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 @use "page.scss";
 
-p {
-    font-weight: bold;
+// Theme-aware logo: show the light-mode artwork by default, swap to the
+// dark-mode artwork when Cockpit's dark theme is active. The `cockpit-dark-theme`
+// import in index.tsx propagates Cockpit's theme into this iframe and sets the
+// PatternFly 6 dark class on the document root.
+.upside-logo--dark {
+    display: none;
+}
+
+.pf-v6-theme-dark {
+    .upside-logo--light {
+        display: none;
+    }
+
+    .upside-logo--dark {
+        display: inline-block;
+    }
 }

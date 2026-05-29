@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="src/logo.svg" alt="UPSide logo" width="140" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="src/logo-dark.svg">
+    <img src="src/logo-light.svg" alt="UPSide logo" width="140">
+  </picture>
 </p>
 
 <h1 align="center">UPSide</h1>
