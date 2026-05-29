@@ -12,7 +12,10 @@ import "cockpit-dark-theme";
 import { Application } from './app.jsx';
 
 import "patternfly/patternfly-6-cockpit.scss";
-// The cockpit PatternFly bundle above is curated and omits the Table component
+// Fill in design tokens the curated cockpit PatternFly bundle references but
+// doesn't define (version skew) — must come right after the base bundle.
+import "./patternfly-token-shim.scss";
+// The cockpit PatternFly bundle is curated and omits the Table component
 // styles, which we use for the card/detail key-value tables. Pull the
 // standalone compiled Table CSS in so pf-v6-c-table is actually styled.
 import "@patternfly/patternfly/components/Table/table.css";
