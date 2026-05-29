@@ -207,11 +207,16 @@ $upside-amber: #f59e0b;
     gap: 1rem;
 }
 
-// The UPS switcher is the breadcrumb's leaf (a MenuToggle). Size it to the
-// breadcrumb item font (Cockpit breadcrumbs use body--default = 14px, e.g. on
-// /metrics) so it doesn't read larger than the rest of the trail.
+// The UPS switcher is the breadcrumb's leaf (a MenuToggle). Its font is already
+// body--default (14px) like the links; what makes it read larger is the button
+// chrome — vertical/inline padding that grows the row. PatternFly's native
+// breadcrumb dropdown cancels this with negative margins, but our raw toggle
+// doesn't get that class, so strip the padding to sit inline like a link.
 .upside-detail .pf-v6-c-breadcrumb .pf-v6-c-menu-toggle {
-    font-size: var(--pf-t--global--font--size--body--default);
+    font-size: inherit;
+    --pf-v6-c-menu-toggle--PaddingBlockStart: 0;
+    --pf-v6-c-menu-toggle--PaddingBlockEnd: 0;
+    --pf-v6-c-menu-toggle--PaddingInlineStart: 0;
 }
 
 // SVG donut gauge.
