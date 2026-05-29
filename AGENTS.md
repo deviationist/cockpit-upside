@@ -103,16 +103,21 @@ Integration tests live in `test/` (Cockpit test framework).
   import the standalone compiled CSS from
   `@patternfly/patternfly/components/<Name>/<name>.css`. Don't try to load
   another Cockpit page's bundled CSS — it isn't a stable interface.
-- **Missing design tokens are shimmed** in `src/patternfly-token-shim.scss`
-  (imported right after the base bundle). The curated cockpit bundle *references*
-  ~42 `--pf-t--global--*` tokens it never *defines* (version skew), so
-  components that use them (e.g. the `--…--subtle` card/table border colour,
-  dropdown shadows, focus rings, link underlines) render with invalid/unpainted
-  values. The shim aliases each missing token to the nearest defined,
-  theme-aware token. To re-audit after a PatternFly bump: diff referenced vs
-  defined tokens in `dist/index.css`
-  (`grep -oE 'var\(--pf-t--global--[a-z0-9-]+' … | comm -23 … defined`); drop
-  any the bump now defines natively.
+- **Keep PatternFly versions aligned with Cockpit's `pkg/lib`.** The
+  `patternfly-6-cockpit.scss` we import is fetched from a pinned Cockpit commit
+  (see `COCKPIT_REPO_COMMIT` in the Makefile) and expects a specific PatternFly
+  version — currently **6.4** (mirror Cockpit's own `package.json`:
+  `@patternfly/{patternfly,react-core,react-icons,react-styles}`). If our npm
+  versions drift from that, the bundle references `--pf-t--global--*` design
+  tokens our PatternFly sources don't define (e.g. `…border--color--subtle`),
+  and components render with invalid/unpainted values (flat card/table borders,
+  missing shadows/focus rings). Symptom check: diff referenced vs defined
+  tokens in `dist/index.css`
+  (`grep -oE 'var\(--pf-t--global--[a-z0-9-]+' dist/index.css | sort -u` minus
+  the `--pf-t--global--…:` definitions) — it should be empty (one
+  `box-shadow--` capture artifact aside). Fix by matching versions, **not** by
+  shimming tokens. Don't jump ahead of the bundle's PatternFly (e.g. to 6.5)
+  without also bumping `COCKPIT_REPO_COMMIT`.
 - **GUI theme swap** is via the `.pf-v6-theme-dark` class (see `app.scss`),
   with both `<img>`s rendered. Do **not** use a `prefers-color-scheme` media
   query for the GUI — Cockpit's theme is user-selectable and independent of the
