@@ -117,7 +117,8 @@ const context = await esbuild.context({
                     if (output?.errors.length === 0) {
                         fs.copyFileSync('./src/manifest.json', './dist/manifest.json');
                         fs.copyFileSync('./src/index.html', './dist/index.html');
-                        fs.copyFileSync('./src/logo.svg', './dist/logo.svg');
+                        fs.copyFileSync('./src/logo-light.svg', './dist/logo-light.svg');
+                        fs.copyFileSync('./src/logo-dark.svg', './dist/logo-dark.svg');
                     }
                 });
             }
