@@ -124,3 +124,45 @@ $upside-amber: #f59e0b;
 .upside-gallery {
     --pf-v6-l-gallery--GridTemplateColumns: repeat(auto-fill, minmax(20rem, 1fr));
 }
+
+// Detail page: stack the header, gauges, group cards and the full table.
+.upside-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+// SVG donut gauge.
+.upside-gauge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0;
+}
+
+.upside-gauge__track {
+    stroke: rgb(127 127 127 / 25%); // works on light + dark
+}
+
+.upside-gauge__label {
+    margin-block-start: 0.35rem;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+    font-size: 0.9rem;
+}
+
+// Big single-value tile (e.g. runtime-left) sitting beside the gauges.
+.upside-tile {
+    text-align: center;
+}
+
+.upside-tile__value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.upside-tile__label {
+    margin-block-start: 0.35rem;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+    font-size: 0.9rem;
+}
