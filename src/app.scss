@@ -75,6 +75,19 @@ $upside-amber: #f59e0b;
     letter-spacing: 0.09em;
 }
 
+// Shown in the masthead when control mode is active.
+.upside-mode-badge {
+    align-self: center;
+    padding: 0.1rem 0.5rem;
+    border: 1px solid $upside-amber;
+    border-radius: 0.7rem;
+    color: $upside-amber;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
 // Tab navigation living inside the branded bar.
 .upside-masthead__nav {
     display: flex;

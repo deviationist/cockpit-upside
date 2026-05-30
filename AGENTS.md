@@ -137,6 +137,14 @@ Integration tests live in `test/` (Cockpit test framework).
   has a shown shell-command fallback. Keep that posture — don't add silent or
   passive privileged actions, and never auto-edit `upsd.users` (credentials).
   Scope is monitoring-only (no `upsmon`/shutdown) for now.
+- **Monitor / control mode** (`lib/config.ts` `resolveMode`): a two-tier setting.
+  The file (`/etc/cockpit/upside.json` `mode`) is authoritative when set
+  (`locked`) — an admin can pin monitor-only; the Settings UI shows it read-only
+  then. When the file omits `mode`, a per-browser pref (`lib/prefs.ts`,
+  `cockpit.localStorage`) decides, toggled in Settings; default `monitor`. The
+  effective mode is resolved in `app.tsx` (masthead shows a "Control" badge) and
+  gates whether control affordances render — it does NOT grant privilege; actions
+  still authenticate (see next bullet).
 - **Future control features** (see `ROADMAP.md`): control will use NUT's
   `upscmd` (instant commands), `upsrw` (variables) and `upsmon` (shutdown) —
   NOT the unauthenticated `upsc` path monitoring uses. Hard rules when building

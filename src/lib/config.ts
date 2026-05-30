@@ -16,7 +16,18 @@
 import cockpit from 'cockpit';
 import { useEffect, useState } from 'react';
 
+import { getPref, setPref } from './prefs';
+
+/** monitor = read-only (default); control = also expose control actions. */
+export type Mode = "monitor" | "control";
+
 export interface UpsideConfig {
+    /**
+     * Monitor (read-only) vs control mode. When present in the file it is
+     * authoritative (an admin can pin it); when absent, the per-browser pref
+     * decides (see resolveMode / prefs.ts).
+     */
+    mode?: Mode;
     /** Show the historical Trends section (reads PCP archives). */
     history: boolean;
     /** Contribute a UPS health card to Cockpit's System Overview page. */
@@ -133,12 +144,35 @@ function sanitize(content: Partial<UpsideConfig> | null): UpsideConfig {
         }
     }
     return {
+        // Only a valid value counts as "pinned in the file"; anything else
+        // (absent/garbage) leaves mode undefined so the pref tier decides.
+        mode: c.mode === "monitor" || c.mode === "control" ? c.mode : undefined,
         history: typeof c.history === "boolean" ? c.history : d.history,
         overviewCard: typeof c.overviewCard === "boolean" ? c.overviewCard : d.overviewCard,
         costRate: typeof c.costRate === "number" && Number.isFinite(c.costRate) ? c.costRate : d.costRate,
         costCurrency: typeof c.costCurrency === "string" && c.costCurrency ? c.costCurrency : d.costCurrency,
         names,
     };
+}
+
+/** Per-browser mode fallback (used only when the file doesn't pin a mode). */
+export function loadModePref(): Mode | null {
+    const v = getPref("mode");
+    return v === "monitor" || v === "control" ? v : null;
+}
+
+export function saveModePref(m: Mode): void {
+    setPref("mode", m);
+}
+
+/**
+ * Effective mode + whether it's locked by the file. The file wins when it sets
+ * `mode`; otherwise the per-browser pref applies, defaulting to monitor.
+ */
+export function resolveMode(config: UpsideConfig, pref: Mode | null): { mode: Mode, locked: boolean } {
+    if (config.mode)
+        return { mode: config.mode, locked: true };
+    return { mode: pref ?? "monitor", locked: false };
 }
 
 /** Persist the config to the host file (needs admin; cockpit prompts as needed). */

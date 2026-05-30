@@ -19,11 +19,13 @@ import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/
 
 import cockpit from 'cockpit';
 
-import { UpsideConfig, saveConfig, useConfig } from './lib/config';
+import { Mode, UpsideConfig, saveConfig, useConfig } from './lib/config';
 
 const _ = cockpit.gettext;
 
-export const Settings = () => {
+export const Settings = ({ mode, modeLocked, onModeChange }: {
+    mode: Mode, modeLocked: boolean, onModeChange: (m: Mode) => void,
+}) => {
     const { config, loading } = useConfig();
     const [draft, setDraft] = useState<UpsideConfig | null>(null);
     const [saving, setSaving] = useState(false);
@@ -57,6 +59,30 @@ export const Settings = () => {
             <CardTitle>{_("Settings")}</CardTitle>
             <CardBody>
                 <Form isHorizontal>
+                    <FormGroup label={_("Mode")} fieldId="upside-mode">
+                        {modeLocked
+                            ? (
+                                <Content component="small">
+                                    {cockpit.format(
+                                        _("Set in /etc/cockpit/upside.json — currently $0."),
+                                        mode === "control" ? _("control") : _("monitor"))}
+                                </Content>
+                            )
+                            : (
+                                <>
+                                    <Switch
+                                        id="upside-mode"
+                                        isChecked={mode === "control"}
+                                        onChange={(_ev, v) => onModeChange(v ? "control" : "monitor")}
+                                        label={_("Control mode — show control actions (battery test, beeper, …)")}
+                                    />
+                                    <Content component="small" className="pf-v6-u-mt-xs">
+                                        {_("Read-only otherwise. Control actions still require NUT authentication to run.")}
+                                    </Content>
+                                </>
+                            )}
+                    </FormGroup>
+
                     <FormGroup label={_("Historical trends")} fieldId="upside-history">
                         <Switch
                             id="upside-history"
