@@ -12,8 +12,11 @@ SPEC=$(RPM_NAME).spec
 PREFIX ?= /usr/local
 APPSTREAMFILE=io.github.deviationist.$(subst -,_,$(PACKAGE_NAME)).metainfo.xml
 VM_IMAGE=$(CURDIR)/test/images/$(TEST_OS)
-# stamp file to check for node_modules/
-NODE_MODULES_TEST=package-lock.json
+# stamp file to check for node_modules/ — npm's own marker inside node_modules,
+# present only when deps are actually installed. (We must NOT use the top-level
+# package-lock.json here: it's committed for reproducible builds, so it already
+# exists on a fresh clone and would make `make` skip installing node_modules.)
+NODE_MODULES_TEST=node_modules/.package-lock.json
 # build.js ran in non-watch mode
 DIST_TEST=runtime-npm-modules.txt
 # one example file in pkg/lib to check if it was already checked out
@@ -130,7 +133,7 @@ $(TARFILE): $(DIST_TEST) $(SPEC) packaging/arch/PKGBUILD
 	if type appstream-util >/dev/null 2>&1; then appstream-util validate-relax --nonet *.metainfo.xml; fi
 	tar --xz $(TAR_ARGS) -cf $(TARFILE) --transform 's,^,$(RPM_NAME)/,' \
 		--exclude packaging/$(SPEC).in --exclude node_modules \
-		$$(git ls-files) $(COCKPIT_REPO_FILES) $(NODE_MODULES_TEST) $(DIST_TEST) \
+		$$(git ls-files) $(COCKPIT_REPO_FILES) package-lock.json $(DIST_TEST) \
 		$(SPEC) packaging/arch/PKGBUILD dist/
 
 $(NODE_CACHE): $(NODE_MODULES_TEST)
@@ -193,9 +196,10 @@ codecheck: test/common $(NODE_MODULES_TEST)
 bots: $(COCKPIT_REPO_STAMP)
 	test/common/make-bots
 
-$(NODE_MODULES_TEST): package.json
-	# if it exists already, npm install won't update it; force that so that we always get up-to-date packages
-	rm -f package-lock.json
+$(NODE_MODULES_TEST): package.json package-lock.json
+	# Honor the committed package-lock.json for reproducible, pinned installs
+	# (npm install respects the lockfile when in sync, and only updates it when
+	# package.json changes — at which point commit the new lockfile).
 	# unset NODE_ENV, skips devDependencies otherwise; this often hangs, so try a few times
 	for _ in `seq 3`; do timeout 10m env -u NODE_ENV npm install --ignore-scripts && exit 0; done; exit 1
 	env -u NODE_ENV npm prune

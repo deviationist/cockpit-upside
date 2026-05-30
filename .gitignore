@@ -21,7 +21,6 @@
 /cockpit-navigator.spec
 /dist/
 /metafile.json
-/package-lock.json
 /pkg/
 /node_modules/
 /runtime-npm-modules.txt
