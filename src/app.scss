@@ -277,7 +277,7 @@ $upside-amber: #f59e0b;
 // section padding, so apply it on the section itself. Combined selector keeps
 // the specificity above PatternFly's own .pf-v6-c-page__main-section rules.
 .pf-v6-c-page__main-section.upside-content {
-    padding-block-start: 10px;
+    padding-block-start: 16px;
     padding-block-end: 16px;
     padding-inline: 20px;
 }
