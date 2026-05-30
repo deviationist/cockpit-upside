@@ -11,6 +11,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Modal, ModalBody, ModalFooter, ModalHeader } from "@patternfly/react-core/dist/esm/components/Modal/index.js";
+import { Alert } from "@patternfly/react-core/dist/esm/components/Alert/index.js";
 import { Form, FormGroup } from "@patternfly/react-core/dist/esm/components/Form/index.js";
 import { Button } from "@patternfly/react-core/dist/esm/components/Button/index.js";
 import { Checkbox } from "@patternfly/react-core/dist/esm/components/Checkbox/index.js";
@@ -27,22 +28,36 @@ export const NutAuthModal = ({ isOpen, authenticated, currentUser, remembered, o
     currentUser: string,
     remembered: boolean,
     onClose: () => void,
-    onApply: (user: string, pass: string, remember: boolean) => void,
+    onApply: (user: string, pass: string, remember: boolean) => void | Promise<void>,
     onForget: () => void,
 }) => {
     const [user, setUser] = useState(currentUser);
     const [pass, setPass] = useState("");
     const [remember, setRemember] = useState(remembered);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         if (isOpen) {
             setUser(currentUser);
             setPass("");
             setRemember(remembered);
+            setBusy(false);
+            setError(null);
         }
     }, [isOpen, currentUser, remembered]);
 
-    const submit = () => { if (user && pass) onApply(user, pass, remember); };
+    // Validate-on-save: onApply checks the credentials against NUT (LOGIN) and
+    // only stores them on success; a rejection keeps the dialog open with the error.
+    const submit = () => {
+        if (!user || !pass || busy)
+            return;
+        setBusy(true);
+        setError(null);
+        Promise.resolve(onApply(user, pass, remember))
+                .catch((e: { message?: string }) => setError(e?.message || String(e)))
+                .finally(() => setBusy(false));
+    };
 
     return (
         <Modal variant="small" isOpen={isOpen} onClose={onClose} aria-label={_("NUT authentication")}>
@@ -68,11 +83,17 @@ export const NutAuthModal = ({ isOpen, authenticated, currentUser, remembered, o
                         {_("Remembering stores the password unencrypted in this browser. Use only with a least-privilege NUT user.")}
                     </Content>
                 </Form>
+                {error &&
+                    <Alert variant="danger" isInline title={_("Authentication failed")} className="pf-v6-u-mt-md">
+                        {error}
+                    </Alert>}
             </ModalBody>
             <ModalFooter>
-                <Button variant="primary" onClick={submit} isDisabled={!user || !pass}>{_("Authenticate")}</Button>
-                {authenticated && <Button variant="link" isDanger onClick={onForget}>{_("Forget")}</Button>}
-                <Button variant="link" onClick={onClose}>{_("Cancel")}</Button>
+                <Button variant="primary" onClick={submit} isDisabled={!user || !pass || busy} isLoading={busy}>
+                    {_("Authenticate")}
+                </Button>
+                {authenticated && <Button variant="link" isDanger onClick={onForget} isDisabled={busy}>{_("Forget")}</Button>}
+                <Button variant="link" onClick={onClose} isDisabled={busy}>{_("Cancel")}</Button>
             </ModalFooter>
         </Modal>
     );
