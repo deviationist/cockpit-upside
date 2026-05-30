@@ -4,13 +4,12 @@
  * Copyright (C) 2026 deviationist
  *
  * Per-UPS metrics page: historical charts over a selectable range, read from
- * PCP archives via the metrics1/pcp-archive channel (lib/metrics.ts), which
- * spans multiple daily archive volumes. Reachable at #/ups/<name>/metrics.
+ * PCP archives via `pmrep` across multiple daily archive volumes (lib/metrics.ts).
+ * Reachable at #/ups/<name>/metrics.
  *
- * NOTE: the channel only works inside a live Cockpit session, so it can't be
- * exercised from the build host — the diagnostics card below reports the
- * sample count and the instance names the channel returned, to debug a no-data
- * case (e.g. an instance-naming mismatch) in the browser.
+ * NOTE: reading runs through cockpit.spawn, so it only works in a live Cockpit
+ * session — the diagnostics card reports the sample count and the instance
+ * names seen, to debug a no-data case (e.g. an instance-naming mismatch).
  */
 
 import React, { useEffect, useState } from 'react';

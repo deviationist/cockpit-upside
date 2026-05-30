@@ -3,21 +3,20 @@
  *
  * Copyright (C) 2026 deviationist
  *
- * Read NUT metric history from PCP archives via Cockpit's `metrics1`
- * `pcp-archive` channel — the same mechanism the built-in /metrics page uses.
- * Unlike the `pmrep` reader in history.ts, this channel spans multiple daily
- * archive volumes natively, so it can serve arbitrary historical ranges.
+ * Read NUT metric history for the metrics page from PCP archives via `pmrep`,
+ * spanning multiple daily archive volumes.
  *
- * Wire protocol (mirrors cockpit.js MetricsChannel):
- *  - First message is a META object (no `.length`): { timestamp, interval,
- *    metrics: [{ name, instances?, units, ... }] }. Our NUT metrics are
- *    INSTANCED by UPS, so metrics[i].instances lists the UPS instance names.
- *  - Subsequent messages are DATA arrays of samples; each sample is aligned to
- *    the metrics order, scalar for single-instance or an array indexed by the
- *    meta's instances. Values are delta-compressed: a null/undefined metric
- *    repeats the previous value; a null instance repeats that instance; missing
- *    trailing instances carry over.
- *  - The channel closes after `limit` samples (or on error).
+ * Why not the metrics1/pcp-archive channel (what the built-in /metrics uses)?
+ * That channel opens *every* archive in the pmlogger dir and aborts the whole
+ * request (with an empty problem string) if a metric is missing from any one of
+ * them. NUT metrics only exist from when the OpenMetrics scraper was first set
+ * up, so any older archive kills the request. `pmrep` lets us query archives
+ * individually and skip the ones without the metric.
+ *
+ * pmrep CSV columns are headed like "openmetrics.nut.battery_charge-8 ups:<name>"
+ * (epoch seconds in column 0 via `-f %s`); we pick, per metric, the column whose
+ * instance label is " ups:<name>". A metric-less archive makes pmrep print an
+ * error instead of a "Time,…" header, so we just skip it.
  */
 
 import cockpit from 'cockpit';
@@ -25,110 +24,164 @@ import cockpit from 'cockpit';
 export interface HistPoint { t: number, v: number }
 
 export interface ArchiveRange {
-    startMs: number; // window start (epoch ms)
-    intervalMs: number; // sample spacing
-    limit: number; // max samples before the channel closes
+    startMs: number; // window start (epoch ms) — older samples are dropped
+    intervalMs: number; // sample spacing (>= 60s, our scraper's cadence)
+    limit: number; // retained for API compatibility; pmrep bounds by interval + window
 }
 
 export interface ArchiveResult {
-    /** Points per metric name (only numeric samples for the requested UPS). */
+    /** Points per metric name (numeric samples for the requested UPS, in the window). */
     points: Record<string, HistPoint[]>;
-    /** Instance names the channel reported per metric — for diagnosing a name mismatch. */
+    /** UPS instance labels seen per metric — for diagnosing a name mismatch. */
     instances: Record<string, string[]>;
-    /** Total data samples seen across the window (regardless of UPS match). */
+    /** Total data rows seen in the window (across archives). */
     samples: number;
 }
 
-/**
- * Find the instance index for `ups` among the reported instance names. PCP /
- * the OpenMetrics PMDA may name the instance plainly ("myups") or label-style
- * ("ups:myups"), so match tolerantly.
- */
-function instanceIndex(instances: string[] | undefined, ups: string): number {
-    if (!instances)
-        return -1; // scalar metric (no instance domain)
-    return instances.findIndex(inst =>
-        inst === ups || inst.endsWith(":" + ups) || inst === "ups:" + ups || inst.endsWith("=" + ups));
+/** pmlogger archive bases (path without `.index`), newest first. Fixed shell string. */
+async function listArchiveBases(): Promise<string[]> {
+    try {
+        const out: string = await cockpit.spawn(
+            ["sh", "-c", "ls -1t /var/log/pcp/pmlogger/$(hostname)/*.index 2>/dev/null"],
+            { err: "message" });
+        return out.split("\n").map(s => s.trim())
+                .filter(Boolean)
+                .map(p => p.replace(/\.index$/, ""));
+    } catch {
+        return [];
+    }
+}
+
+/** YYYYMMDD integer for an epoch-ms instant (local time), for cheap archive filtering. */
+function dayKey(ms: number): number {
+    const d = new Date(ms);
+    return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
+
+/** The YYYYMMDD a pmlogger archive name starts with (e.g. "20260530.00.10" → 20260530). */
+function archiveDay(base: string): number | null {
+    const name = base.slice(base.lastIndexOf("/") + 1);
+    const m = /(\d{8})/.exec(name);
+    return m ? Number(m[1]) : null;
+}
+
+/** Index of the CSV column for (metric, ups): contains the metric name, ends " ups:<name>". */
+function columnFor(header: string[], metric: string, ups: string): number {
+    return header.findIndex(h => {
+        const hh = h.replace(/"/g, "").trim();
+        if (!hh.includes(metric))
+            return false;
+        const m = / ups:(.+)$/.exec(hh);
+        return m ? m[1] === ups : false;
+    });
+}
+
+/** All " ups:<name>" instance labels present for a metric (diagnostics). */
+function instancesIn(header: string[], metric: string): string[] {
+    const out: string[] = [];
+    for (const h of header) {
+        const hh = h.replace(/"/g, "").trim();
+        if (!hh.includes(metric))
+            continue;
+        const m = / ups:(.+)$/.exec(hh);
+        if (m)
+            out.push(m[1]);
+    }
+    return out;
 }
 
 /**
- * Load `metricNames` (full PCP names, e.g. "openmetrics.nut.battery_charge")
- * for one UPS over a historical window. Resolves with the per-metric points
- * plus diagnostics; rejects with the channel problem (e.g. python3-pcp missing).
+ * Load `metricNames` (full PCP names, e.g. "openmetrics.nut.battery_charge") for
+ * one UPS over a historical window, reading across the pmlogger archives that
+ * cover it. Resolves with the per-metric points plus diagnostics.
  */
-export function loadArchive(metricNames: string[], ups: string, range: ArchiveRange): Promise<ArchiveResult> {
-    return new Promise((resolve, reject) => {
-        const points: Record<string, HistPoint[]> = {};
-        const instances: Record<string, string[]> = {};
-        metricNames.forEach(n => { points[n] = [] });
-        let samples = 0;
+export async function loadArchive(metricNames: string[], ups: string, range: ArchiveRange): Promise<ArchiveResult> {
+    const points: Record<string, HistPoint[]> = {};
+    const instances: Record<string, string[]> = {};
+    metricNames.forEach(n => { points[n] = []; instances[n] = [] });
+    let samples = 0;
 
-        const channel = cockpit.channel({
-            payload: "metrics1",
-            source: "pcp-archive",
-            interval: range.intervalMs,
-            timestamp: range.startMs,
-            limit: range.limit,
-            metrics: metricNames.map(name => ({ name })),
-        });
+    const intervalSec = Math.max(60, Math.round(range.intervalMs / 1000));
+    const tArg = `${intervalSec}s`;
+    // One extra day of margin so a sample just after a rotation boundary isn't missed.
+    const startDay = dayKey(range.startMs - 86400_000);
 
-        let idx: number[] = []; // per-metric instance index for `ups` (-1 = scalar)
-        let last: (number | (number | null)[] | null)[] | null = null;
-        let t0 = 0; // epoch ms of the next sample
-
-        channel.addEventListener("message", (_ev, payload: string) => {
-            const message = JSON.parse(payload);
-
-            // META (an object, not an array of samples).
-            if (message.length === undefined) {
-                const metrics = message.metrics || [];
-                t0 = message.timestamp;
-                idx = metricNames.map((_n, i) => instanceIndex(metrics[i]?.instances, ups));
-                metricNames.forEach((n, i) => { instances[n] = metrics[i]?.instances || [] });
-                last = null; // reset the decompression baseline on (re)meta
-                return;
-            }
-
-            // DATA: array of samples, each aligned to metricNames order.
-            for (let s = 0; s < message.length; s++) {
-                const data = message[s];
-                if (last) {
-                    for (let j = 0; j < last.length; j++) {
-                        const dj = data[j];
-                        if (dj === null || dj === undefined) {
-                            data[j] = last[j];
-                        } else if (Array.isArray(dj)) {
-                            const lj = last[j] as (number | null)[];
-                            let k = 0;
-                            for (; k < dj.length; k++)
-                                if (dj[k] === null) dj[k] = lj[k];
-                            for (; k < lj.length; k++)
-                                dj[k] = lj[k];
-                        }
-                    }
-                }
-                last = data;
-                samples++;
-
-                const t = t0 + s * range.intervalMs;
-                for (let mi = 0; mi < metricNames.length; mi++) {
-                    const cell = data[mi];
-                    const v = idx[mi] === -1
-                        ? (typeof cell === "number" ? cell : undefined)
-                        : (Array.isArray(cell) ? cell[idx[mi]] : undefined);
-                    if (typeof v === "number" && !Number.isNaN(v))
-                        points[metricNames[mi]].push({ t, v });
-                }
-            }
-            t0 += range.intervalMs * message.length;
-        });
-
-        channel.addEventListener("close", (_ev, options: { problem?: string, message?: string }) => {
-            channel.close();
-            if (options.problem)
-                reject(new Error(options.message || options.problem));
-            else
-                resolve({ points, instances, samples });
-        });
+    const bases = (await listArchiveBases()).filter(b => {
+        const d = archiveDay(b);
+        return d === null || d >= startDay;
     });
+    if (bases.length === 0)
+        return { points, instances, samples };
+
+    // pmrep fails the WHOLE call if any requested metric can't be read — and a
+    // metric can be *defined but never sampled* (e.g. ups.realpower on a UPS
+    // that doesn't report watts → PM_ERR_INDOM_LOG). So probe each metric once
+    // against the newest archive and only query the ones that actually work.
+    const probe = await Promise.all(metricNames.map(async n => {
+        try {
+            const out: string = await cockpit.spawn(
+                ["pmrep", "-z", "-a", bases[0], "-t", tArg, "-s", "1", "-o", "csv", "-f", "%s", n],
+                { err: "message" });
+            return out.split("\n").some(l => l.startsWith("Time")) ? n : null;
+        } catch {
+            return null;
+        }
+    }));
+    const queryable = probe.filter((n): n is string => n !== null);
+    if (queryable.length === 0)
+        return { points, instances, samples };
+
+    // Fetch each candidate archive in parallel with the queryable set.
+    const dumps = await Promise.all(bases.map(async base => {
+        try {
+            return await cockpit.spawn(
+                ["pmrep", "-z", "-a", base, "-t", tArg, "-o", "csv", "-f", "%s", ...queryable],
+                { err: "message" }) as string;
+        } catch {
+            return "";
+        }
+    }));
+
+    for (const out of dumps) {
+        const lines = out.split("\n");
+        const headerLine = lines.find(l => l.startsWith("Time"));
+        if (!headerLine)
+            continue; // some queryable metric absent in this archive → skip it
+
+        const header = headerLine.split(",");
+        const cols: Record<string, number> = {};
+        for (const n of queryable) {
+            cols[n] = columnFor(header, n, ups);
+            if (instances[n].length === 0)
+                instances[n] = instancesIn(header, n);
+        }
+
+        for (const line of lines) {
+            if (!/^\d/.test(line))
+                continue; // data rows start with an epoch timestamp
+            const f = line.split(",");
+            const t = Number(f[0]) * 1000;
+            if (Number.isNaN(t) || t < range.startMs)
+                continue;
+            samples++;
+            for (const n of queryable) {
+                const ci = cols[n];
+                if (ci < 1)
+                    continue;
+                const raw = f[ci];
+                if (raw === undefined || raw === "")
+                    continue;
+                const v = Number(raw);
+                if (!Number.isNaN(v))
+                    points[n].push({ t, v });
+            }
+        }
+    }
+
+    // Archives are newest-first and may overlap; sort + dedupe per metric.
+    for (const n of metricNames) {
+        points[n].sort((a, b) => a.t - b.t);
+        points[n] = points[n].filter((p, i, arr) => i === 0 || p.t !== arr[i - 1].t);
+    }
+    return { points, instances, samples };
 }
