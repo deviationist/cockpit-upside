@@ -26,6 +26,7 @@ interface MetricChartProps {
     endMs: number; // x-domain end
     height?: number;
     emptyLabel?: string;
+    onZoom?: (startMs: number, endMs: number) => void; // drag-select to zoom
 }
 
 const M = { left: 46, right: 12, top: 16, bottom: 22 };
@@ -48,9 +49,10 @@ function useWidth(): [React.RefObject<HTMLDivElement | null>, number] {
     return [ref, w];
 }
 
-export const MetricChart = ({ points, unit, color, min, max, startMs, endMs, height = 150, emptyLabel = "No data" }: MetricChartProps) => {
+export const MetricChart = ({ points, unit, color, min, max, startMs, endMs, height = 150, emptyLabel = "No data", onZoom }: MetricChartProps) => {
     const [ref, width] = useWidth();
     const [hover, setHover] = useState<number | null>(null);
+    const [drag, setDrag] = useState<{ x0: number, x1: number } | null>(null);
 
     const innerW = Math.max(0, width - M.left - M.right);
     const innerH = height - M.top - M.bottom;
@@ -72,23 +74,48 @@ export const MetricChart = ({ points, unit, color, min, max, startMs, endMs, hei
 
     const xTicks = timeTicks(startMs, endMs, 6);
 
-    // Nearest point to the pointer (by x), for the crosshair + readout.
+    // The capture rect starts at x=M.left inside the SVG; add it back so the
+    // pointer x is in SVG coordinates, matching sx().
+    const svgX = (e: React.MouseEvent<SVGRectElement>) => e.clientX - e.currentTarget.getBoundingClientRect().left + M.left;
+    const invX = (px: number) => startMs + ((px - M.left) / (innerW || 1)) * span;
+
+    const onDown = (e: React.MouseEvent<SVGRectElement>) => {
+        if (!enough)
+            return;
+        const x = svgX(e);
+        setDrag({ x0: x, x1: x });
+        setHover(null);
+    };
     const onMove = (e: React.MouseEvent<SVGRectElement>) => {
         if (!enough)
             return;
-        // The capture rect starts at x=M.left inside the SVG; add it back so px
-        // is in SVG coordinates, matching sx().
-        const rect = e.currentTarget.getBoundingClientRect();
-        const px = e.clientX - rect.left + M.left;
+        const x = svgX(e);
+        if (drag) {
+            setDrag(d => (d ? { ...d, x1: x } : null));
+            return;
+        }
+        // Nearest point to the pointer (by x), for the crosshair + readout.
         let best = 0; let bestDx = Infinity;
         for (let i = 0; i < points.length; i++) {
-            const dx = Math.abs(sx(points[i].t) - px);
+            const dx = Math.abs(sx(points[i].t) - x);
             if (dx < bestDx) { bestDx = dx; best = i }
         }
         setHover(best);
     };
+    const onUp = () => {
+        if (drag) {
+            const a = Math.min(drag.x0, drag.x1);
+            const b = Math.max(drag.x0, drag.x1);
+            if (b - a > 8 && onZoom)
+                onZoom(Math.round(invX(a)), Math.round(invX(b)));
+            setDrag(null);
+        }
+    };
+    const onLeave = () => { setHover(null); setDrag(null) };
 
-    const hp = hover !== null && points[hover] ? points[hover] : null;
+    const hp = drag ? null : (hover !== null && points[hover] ? points[hover] : null);
+    const selX = drag ? Math.min(drag.x0, drag.x1) : 0;
+    const selW = drag ? Math.abs(drag.x1 - drag.x0) : 0;
 
     return (
         <div className="upside-mchart" ref={ref}>
@@ -122,12 +149,19 @@ export const MetricChart = ({ points, unit, color, min, max, startMs, endMs, hei
                                 <circle cx={sx(hp.t)} cy={sy(hp.v)} r={3} fill={color} />
                             </g>}
 
+                        {/* drag-to-zoom selection */}
+                        {selW > 1 &&
+                            <rect className="upside-mchart__sel" x={selX} y={M.top} width={selW} height={innerH} />}
+
                         {/* transparent capture layer */}
                         <rect
                             x={M.left} y={M.top} width={innerW} height={innerH}
                             fill="transparent"
+                            style={{ cursor: onZoom ? "crosshair" : "default" }}
+                            onMouseDown={onDown}
                             onMouseMove={onMove}
-                            onMouseLeave={() => setHover(null)}
+                            onMouseUp={onUp}
+                            onMouseLeave={onLeave}
                         />
                     </svg>
                 )}

@@ -18,8 +18,9 @@ import { Breadcrumb, BreadcrumbItem } from "@patternfly/react-core/dist/esm/comp
 import { Button } from "@patternfly/react-core/dist/esm/components/Button/index.js";
 import { Card, CardBody, CardTitle } from "@patternfly/react-core/dist/esm/components/Card/index.js";
 import { Content } from "@patternfly/react-core/dist/esm/components/Content/index.js";
+import { Dropdown, DropdownItem, DropdownList } from "@patternfly/react-core/dist/esm/components/Dropdown/index.js";
+import { MenuToggle } from "@patternfly/react-core/dist/esm/components/MenuToggle/index.js";
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
-import { ToggleGroup, ToggleGroupItem } from "@patternfly/react-core/dist/esm/components/ToggleGroup/index.js";
 import { AngleLeftIcon } from "@patternfly/react-icons/dist/esm/icons/angle-left-icon.js";
 import { AngleRightIcon } from "@patternfly/react-icons/dist/esm/icons/angle-right-icon.js";
 
@@ -43,29 +44,69 @@ const SERIES: Series[] = [
 
 const metricName = (key: string) => `openmetrics.nut.${key}`;
 
-interface Range { id: string, label: string, ms: number, intervalMs: number, limit: number }
+interface Range { id: string, label: string, ms: number, intervalMs: number }
 
 // Interval scales with the range so point counts stay bounded; 60s is the
 // finest our scraper records (the pmlogger rule logs once a minute).
 const RANGES: Range[] = [
-    { id: "1h", label: _("1 hour"), ms: 3600_000, intervalMs: 60_000, limit: 70 },
-    { id: "6h", label: _("6 hours"), ms: 6 * 3600_000, intervalMs: 60_000, limit: 370 },
-    { id: "24h", label: _("24 hours"), ms: 24 * 3600_000, intervalMs: 300_000, limit: 300 },
-    { id: "7d", label: _("7 days"), ms: 7 * 24 * 3600_000, intervalMs: 1800_000, limit: 340 },
+    { id: "5m", label: _("5 minutes"), ms: 5 * 60_000, intervalMs: 60_000 },
+    { id: "15m", label: _("15 minutes"), ms: 15 * 60_000, intervalMs: 60_000 },
+    { id: "1h", label: _("1 hour"), ms: 3600_000, intervalMs: 60_000 },
+    { id: "6h", label: _("6 hours"), ms: 6 * 3600_000, intervalMs: 60_000 },
+    { id: "24h", label: _("24 hours"), ms: 24 * 3600_000, intervalMs: 300_000 },
+    { id: "7d", label: _("7 days"), ms: 7 * 24 * 3600_000, intervalMs: 1800_000 },
 ];
+
+// Sample interval for an arbitrary (drag-zoomed) span; keeps point counts bounded.
+function intervalForSpan(ms: number): number {
+    if (ms <= 2 * 3600_000)
+        return 60_000;
+    if (ms <= 12 * 3600_000)
+        return 300_000;
+    if (ms <= 2 * 86400_000)
+        return 900_000;
+    return 1800_000;
+}
+
+const FETCH_LIMIT = 100000; // pmrep is bounded by the window; this is just the API field
 
 export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
     const [rangeId, setRangeId] = useState("6h");
     // How far back the window is shifted from "now", in ms (0 = latest).
     const [offset, setOffset] = useState(0);
+    // A custom window from drag-to-zoom; overrides the preset + offset when set.
+    const [zoom, setZoom] = useState<{ start: number, end: number } | null>(null);
+    const [tfOpen, setTfOpen] = useState(false);
     const [result, setResult] = useState<ArchiveResult | null>(null);
     const [win, setWin] = useState<{ start: number, end: number }>({ start: 0, end: 0 });
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const range = RANGES.find(r => r.id === rangeId) || RANGES[1];
+    const range = RANGES.find(r => r.id === rangeId) || RANGES[3];
 
-    const pickRange = (id: string) => { setRangeId(id); setOffset(0) };
+    const pickRange = (id: string) => { setRangeId(id); setOffset(0); setZoom(null); setTfOpen(false) };
+    const onZoom = (start: number, end: number) => {
+        if (end - start >= 60_000)
+            setZoom({ start, end });
+    };
+    const shiftBack = () => {
+        if (zoom) {
+            const s = zoom.end - zoom.start;
+            setZoom({ start: zoom.start - s, end: zoom.end - s });
+        } else {
+            setOffset(o => o + range.ms);
+        }
+    };
+    const shiftForward = () => {
+        if (zoom) {
+            const s = zoom.end - zoom.start;
+            const end = Math.min(zoom.end + s, Date.now());
+            setZoom({ start: end - s, end });
+        } else {
+            setOffset(o => Math.max(0, o - range.ms));
+        }
+    };
+    const canForward = zoom ? zoom.end < Date.now() - 1000 : offset > 0;
 
     useEffect(() => {
         let cancelled = false;
@@ -73,19 +114,17 @@ export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
         setError(null);
         setResult(null);
         // Capture the exact window so the chart x-axis matches the fetched data.
-        const end = Date.now() - offset;
-        const start = end - range.ms;
+        const end = zoom ? zoom.end : Date.now() - offset;
+        const start = zoom ? zoom.start : end - range.ms;
+        const intervalMs = zoom ? intervalForSpan(end - start) : range.intervalMs;
         setWin({ start, end });
         loadArchive(SERIES.map(s => metricName(s.key)), ups, {
-            startMs: start,
-            endMs: end,
-            intervalMs: range.intervalMs,
-            limit: range.limit,
+            startMs: start, endMs: end, intervalMs, limit: FETCH_LIMIT,
         })
                 .then(r => { if (!cancelled) { setResult(r); setLoading(false) } })
                 .catch((e: { message?: string }) => { if (!cancelled) { setError(e?.message || String(e)); setLoading(false) } });
         return () => { cancelled = true };
-    }, [ups, rangeId, offset, range.ms, range.intervalMs, range.limit]);
+    }, [ups, rangeId, offset, zoom, range.ms, range.intervalMs]);
 
     const shown = result
         ? SERIES.filter(s => (result.points[metricName(s.key)]?.length ?? 0) >= 2)
@@ -105,30 +144,29 @@ export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
             </Breadcrumb>
 
             <div className="upside-metrics__bar">
-                <ToggleGroup aria-label={_("Time range")}>
-                    {RANGES.map(r => (
-                        <ToggleGroupItem
-                            key={r.id}
-                            text={r.label}
-                            isSelected={r.id === rangeId}
-                            onChange={() => pickRange(r.id)}
-                        />
-                    ))}
-                </ToggleGroup>
+                <Dropdown
+                    isOpen={tfOpen}
+                    onOpenChange={(o: boolean) => setTfOpen(o)}
+                    onSelect={() => setTfOpen(false)}
+                    toggle={toggleRef => (
+                        <MenuToggle ref={toggleRef} isExpanded={tfOpen} onClick={() => setTfOpen(o => !o)}>
+                            {zoom ? _("Custom range") : range.label}
+                        </MenuToggle>
+                    )}
+                >
+                    <DropdownList>
+                        {RANGES.map(r => (
+                            <DropdownItem key={r.id} isSelected={!zoom && r.id === rangeId} onClick={() => pickRange(r.id)}>
+                                {r.label}
+                            </DropdownItem>
+                        ))}
+                    </DropdownList>
+                </Dropdown>
                 <div className="upside-metrics__nav">
-                    <Button
-                        variant="secondary"
-                        aria-label={_("Earlier")}
-                        icon={<AngleLeftIcon />}
-                        onClick={() => setOffset(o => o + range.ms)}
-                    />
-                    <Button
-                        variant="secondary"
-                        aria-label={_("Later")}
-                        icon={<AngleRightIcon />}
-                        isDisabled={offset === 0}
-                        onClick={() => setOffset(o => Math.max(0, o - range.ms))}
-                    />
+                    {zoom &&
+                        <Button variant="link" onClick={() => setZoom(null)}>{_("Reset zoom")}</Button>}
+                    <Button variant="secondary" aria-label={_("Earlier")} icon={<AngleLeftIcon />} onClick={shiftBack} />
+                    <Button variant="secondary" aria-label={_("Later")} icon={<AngleRightIcon />} isDisabled={!canForward} onClick={shiftForward} />
                 </div>
             </div>
 
@@ -166,6 +204,7 @@ export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
                                     startMs={win.start}
                                     endMs={win.end}
                                     height={180}
+                                    onZoom={onZoom}
                                 />
                             </CardBody>
                         </Card>
