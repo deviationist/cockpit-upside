@@ -202,9 +202,10 @@ function fieldValue(vars: UpsVars, f: FieldSpec): string | undefined {
 
 /* ---- small shared bits ---- */
 
-/* Live-poll heartbeat: a dot that pulses on each successful poll (the dot is
- * keyed by the update time, so it remounts and replays its CSS animation every
- * tick), plus a relative "updated Ns ago" label that counts up between polls. */
+/* Quiet freshness indicator: a steady dot + a relative "Updated Ns ago" label
+ * that counts up between polls. No per-poll flashing — most polls return
+ * identical data, so animating each tick is just noise; the label alone proves
+ * the data is live (and goes stale-looking if polling ever stops). */
 const PollIndicator = ({ lastUpdate }: { lastUpdate: number | null }) => {
     const [, tick] = useState(0);
     useEffect(() => {
@@ -218,8 +219,8 @@ const PollIndicator = ({ lastUpdate }: { lastUpdate: number | null }) => {
     // cockpit.format read the placeholder as the variable "0s" and drop it.
     const rel = ago < 2 ? _("just now") : cockpit.format(_("$0 ago"), `${ago}s`);
     return (
-        <span className="upside-poll" title={_("Auto-refreshing")}>
-            <span key={lastUpdate} className="upside-poll__dot" aria-hidden="true" />
+        <span className="upside-poll" title={_("Auto-refreshing every few seconds")}>
+            <span className="upside-poll__dot" aria-hidden="true" />
             <span className="upside-poll__text">{cockpit.format(_("Updated $0"), rel)}</span>
         </span>
     );
