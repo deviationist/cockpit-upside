@@ -23,6 +23,8 @@ import { MenuToggle } from "@patternfly/react-core/dist/esm/components/MenuToggl
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
 import { AngleLeftIcon } from "@patternfly/react-icons/dist/esm/icons/angle-left-icon.js";
 import { AngleRightIcon } from "@patternfly/react-icons/dist/esm/icons/angle-right-icon.js";
+import { SearchMinusIcon } from "@patternfly/react-icons/dist/esm/icons/search-minus-icon.js";
+import { SearchPlusIcon } from "@patternfly/react-icons/dist/esm/icons/search-plus-icon.js";
 
 import cockpit from 'cockpit';
 
@@ -108,20 +110,31 @@ export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
     };
     const canForward = zoom ? zoom.end < Date.now() - 1000 : offset > 0;
 
+    // Zoom in/out walk the preset timeframes (5 min ↔ 15 min ↔ 1h ↔ …). Stepping
+    // drops any drag-zoom and keeps the offset so the view stays put in time.
+    const rangeIdx = RANGES.findIndex(r => r.id === rangeId);
+    const stepRange = (delta: number) => {
+        const ni = rangeIdx + delta;
+        if (ni < 0 || ni >= RANGES.length)
+            return;
+        setRangeId(RANGES[ni].id);
+        setZoom(null);
+    };
+
     useEffect(() => {
         let cancelled = false;
         setLoading(true);
         setError(null);
-        setResult(null);
-        // Capture the exact window so the chart x-axis matches the fetched data.
+        // Keep the previous charts on screen while loading; swap the data and the
+        // x-axis window together when the new data lands, so the page doesn't
+        // blank to a spinner on every range/zoom/nav interaction.
         const end = zoom ? zoom.end : Date.now() - offset;
         const start = zoom ? zoom.start : end - range.ms;
         const intervalMs = zoom ? intervalForSpan(end - start) : range.intervalMs;
-        setWin({ start, end });
         loadArchive(SERIES.map(s => metricName(s.key)), ups, {
             startMs: start, endMs: end, intervalMs, limit: FETCH_LIMIT,
         })
-                .then(r => { if (!cancelled) { setResult(r); setLoading(false) } })
+                .then(r => { if (!cancelled) { setResult(r); setWin({ start, end }); setLoading(false) } })
                 .catch((e: { message?: string }) => { if (!cancelled) { setError(e?.message || String(e)); setLoading(false) } });
         return () => { cancelled = true };
     }, [ups, rangeId, offset, zoom, range.ms, range.intervalMs]);
@@ -162,9 +175,13 @@ export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
                         ))}
                     </DropdownList>
                 </Dropdown>
+                {loading && result !== null &&
+                    <Spinner size="md" aria-label={_("Refreshing")} className="upside-metrics__busy" />}
                 <div className="upside-metrics__nav">
                     {zoom &&
                         <Button variant="link" onClick={() => setZoom(null)}>{_("Reset zoom")}</Button>}
+                    <Button variant="secondary" aria-label={_("Zoom in")} icon={<SearchPlusIcon />} isDisabled={rangeIdx <= 0} onClick={() => stepRange(-1)} />
+                    <Button variant="secondary" aria-label={_("Zoom out")} icon={<SearchMinusIcon />} isDisabled={rangeIdx >= RANGES.length - 1} onClick={() => stepRange(1)} />
                     <Button variant="secondary" aria-label={_("Earlier")} icon={<AngleLeftIcon />} onClick={shiftBack} />
                     <Button variant="secondary" aria-label={_("Later")} icon={<AngleRightIcon />} isDisabled={!canForward} onClick={shiftForward} />
                 </div>
@@ -176,7 +193,7 @@ export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
                     <p>{_("History comes from PCP. See the one-time setup in docs/enabling-history.md.")}</p>
                 </Alert>}
 
-            {loading && <Spinner aria-label={_("Loading metrics")} />}
+            {loading && result === null && <Spinner aria-label={_("Loading metrics")} />}
 
             {noData &&
                 <Alert variant="info" isInline title={_("No history for this range")}>
@@ -190,7 +207,7 @@ export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
                 </Alert>}
 
             {result && shown.length > 0 &&
-                <div className="upside-metrics__grid">
+                <div className={"upside-metrics__grid" + (loading ? " upside-metrics__grid--loading" : "")}>
                     {shown.map(s => (
                         <Card key={s.key} className="upside-metrics__card">
                             <CardTitle>{s.label}</CardTitle>

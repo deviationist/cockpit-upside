@@ -399,6 +399,18 @@ $upside-amber: #f59e0b;
     gap: 1rem;
 }
 
+// While refreshing, keep the charts visible but dim them slightly.
+.upside-metrics__grid--loading {
+    opacity: 0.55;
+    transition: opacity 0.1s ease;
+}
+
+// Small inline spinner shown in the controls bar during a refresh.
+.upside-metrics__busy {
+    --pf-v6-c-spinner--Width: 1.25rem;
+    --pf-v6-c-spinner--Height: 1.25rem;
+}
+
 .upside-metrics__diag {
     display: block;
     margin-block-start: 0.5rem;
