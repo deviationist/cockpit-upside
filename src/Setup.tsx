@@ -1,0 +1,280 @@
+/*
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ * Copyright (C) 2026 deviationist
+ *
+ * Guided NUT setup. Probes the host (detect()) and renders a checklist: green
+ * where the prerequisite is met, an actionable card where it isn't. Fixes are
+ * one click — each previews the exact change, backs the file up, prompts for
+ * admin (via setup.ts), and shows the equivalent shell command as a fallback.
+ * Monitoring-only scope: install → MODE → device (nut-scanner) → services →
+ * verify. Shutdown (upsmon) is intentionally out of scope for now.
+ */
+
+import React, { useCallback, useEffect, useState } from 'react';
+import { Alert } from "@patternfly/react-core/dist/esm/components/Alert/index.js";
+import { Button } from "@patternfly/react-core/dist/esm/components/Button/index.js";
+import { Card, CardBody, CardTitle } from "@patternfly/react-core/dist/esm/components/Card/index.js";
+import { Content } from "@patternfly/react-core/dist/esm/components/Content/index.js";
+import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
+import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/index.js";
+
+import cockpit from 'cockpit';
+
+import {
+    ScannedDevice, SetupState, applyMode, applyStanza, buildUpsStanza, commands,
+    describeDevice, detect, isValidSectionName, parseScannerOutput, scanUsb, startServices,
+} from './lib/setup';
+
+const _ = cockpit.gettext;
+
+const msg = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+
+type StepState = "ok" | "todo" | "blocked";
+
+const Badge = ({ s }: { s: StepState }) => (
+    <span className={`upside-step__badge upside-step__badge--${s}`}>
+        {s === "ok" ? _("Done") : s === "blocked" ? _("Waiting") : _("Action needed")}
+    </span>
+);
+
+const Step = ({ n, title, state, children }: {
+    n: number, title: string, state: StepState, children?: React.ReactNode,
+}) => (
+    <Card className={`upside-step upside-step--${state}`}>
+        <CardTitle>
+            <span className="upside-step__num">{n}</span>
+            <span className="upside-step__title">{title}</span>
+            <Badge s={state} />
+        </CardTitle>
+        {children && <CardBody>{children}</CardBody>}
+    </Card>
+);
+
+/* A selectable shell command with a small "or run this yourself" toggle. */
+const Cmd = ({ text }: { text: string }) => {
+    const [open, setOpen] = useState(false);
+    return (
+        <div className="upside-cmd-wrap">
+            <Button variant="link" isInline onClick={() => setOpen(o => !o)}>
+                {open ? _("Hide command") : _("Prefer the command line?")}
+            </Button>
+            {open && <pre className="upside-cmd">{text}</pre>}
+        </div>
+    );
+};
+
+export const Setup = () => {
+    const [state, setState] = useState<SetupState | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [busy, setBusy] = useState<string | null>(null);
+    const [devices, setDevices] = useState<ScannedDevice[] | null>(null);
+    const [section, setSection] = useState("ups");
+
+    const refresh = useCallback(async () => {
+        setError(null);
+        try {
+            setState(await detect());
+        } catch (e) {
+            setError(msg(e));
+        }
+    }, []);
+
+    useEffect(() => { refresh() }, [refresh]);
+
+    // Run a privileged action, then re-probe. `key` drives the per-button spinner.
+    const run = (key: string, fn: () => Promise<unknown>) => async () => {
+        setBusy(key);
+        setError(null);
+        try {
+            await fn();
+            await refresh();
+        } catch (e) {
+            setError(msg(e));
+        } finally {
+            setBusy(null);
+        }
+    };
+
+    const scan = run("scan", async () => {
+        const out = await scanUsb();
+        const found = parseScannerOutput(out);
+        setDevices(found);
+        if (found.length === 0)
+            throw new Error(_("nut-scanner found no USB UPS. Is it plugged in? Serial/SNMP devices need manual configuration."));
+    });
+
+    if (!state)
+        return <Spinner aria-label={_("Probing NUT setup")} />;
+
+    const installedOk = state.installed;
+    const modeOk = state.modeOk;
+    const deviceOk = state.sections.length > 0;
+    const serverOk = state.serverActive;
+    const verifiedOk = state.upsList.length > 0;
+
+    // A step is "blocked" (greyed, no action yet) until the steps it depends on pass.
+    const st = (ok: boolean, ready: boolean): StepState => ok ? "ok" : ready ? "todo" : "blocked";
+
+    const dupSection = !isValidSectionName(section)
+        ? _("Use letters, digits, dot, dash or underscore — no spaces.")
+        : state.sections.includes(section)
+            ? cockpit.format(_("\"$0\" already exists in ups.conf."), section)
+            : null;
+
+    return (
+        <div className="upside-setup">
+            <Content component="p" className="upside-setup__intro">
+                {_("This guide gets a UPS visible to UPSide. It checks each prerequisite and can apply the fix for you (with a preview and an admin prompt), or show you the command to run.")}
+            </Content>
+
+            {error && <Alert variant="danger" isInline title={_("Something went wrong")}>{error}</Alert>}
+            {state.needAdmin &&
+                <Alert variant="info" isInline title={_("Administrator access needed")}>
+                    {_("NUT configuration exists but couldn't be read. Applying a step will prompt for admin access.")}
+                </Alert>}
+
+            {/* 1 — installed */}
+            <Step n={1} title={_("NUT installed")} state={st(installedOk, true)}>
+                {!installedOk &&
+                    <>
+                        <Content component="p">
+                            {_("The NUT packages (server + client) aren't installed. Install them with your package manager, then re-check.")}
+                        </Content>
+                        <pre className="upside-cmd">{commands.install(state.pkgManager)}</pre>
+                        <Button variant="secondary" onClick={refresh}>{_("Re-check")}</Button>
+                    </>}
+            </Step>
+
+            {/* 2 — MODE */}
+            <Step n={2} title={_("Service mode enabled")} state={st(modeOk, installedOk)}>
+                {installedOk && !modeOk &&
+                    <>
+                        <Content component="p">
+                            {state.mode === "none" || state.mode === undefined
+                                ? _("NUT's MODE is \"none\" (the default), so upsd won't run. For monitoring a UPS on this host, set it to \"standalone\".")
+                                : cockpit.format(_("MODE is \"$0\". upsd runs in standalone or netserver mode."), String(state.mode))}
+                        </Content>
+                        <Content component="small">
+                            {cockpit.format(_("Will write MODE=standalone to $0/nut.conf (backup: nut.conf.bak)."), state.confDir)}
+                        </Content>
+                        <div className="upside-step__actions">
+                            <Button
+                                variant="primary"
+                                isLoading={busy === "mode"}
+                                isDisabled={busy !== null}
+                                onClick={run("mode", () => applyMode(state.confDir, "standalone"))}
+                            >
+                                {_("Set MODE=standalone")}
+                            </Button>
+                        </div>
+                        <Cmd text={commands.setMode(state.confDir, "standalone")} />
+                    </>}
+            </Step>
+
+            {/* 3 — device configured */}
+            <Step n={3} title={_("UPS device configured")} state={st(deviceOk, installedOk)}>
+                {deviceOk
+                    ? <Content component="p">{cockpit.format(_("ups.conf defines: $0"), state.sections.join(", "))}</Content>
+                    : installedOk &&
+                        <>
+                            <Content component="p">
+                                {_("No UPS is defined in ups.conf yet. Scan the USB bus to auto-detect one — nut-scanner produces the exact driver settings.")}
+                            </Content>
+                            <div className="upside-step__actions">
+                                <Button
+                                    variant="secondary"
+                                    isLoading={busy === "scan"}
+                                    isDisabled={busy !== null}
+                                    onClick={scan}
+                                >
+                                    {_("Scan for USB UPS")}
+                                </Button>
+                            </div>
+                            <Cmd text={commands.scan} />
+
+                            {devices && devices.length > 0 &&
+                                <div className="upside-scan">
+                                    <Content component="p" className="pf-v6-u-mt-md">
+                                        <strong>{cockpit.format(_("Found $0 device(s):"), devices.length)}</strong>
+                                    </Content>
+                                    <div className="upside-field">
+                                        <label htmlFor="upside-section">{_("Name for this UPS (the NUT section)")}</label>
+                                        <TextInput
+                                            id="upside-section"
+                                            value={section}
+                                            onChange={(_ev, v) => setSection(v)}
+                                            validated={dupSection ? "error" : "default"}
+                                            aria-label={_("UPS section name")}
+                                        />
+                                        {dupSection && <Content component="small" className="upside-warn">{dupSection}</Content>}
+                                    </div>
+                                    {devices.map((d, i) => {
+                                        const stanza = buildUpsStanza(d, section || "ups");
+                                        return (
+                                            <div key={i} className="upside-scan__dev">
+                                                <Content component="p">{describeDevice(d)}</Content>
+                                                <pre className="upside-cmd">{stanza}</pre>
+                                                <Button
+                                                    variant="primary"
+                                                    isDisabled={busy !== null || !!dupSection}
+                                                    isLoading={busy === `add-${i}`}
+                                                    onClick={run(`add-${i}`, () => applyStanza(state.confDir, stanza))}
+                                                >
+                                                    {cockpit.format(_("Add \"$0\" to ups.conf"), section || "ups")}
+                                                </Button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>}
+                        </>}
+            </Step>
+
+            {/* 4 — services */}
+            <Step n={4} title={_("NUT services running")} state={st(serverOk, deviceOk)}>
+                {deviceOk && !serverOk &&
+                    <>
+                        <Content component="p">
+                            {_("The driver and upsd aren't running yet. Start (and enable on boot) the NUT services.")}
+                        </Content>
+                        <div className="upside-step__actions">
+                            <Button
+                                variant="primary"
+                                isLoading={busy === "start"}
+                                isDisabled={busy !== null}
+                                onClick={run("start", startServices)}
+                            >
+                                {_("Start NUT services")}
+                            </Button>
+                        </div>
+                        <Cmd text={commands.start} />
+                    </>}
+            </Step>
+
+            {/* 5 — verify */}
+            <Step n={5} title={_("UPS visible to UPSide")} state={st(verifiedOk, serverOk)}>
+                {verifiedOk
+                    ? (
+                        <>
+                            <Alert variant="success" isInline isPlain title={_("All set — your UPS is connected.")} />
+                            <div className="upside-step__actions">
+                                {state.upsList.map(name => (
+                                    <Button key={name} variant="link" isInline onClick={() => cockpit.location.go(["ups", name])}>
+                                        {cockpit.format(_("Open $0"), name)}
+                                    </Button>
+                                ))}
+                            </div>
+                        </>
+                    )
+                    : (
+                        <>
+                            <Content component="p">
+                                {_("No UPS is reporting yet. Work through the steps above; once upsd serves the device it appears here.")}
+                            </Content>
+                            <Button variant="secondary" onClick={refresh} isDisabled={busy !== null}>{_("Re-check")}</Button>
+                        </>
+                    )}
+            </Step>
+        </div>
+    );
+};

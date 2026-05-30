@@ -130,6 +130,13 @@ Integration tests live in `test/` (Cockpit test framework).
   single inline `<Logo>` (`src/Logo.tsx`) that works in both themes since the
   masthead stays navy. (The README banner, on GitHub, is likewise a single dark
   SVG that reads on both GitHub themes.)
+- **Setup guide privilege model** (`src/lib/setup.ts`): probes read config with
+  `superuser:"try"` (graceful for non-admins); every mutation (file write,
+  `systemctl`, `nut-scanner`) uses `superuser:"require"` and runs ONLY from an
+  explicit button press. Writes back up to `<path>.bak` first, and every step
+  has a shown shell-command fallback. Keep that posture — don't add silent or
+  passive privileged actions, and never auto-edit `upsd.users` (credentials).
+  Scope is monitoring-only (no `upsmon`/shutdown) for now.
 - **Secrets:** never commit credentials or real `upsc` dumps containing
   sensitive values; redact before adding to docs/tests/issues.
 
@@ -138,7 +145,13 @@ Integration tests live in `test/` (Cockpit test framework).
 ```
 src/index.html      Cockpit page shell
 src/index.tsx       React entrypoint
-src/app.tsx         top-level component
+src/app.tsx         top-level component (shell, routing, polling, Overview/Detail)
+src/Setup.tsx       guided NUT setup wizard (replaces the empty state + Setup tab)
+src/Settings.tsx    file-backed settings form
+src/Trends.tsx      PCP history charts; src/Gauge.tsx + src/Chart.tsx (SVG)
+src/lib/nut*.ts     NUT client (nut.ts) + pure parsing (nut-parse.ts)
+src/lib/setup*.ts   setup probes/apply (setup.ts) + pure parsing (setup-parse.ts)
+src/lib/{config,derive,history}.ts   config, derived values, PCP reader
 src/app.scss        app styles
 src/manifest.json   Cockpit manifest (sidebar label, required cockpit version)
 io.github.deviationist.upside.metainfo.xml   AppStream metadata

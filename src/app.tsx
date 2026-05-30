@@ -27,6 +27,7 @@ import { page_status } from 'notifications';
 import { Gauge } from './Gauge';
 import { Logo } from './Logo';
 import { Settings } from './Settings';
+import { Setup } from './Setup';
 import { Trends } from './Trends';
 import { UpsideConfig, saveConfig, useConfig } from './lib/config';
 import { formatElapsed, monthsBetween, parseNutDate } from './lib/derive';
@@ -295,11 +296,14 @@ const Overview = ({ upses, error, descs, names }: {
     if (upses === null)
         return <Spinner aria-label={_("Loading UPS data")} />;
     if (upses.length === 0) {
+        // No UPS yet → drop the user straight into the guided setup rather than
+        // a dead-end "nothing here" message.
         return (
-            <EmptyState headingLevel="h2" titleText={_("No UPS devices found")}>
+            <EmptyState headingLevel="h2" titleText={_("Let's connect a UPS")}>
                 <EmptyStateBody>
-                    {_("No UPS is configured in NUT on this host. Define one in ups.conf and start upsd, then it will appear here.")}
+                    {_("No UPS is reporting to NUT on this host yet. This guide walks you through it.")}
                 </EmptyStateBody>
+                <div className="upside-empty-setup"><Setup /></div>
             </EmptyState>
         );
     }
@@ -571,6 +575,7 @@ const GithubMark = () => (
 
 const NAV: { key: string, label: string }[] = [
     { key: "overview", label: _("Overview") },
+    { key: "setup", label: _("Setup") },
     { key: "settings", label: _("Settings") },
     { key: "about", label: _("About") },
 ];
@@ -680,13 +685,15 @@ export const Application = () => {
     }, [upses, config.overviewCard]);
 
     const path = location.path;
-    const section = (path[0] === "about" || path[0] === "settings") ? path[0] : "overview";
+    const section = (path[0] === "about" || path[0] === "settings" || path[0] === "setup") ? path[0] : "overview";
 
     let view;
     if (path[0] === "ups" && path[1])
         view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} config={config} descs={descs} />;
     else if (path[0] === "settings")
         view = <Settings />;
+    else if (path[0] === "setup")
+        view = <Setup />;
     else if (path[0] === "about")
         view = <About />;
     else
