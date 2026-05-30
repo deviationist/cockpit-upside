@@ -148,9 +148,15 @@ $upside-amber: #f59e0b;
     border-end-end-radius: 0;
 }
 
-// Right-aligned actions (GitHub link).
-.upside-masthead__action {
+// Right-aligned cluster: (mobile burger) + control pill + GitHub link.
+.upside-masthead__right {
     margin-inline-start: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+}
+
+.upside-masthead__action {
     display: inline-flex;
     align-items: center;
     color: #94a3b8;
@@ -217,12 +223,8 @@ $upside-amber: #f59e0b;
 @media (width <= 767px) {
     .upside-masthead__nav { display: none; }
 
-    .upside-masthead__burger {
-        display: inline-flex;
-        margin-inline-start: auto; // push the burger + GitHub link to the right
-    }
-
-    .upside-masthead__action { margin-inline-start: 0; }
+    // The right-cluster wrapper already carries the auto margin; just reveal the burger.
+    .upside-masthead__burger { display: inline-flex; }
 }
 
 // Safety: if the viewport widens while the menu is open, don't leave it showing.
