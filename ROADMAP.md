@@ -65,3 +65,12 @@ flag, or omitted.
 - [ ] Setup guide: scan serial/SNMP buses (today it's USB via `nut-scanner -U`).
 - [ ] Event notifications (`upssched` / `NOTIFYCMD`) — email on power events,
       pairing with an existing mail relay.
+
+## Maintenance
+
+- [ ] **Dependency / upgrade audit** — periodically check what's outdated or
+      pinned-behind and decide what to prioritize: the npm deps (PatternFly,
+      React, esbuild, eslint — note PatternFly must track Cockpit's `pkg/lib`
+      bundle, and the dependabot ignores in `.github/dependabot.yml`), the
+      pinned `COCKPIT_REPO_COMMIT` in the Makefile, and the Node baseline.
+      Dependabot opens the PRs; this is the human "should we take them" review.
