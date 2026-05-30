@@ -1,0 +1,30 @@
+#!/usr/bin/make -f
+# Debian packaging for the UPSide Cockpit plugin.
+#
+# The plugin is Architecture: all — a pre-built static web bundle (dist/) that
+# installs to /usr/share/cockpit/upside. Cockpit's build fetches pkg/lib over
+# git and runs npm, neither of which works in an offline Launchpad/sbuild
+# environment, so we ship the bundle in the source and do NOT rebuild here.
+# (To rebuild from source instead, you'd vendor pkg/lib + node_modules; not
+# worth it for a personal PPA — see docs/releasing-ppa.md.)
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+DESTDIR = $(CURDIR)/debian/cockpit-upside
+
+%:
+	dh $@
+
+# Bundle is pre-built and shipped; nothing to build or test at package time.
+override_dh_auto_build:
+
+override_dh_auto_test:
+
+override_dh_auto_install:
+	mkdir -p $(DESTDIR)/usr/share/cockpit/upside
+	cp -r dist/. $(DESTDIR)/usr/share/cockpit/upside/
+	# source maps are large and debugging-only — don't ship them
+	find $(DESTDIR)/usr/share/cockpit/upside -name '*.map' -delete
+	mkdir -p $(DESTDIR)/usr/share/metainfo
+	cp io.github.deviationist.upside.metainfo.xml \
+		$(DESTDIR)/usr/share/metainfo/io.github.deviationist.upside.metainfo.xml

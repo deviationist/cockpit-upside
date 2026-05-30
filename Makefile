@@ -124,6 +124,14 @@ print-version:
 dist: $(TARFILE)
 	@ls -1 $(TARFILE)
 
+# Build the Debian source package for the Launchpad PPA (signed, no upload).
+# `make deb-upload` also dputs it. Full process: docs/releasing-ppa.md.
+deb:
+	packaging/ppa-release.sh
+
+deb-upload:
+	packaging/ppa-release.sh --upload
+
 # when building a distribution tarball, call bundler with a 'production' environment
 # we don't ship node_modules for license and compactness reasons; we ship a
 # pre-built dist/ (so it's not necessary) and ship package-lock.json (so that
@@ -204,4 +212,4 @@ $(NODE_MODULES_TEST): package.json package-lock.json
 	for _ in `seq 3`; do timeout 10m env -u NODE_ENV npm install --ignore-scripts && exit 0; done; exit 1
 	env -u NODE_ENV npm prune
 
-.PHONY: all clean install devel-install devel-uninstall print-version dist node-cache rpm prepare-check check vm print-vm
+.PHONY: all clean install devel-install devel-uninstall print-version dist deb deb-upload node-cache rpm prepare-check check vm print-vm
