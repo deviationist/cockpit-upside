@@ -385,9 +385,17 @@ $upside-amber: #f59e0b;
     margin-block-end: 1rem;
 }
 
+// Push the prev/next time navigation to the right of the range toggles.
+.upside-metrics__nav {
+    margin-inline-start: auto;
+    display: flex;
+    gap: 0.5rem;
+}
+
+// One graph per row, full width — more horizontal resolution.
 .upside-metrics__grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr));
+    display: flex;
+    flex-direction: column;
     gap: 1rem;
 }
 
