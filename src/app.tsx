@@ -20,6 +20,7 @@ import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/inde
 import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/index.js";
 import { Flex, FlexItem } from "@patternfly/react-core/dist/esm/layouts/Flex/index.js";
 import { Gallery } from "@patternfly/react-core/dist/esm/layouts/Gallery/index.js";
+import { KeyIcon } from "@patternfly/react-icons/dist/esm/icons/key-icon.js";
 import { PencilAltIcon } from "@patternfly/react-icons/dist/esm/icons/pencil-alt-icon.js";
 
 import cockpit from 'cockpit';
@@ -29,11 +30,13 @@ import { Controls } from './Controls';
 import { Gauge } from './Gauge';
 import { Logo } from './Logo';
 import { Metrics } from './Metrics';
+import { NutAuthModal } from './NutAuthModal';
 import { Settings } from './Settings';
 import { Setup } from './Setup';
 import { Topology } from './Topology';
 import { Trends } from './Trends';
 import { Mode, UpsideConfig, loadModePref, resolveMode, saveConfig, saveModePref, useConfig } from './lib/config';
+import { NutCreds, clearNutCreds, loadNutCreds, saveNutCreds } from './lib/prefs';
 import { formatElapsed, monthsBetween, parseNutDate } from './lib/derive';
 import { Ups, UpsState, UpsStatus, UpsVars, formatRuntime, listUps, num, readDescriptions, readUps, stateLabel } from './lib/nut';
 
@@ -361,6 +364,10 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
     const [open, setOpen] = useState(false);
     const [renaming, setRenaming] = useState(false);
     const [nameDraft, setNameDraft] = useState("");
+    // NUT control credentials (in memory; pre-loaded if "remembered" in storage).
+    const [creds, setCreds] = useState<NutCreds | null>(loadNutCreds);
+    const [remembered, setRemembered] = useState(() => loadNutCreds() !== null);
+    const [authOpen, setAuthOpen] = useState(false);
 
     if (error !== null)
         return <NutError error={error} />;
@@ -539,6 +546,18 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
                     <Flex alignItems={{ default: "alignItemsCenter" }} spaceItems={{ default: "spaceItemsMd" }}>
                         <FlexItem><PollIndicator lastUpdate={lastUpdate} /></FlexItem>
                         <FlexItem><StatusLabels status={status} /></FlexItem>
+                        {mode === "control" &&
+                            <FlexItem>
+                                <Button
+                                    variant="link"
+                                    isInline
+                                    icon={<KeyIcon />}
+                                    onClick={() => setAuthOpen(true)}
+                                    title={creds ? cockpit.format(_("Authenticated as $0"), creds.user) : _("Authenticate to NUT")}
+                                >
+                                    {creds ? creds.user : _("Authenticate")}
+                                </Button>
+                            </FlexItem>}
                     </Flex>
                 </FlexItem>
             </Flex>
@@ -567,7 +586,8 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
                 </CardBody>
             </Card>
 
-            {mode === "control" && <Controls ups={ups.ref.name} />}
+            {mode === "control" &&
+                <Controls ups={ups.ref.name} creds={creds} onAuthNeeded={() => setAuthOpen(true)} />}
 
             <Topology ups={ups.ref.name} />
 
@@ -586,6 +606,25 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
                 <CardTitle>{_("All variables")}</CardTitle>
                 <CardBody><TableRows rows={allRows} /></CardBody>
             </Card>
+
+            <NutAuthModal
+                isOpen={authOpen}
+                authenticated={!!creds}
+                currentUser={creds?.user || ""}
+                remembered={remembered}
+                onClose={() => setAuthOpen(false)}
+                onApply={(user, pass, remember) => {
+                    const c = { user, pass };
+                    setCreds(c);
+                    setRemembered(remember);
+                    if (remember)
+                        saveNutCreds(c);
+                    else
+                        clearNutCreds();
+                    setAuthOpen(false);
+                }}
+                onForget={() => { setCreds(null); setRemembered(false); clearNutCreds(); setAuthOpen(false) }}
+            />
         </div>
     );
 };

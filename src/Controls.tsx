@@ -5,32 +5,32 @@
  *
  * Control actions card (tier A: battery/panel self-test + beeper), shown on the
  * detail page only in control mode. Lists the UPS's safe instant commands
- * (no auth) and runs them with a NUT user/password the operator enters — held
- * in memory for the session only, never persisted. See lib/control.ts.
+ * (no auth) and runs them with the NUT credentials captured in the header
+ * (NutAuthModal); if none are set yet, a click opens that dialog. See
+ * lib/control.ts.
  */
 
 import React, { useEffect, useState } from 'react';
-import { ActionGroup, Form, FormGroup } from "@patternfly/react-core/dist/esm/components/Form/index.js";
 import { Alert } from "@patternfly/react-core/dist/esm/components/Alert/index.js";
 import { Button } from "@patternfly/react-core/dist/esm/components/Button/index.js";
 import { Card, CardBody, CardTitle } from "@patternfly/react-core/dist/esm/components/Card/index.js";
 import { Content } from "@patternfly/react-core/dist/esm/components/Content/index.js";
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
-import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/index.js";
 
 import cockpit from 'cockpit';
 
+import { NutCreds } from './lib/prefs';
 import { InstantCommand, commandLabel, listSafeCommands, runCommand } from './lib/control';
 
 const _ = cockpit.gettext;
 
-export const Controls = ({ ups }: { ups: string }) => {
+export const Controls = ({ ups, creds, onAuthNeeded }: {
+    ups: string,
+    creds: NutCreds | null,
+    onAuthNeeded: () => void,
+}) => {
     const [cmds, setCmds] = useState<InstantCommand[] | null>(null);
     const [listErr, setListErr] = useState<string | null>(null);
-    const [creds, setCreds] = useState<{ user: string, pass: string } | null>(null);
-    const [userDraft, setUserDraft] = useState("");
-    const [passDraft, setPassDraft] = useState("");
-    const [pending, setPending] = useState<string | null>(null);
     const [busy, setBusy] = useState<string | null>(null);
     const [feedback, setFeedback] = useState<{ ok: boolean, msg: string } | null>(null);
 
@@ -44,33 +44,18 @@ export const Controls = ({ ups }: { ups: string }) => {
         return () => { cancelled = true };
     }, [ups]);
 
-    const run = (cmd: string, user: string, pass: string) => {
+    const run = (cmd: string) => {
+        if (!creds) {
+            onAuthNeeded();
+            return;
+        }
         setBusy(cmd);
         setFeedback(null);
-        runCommand(ups, cmd, user, pass)
+        runCommand(ups, cmd, creds.user, creds.pass)
                 .then(out => setFeedback({ ok: true, msg: out.trim() || _("Command sent.") }))
                 .catch((e: { message?: string }) => setFeedback({ ok: false, msg: e?.message || String(e) }))
                 .finally(() => setBusy(null));
     };
-
-    const onCommand = (cmd: string) => {
-        if (creds)
-            run(cmd, creds.user, creds.pass);
-        else
-            setPending(cmd);
-    };
-
-    const submitCreds = () => {
-        const c = { user: userDraft, pass: passDraft };
-        setCreds(c);
-        setPassDraft(""); // don't keep it in a form field once captured
-        if (pending) {
-            run(pending, c.user, c.pass);
-            setPending(null);
-        }
-    };
-
-    const forget = () => { setCreds(null); setUserDraft(""); setPassDraft("") };
 
     return (
         <Card>
@@ -93,7 +78,7 @@ export const Controls = ({ ups }: { ups: string }) => {
                                     variant="secondary"
                                     isDisabled={busy !== null}
                                     isLoading={busy === c.name}
-                                    onClick={() => onCommand(c.name)}
+                                    onClick={() => run(c.name)}
                                     title={c.desc}
                                 >
                                     {commandLabel(c)}
@@ -101,43 +86,10 @@ export const Controls = ({ ups }: { ups: string }) => {
                             ))}
                         </div>
 
-                        {creds
-                            ? (
-                                <Content component="small" className="upside-controls__creds">
-                                    {cockpit.format(_("Authenticating as NUT user \"$0\"."), creds.user)}
-                                    {" "}
-                                    <Button variant="link" isInline onClick={forget}>{_("Forget")}</Button>
-                                </Content>
-                            )
-                            : pending &&
-                                <Form className="upside-controls__form" isHorizontal onSubmit={e => { e.preventDefault(); submitCreds() }}>
-                                    <Content component="small">
-                                        {cockpit.format(_("Running \"$0\" needs a NUT user with command rights (from upsd.users). Not stored."), pending)}
-                                    </Content>
-                                    <FormGroup label={_("NUT username")} fieldId="upside-ctl-user">
-                                        <TextInput
-                                            id="upside-ctl-user"
-                                            value={userDraft}
-                                            onChange={(_ev, v) => setUserDraft(v)}
-                                            autoComplete="off"
-                                        />
-                                    </FormGroup>
-                                    <FormGroup label={_("Password")} fieldId="upside-ctl-pass">
-                                        <TextInput
-                                            id="upside-ctl-pass"
-                                            type="password"
-                                            value={passDraft}
-                                            onChange={(_ev, v) => setPassDraft(v)}
-                                            autoComplete="new-password"
-                                        />
-                                    </FormGroup>
-                                    <ActionGroup>
-                                        <Button variant="primary" type="submit" isDisabled={!userDraft || !passDraft}>
-                                            {_("Authenticate & run")}
-                                        </Button>
-                                        <Button variant="link" onClick={() => setPending(null)}>{_("Cancel")}</Button>
-                                    </ActionGroup>
-                                </Form>}
+                        {!creds &&
+                            <Content component="small" className="upside-controls__creds">
+                                {_("Authenticate (the key button in the header) to run these.")}
+                            </Content>}
 
                         {feedback &&
                             <Alert
