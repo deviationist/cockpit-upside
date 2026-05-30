@@ -798,27 +798,29 @@ export const Application = () => {
                         </button>
                     ))}
                 </nav>
-                <button
-                    type="button"
-                    className="upside-masthead__burger"
-                    aria-label={_("Menu")}
-                    aria-expanded={menuOpen}
-                    onClick={() => setMenuOpen(o => !o)}
-                >
-                    <MenuIcon />
-                </button>
-                <a
-                    className="upside-masthead__action"
-                    href="https://github.com/deviationist/cockpit-upside"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={_("UPSide on GitHub")}
-                    title={_("UPSide on GitHub")}
-                >
-                    <GithubMark />
-                </a>
-                {mode === "control" &&
-                    <span className="upside-mode-badge" title={_("Control mode is on")}>{_("Control")}</span>}
+                <div className="upside-masthead__right">
+                    <button
+                        type="button"
+                        className="upside-masthead__burger"
+                        aria-label={_("Menu")}
+                        aria-expanded={menuOpen}
+                        onClick={() => setMenuOpen(o => !o)}
+                    >
+                        <MenuIcon />
+                    </button>
+                    {mode === "control" &&
+                        <span className="upside-mode-badge" title={_("Control mode is on")}>{_("Control")}</span>}
+                    <a
+                        className="upside-masthead__action"
+                        href="https://github.com/deviationist/cockpit-upside"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={_("UPSide on GitHub")}
+                        title={_("UPSide on GitHub")}
+                    >
+                        <GithubMark />
+                    </a>
+                </div>
                 {menuOpen &&
                     <nav className="upside-masthead__menu" aria-label={_("Sections")}>
                         {NAV.map(item => (
