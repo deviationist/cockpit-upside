@@ -137,6 +137,15 @@ Integration tests live in `test/` (Cockpit test framework).
   has a shown shell-command fallback. Keep that posture — don't add silent or
   passive privileged actions, and never auto-edit `upsd.users` (credentials).
   Scope is monitoring-only (no `upsmon`/shutdown) for now.
+- **Future control features** (see `ROADMAP.md`): control will use NUT's
+  `upscmd` (instant commands), `upsrw` (variables) and `upsmon` (shutdown) —
+  NOT the unauthenticated `upsc` path monitoring uses. Hard rules when building
+  these: discover capabilities with `upscmd -l` (render only supported
+  commands, no dead buttons); prompt for the NUT user/password **per action and
+  hold it in memory only** (never persist it, never write it to config, never
+  read `upsd.users`); and gate any power-affecting command behind explicit
+  confirmation. Tier A (battery self-test + beeper) is the only committed step;
+  tiers B–D are deliberately not started.
 - **Secrets:** never commit credentials or real `upsc` dumps containing
   sensitive values; redact before adding to docs/tests/issues.
 
