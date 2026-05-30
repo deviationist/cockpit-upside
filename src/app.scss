@@ -309,7 +309,8 @@ $upside-amber: #f59e0b;
 // font-size on the container is bypassed. Override the item token instead;
 // links and the switcher toggle (both inherit) then follow to body--default
 // (14px), matching Cockpit's /metrics breadcrumb.
-.upside-detail .pf-v6-c-breadcrumb {
+.upside-detail .pf-v6-c-breadcrumb,
+.upside-metrics .pf-v6-c-breadcrumb {
     --pf-v6-c-breadcrumb__item--FontSize: var(--pf-t--global--font--size--body--default);
 }
 
