@@ -27,6 +27,7 @@ import cockpit from 'cockpit';
 import { page_status } from 'notifications';
 
 import { Controls } from './Controls';
+import { validateCreds } from './lib/control';
 import { Gauge } from './Gauge';
 import { Logo } from './Logo';
 import { Metrics } from './Metrics';
@@ -613,7 +614,8 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
                 currentUser={creds?.user || ""}
                 remembered={remembered}
                 onClose={() => setAuthOpen(false)}
-                onApply={(user, pass, remember) => {
+                onApply={async (user, pass, remember) => {
+                    await validateCreds(ups.ref.name, user, pass); // throws → modal shows the error, stays open
                     const c = { user, pass };
                     setCreds(c);
                     setRemembered(remember);
