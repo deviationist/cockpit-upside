@@ -22,7 +22,7 @@ import { ToggleGroup, ToggleGroupItem } from "@patternfly/react-core/dist/esm/co
 
 import cockpit from 'cockpit';
 
-import { Chart } from './Chart';
+import { MetricChart } from './MetricChart';
 import { ArchiveResult, loadArchive } from './lib/metrics';
 
 const _ = cockpit.gettext;
@@ -54,6 +54,7 @@ const RANGES: Range[] = [
 export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
     const [rangeId, setRangeId] = useState("6h");
     const [result, setResult] = useState<ArchiveResult | null>(null);
+    const [win, setWin] = useState<{ start: number, end: number }>({ start: 0, end: 0 });
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -64,8 +65,12 @@ export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
         setLoading(true);
         setError(null);
         setResult(null);
+        // Capture the exact window so the chart x-axis matches the fetched data.
+        const end = Date.now();
+        const start = end - range.ms;
+        setWin({ start, end });
         loadArchive(SERIES.map(s => metricName(s.key)), ups, {
-            startMs: Date.now() - range.ms,
+            startMs: start,
             intervalMs: range.intervalMs,
             limit: range.limit,
         })
@@ -129,14 +134,15 @@ export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
                         <Card key={s.key} className="upside-metrics__card">
                             <CardTitle>{s.label}</CardTitle>
                             <CardBody>
-                                <Chart
+                                <MetricChart
                                     points={result.points[metricName(s.key)]}
-                                    label={s.label}
-                                    color={s.color}
                                     unit={s.unit}
+                                    color={s.color}
                                     min={s.min}
                                     max={s.max}
-                                    height={140}
+                                    startMs={win.start}
+                                    endMs={win.end}
+                                    height={150}
                                 />
                             </CardBody>
                         </Card>
