@@ -524,7 +524,7 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate }: {
                             </Button>
                         )}
                 </FlexItem>
-                <FlexItem>
+                <FlexItem align={{ default: "alignRight" }}>
                     <Button
                         variant="secondary"
                         onClick={() => cockpit.location.go(["ups", ups.ref.name, "metrics"])}
@@ -532,7 +532,7 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate }: {
                         {_("Detailed metrics")}
                     </Button>
                 </FlexItem>
-                <FlexItem align={{ default: "alignRight" }}>
+                <FlexItem>
                     <Flex alignItems={{ default: "alignItemsCenter" }} spaceItems={{ default: "spaceItemsMd" }}>
                         <FlexItem><PollIndicator lastUpdate={lastUpdate} /></FlexItem>
                         <FlexItem><StatusLabels status={status} /></FlexItem>
