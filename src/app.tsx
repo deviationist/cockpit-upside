@@ -530,14 +530,6 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate }: {
                         <FlexItem><StatusLabels status={status} /></FlexItem>
                     </Flex>
                 </FlexItem>
-                <FlexItem>
-                    <Button
-                        variant="secondary"
-                        onClick={() => cockpit.location.go(["ups", ups.ref.name, "metrics"])}
-                    >
-                        {_("Detailed metrics")}
-                    </Button>
-                </FlexItem>
             </Flex>
 
             <Card>
