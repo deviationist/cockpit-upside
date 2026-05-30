@@ -1,0 +1,7 @@
+cockpit-upside (0.1.0) noble; urgency=medium
+
+  * Initial release: UPS monitoring for Cockpit, powered by NUT.
+    Overview + per-device detail, friendly names, optional PCP trends,
+    and a navigation status indicator.
+
+ -- Robert Sæther <robert4832@pm.me>  Sat, 30 May 2026 01:09:01 +0000

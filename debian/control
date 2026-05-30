@@ -1,0 +1,28 @@
+Source: cockpit-upside
+Section: admin
+Priority: optional
+Maintainer: Robert Sæther <robert4832@pm.me>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.7.0
+Homepage: https://github.com/deviationist/cockpit-upside
+Rules-Requires-Root: no
+Vcs-Git: https://github.com/deviationist/cockpit-upside.git
+Vcs-Browser: https://github.com/deviationist/cockpit-upside
+
+Package: cockpit-upside
+Architecture: all
+Depends: ${misc:Depends},
+         cockpit-bridge
+Recommends: nut-client
+Description: UPS monitoring for Cockpit, powered by NUT
+ UPSide surfaces the state of one or more UPS devices managed by NUT
+ (Network UPS Tools) directly in the Cockpit web console: battery charge and
+ runtime, line/load status, input/output voltage, and the other variables
+ exposed by upsd. It supports multiple UPSes, with an overview of all devices
+ and a detail view per device, optional historical trends from PCP, and a
+ status indicator in the Cockpit navigation.
+ .
+ It is a read-only client of a running NUT setup and runs no backend service
+ of its own; NUT's upsd is the backend. A working NUT installation (upsd
+ running, at least one UPS in ups.conf) is required; install nut-client on
+ this host (pulled in by the recommendation) or point it at a remote upsd.

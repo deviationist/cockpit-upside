@@ -52,9 +52,20 @@ Install on the host that runs Cockpit and NUT.
 **Runtime:** a host running **Cockpit**, and **NUT** (`nut-server` + `nut-client`)
 with `upsd` running and at least one UPS in `ups.conf`.
 
-**To build from source:** **Node.js ≥ 18** and **npm**.
+### Ubuntu / Debian (PPA)
 
-### Build & install
+```sh
+sudo add-apt-repository ppa:deviationist/cockpit-upside
+sudo apt update
+sudo apt install cockpit-upside
+```
+
+Then reload Cockpit → **UPSide** appears under **System**. (Maintainers: the
+release process for the PPA is in **[docs/releasing-ppa.md](docs/releasing-ppa.md)**.)
+
+### Build & install from source
+
+Requires **Node.js ≥ 18** and **npm**.
 
 ```sh
 git clone https://github.com/deviationist/cockpit-upside.git

@@ -19,6 +19,7 @@
 /cockpit-*.spec
 /cockpit-*.tar.xz
 /cockpit-navigator.spec
+/deb-build/
 /dist/
 /metafile.json
 /pkg/

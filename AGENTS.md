@@ -146,6 +146,14 @@ build.js            esbuild build
 src/Logo.tsx        inline masthead logo (source vector: logos/logo.svg)
 logos/              brand kit (logo.svg — editable vector source for Logo.tsx)
 upside-github-banner.svg   README header banner (GitHub only)
-packaging/          RPM spec + Arch PKGBUILD
+packaging/          RPM spec, Arch PKGBUILD, ppa-release.sh (Debian/PPA helper)
+debian/             Debian packaging (native 3.0; ships pre-built dist/)
+docs/               enabling-history.md, releasing-ppa.md
 test/               Cockpit integration tests
 ```
+
+Packaging notes: the plugin is `Architecture: all` (static bundle). Debian
+packaging ships the **pre-built `dist/`** and does not rebuild at package time
+(`debian/rules` installs it), because Launchpad/sbuild is offline and the build
+fetches `pkg/lib` + npm. `make deb` / `packaging/ppa-release.sh` build the
+source package; release runbook in `docs/releasing-ppa.md`.
