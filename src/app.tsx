@@ -214,7 +214,9 @@ const PollIndicator = ({ lastUpdate }: { lastUpdate: number | null }) => {
     if (!lastUpdate)
         return null;
     const ago = Math.max(0, Math.round((Date.now() - lastUpdate) / 1000));
-    const rel = ago < 2 ? _("just now") : cockpit.format(_("$0s ago"), ago);
+    // Pass "5s" as $0 — a letter directly after $0 (e.g. "$0s") makes
+    // cockpit.format read the placeholder as the variable "0s" and drop it.
+    const rel = ago < 2 ? _("just now") : cockpit.format(_("$0 ago"), `${ago}s`);
     return (
         <span className="upside-poll" title={_("Auto-refreshing")}>
             <span key={lastUpdate} className="upside-poll__dot" aria-hidden="true" />
