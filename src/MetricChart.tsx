@@ -76,8 +76,10 @@ export const MetricChart = ({ points, unit, color, min, max, startMs, endMs, hei
     const onMove = (e: React.MouseEvent<SVGRectElement>) => {
         if (!enough)
             return;
+        // The capture rect starts at x=M.left inside the SVG; add it back so px
+        // is in SVG coordinates, matching sx().
         const rect = e.currentTarget.getBoundingClientRect();
-        const px = e.clientX - rect.left;
+        const px = e.clientX - rect.left + M.left;
         let best = 0; let bestDx = Infinity;
         for (let i = 0; i < points.length; i++) {
             const dx = Math.abs(sx(points[i].t) - px);
