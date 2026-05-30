@@ -20,6 +20,7 @@ import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/inde
 import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/index.js";
 import { Flex, FlexItem } from "@patternfly/react-core/dist/esm/layouts/Flex/index.js";
 import { Gallery } from "@patternfly/react-core/dist/esm/layouts/Gallery/index.js";
+import { PencilAltIcon } from "@patternfly/react-icons/dist/esm/icons/pencil-alt-icon.js";
 
 import cockpit from 'cockpit';
 import { page_status } from 'notifications';
@@ -446,83 +447,88 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate }: {
                 flexWrap={{ default: "wrap" }}
             >
                 <FlexItem>
-                    <Breadcrumb>
-                        <BreadcrumbItem
-                            to="#"
-                            onClick={(e: React.MouseEvent) => { e.preventDefault(); cockpit.location.go([]) }}
-                        >
-                            {_("Overview")}
-                        </BreadcrumbItem>
-                        <BreadcrumbItem isActive>
-                            {upses.length > 1
-                                ? (
-                                    <Dropdown
-                                        isOpen={open}
-                                        onOpenChange={(o: boolean) => setOpen(o)}
-                                        onSelect={() => setOpen(false)}
-                                        toggle={toggleRef => (
-                                            <MenuToggle
-                                                ref={toggleRef}
-                                                variant="plainText"
-                                                isExpanded={open}
-                                                onClick={() => setOpen(!open)}
-                                            >
-                                                {title}
-                                            </MenuToggle>
-                                        )}
-                                    >
-                                        <DropdownList>
-                                            {upses.map(u => {
-                                                const dn = displayName(u, descs, config.names);
-                                                return (
-                                                    <DropdownItem
-                                                        key={u.id}
-                                                        isSelected={u.ref.name === name}
-                                                        description={dn !== u.ref.name ? u.ref.name : undefined}
-                                                        onClick={() => cockpit.location.go(["ups", u.ref.name])}
+                    <Flex spaceItems={{ default: "spaceItemsSm" }} alignItems={{ default: "alignItemsCenter" }}>
+                        <FlexItem>
+                            <Breadcrumb>
+                                <BreadcrumbItem
+                                    to="#"
+                                    onClick={(e: React.MouseEvent) => { e.preventDefault(); cockpit.location.go([]) }}
+                                >
+                                    {_("Overview")}
+                                </BreadcrumbItem>
+                                <BreadcrumbItem isActive>
+                                    {upses.length > 1
+                                        ? (
+                                            <Dropdown
+                                                isOpen={open}
+                                                onOpenChange={(o: boolean) => setOpen(o)}
+                                                onSelect={() => setOpen(false)}
+                                                toggle={toggleRef => (
+                                                    <MenuToggle
+                                                        ref={toggleRef}
+                                                        variant="plainText"
+                                                        isExpanded={open}
+                                                        onClick={() => setOpen(!open)}
                                                     >
-                                                        {dn}
-                                                    </DropdownItem>
-                                                );
-                                            })}
-                                        </DropdownList>
-                                    </Dropdown>
+                                                        {title}
+                                                    </MenuToggle>
+                                                )}
+                                            >
+                                                <DropdownList>
+                                                    {upses.map(u => {
+                                                        const dn = displayName(u, descs, config.names);
+                                                        return (
+                                                            <DropdownItem
+                                                                key={u.id}
+                                                                isSelected={u.ref.name === name}
+                                                                description={dn !== u.ref.name ? u.ref.name : undefined}
+                                                                onClick={() => cockpit.location.go(["ups", u.ref.name])}
+                                                            >
+                                                                {dn}
+                                                            </DropdownItem>
+                                                        );
+                                                    })}
+                                                </DropdownList>
+                                            </Dropdown>
+                                        )
+                                        : title}
+                                </BreadcrumbItem>
+                            </Breadcrumb>
+                        </FlexItem>
+                        <FlexItem>
+                            {renaming
+                                ? (
+                                    <div>
+                                        <Flex spaceItems={{ default: "spaceItemsSm" }} alignItems={{ default: "alignItemsCenter" }}>
+                                            <FlexItem>
+                                                <TextInput
+                                                    value={nameDraft}
+                                                    onChange={(_ev, v) => setNameDraft(v)}
+                                                    aria-label={_("Custom name")}
+                                                    placeholder={ups.ref.name}
+                                                />
+                                            </FlexItem>
+                                            <Button variant="primary" onClick={saveName}>{_("Save")}</Button>
+                                            <Button variant="link" onClick={() => setRenaming(false)}>{_("Cancel")}</Button>
+                                        </Flex>
+                                        {dupUps &&
+                                            <Content component="small" className="upside-warn">
+                                                {cockpit.format(_("\"$0\" is already used by $1"), draftName, dupUps.ref.name)}
+                                            </Content>}
+                                    </div>
                                 )
-                                : title}
-                        </BreadcrumbItem>
-                    </Breadcrumb>
-                </FlexItem>
-                <FlexItem>
-                    {renaming
-                        ? (
-                            <div>
-                                <Flex spaceItems={{ default: "spaceItemsSm" }} alignItems={{ default: "alignItemsCenter" }}>
-                                    <FlexItem>
-                                        <TextInput
-                                            value={nameDraft}
-                                            onChange={(_ev, v) => setNameDraft(v)}
-                                            aria-label={_("Custom name")}
-                                            placeholder={ups.ref.name}
-                                        />
-                                    </FlexItem>
-                                    <Button variant="primary" onClick={saveName}>{_("Save")}</Button>
-                                    <Button variant="link" onClick={() => setRenaming(false)}>{_("Cancel")}</Button>
-                                </Flex>
-                                {dupUps &&
-                                    <Content component="small" className="upside-warn">
-                                        {cockpit.format(_("\"$0\" is already used by $1"), draftName, dupUps.ref.name)}
-                                    </Content>}
-                            </div>
-                        )
-                        : (
-                            <Button
-                                variant="link"
-                                isInline
-                                onClick={() => { setNameDraft(config.names[ups.ref.name] || ""); setRenaming(true) }}
-                            >
-                                {_("Rename")}
-                            </Button>
-                        )}
+                                : (
+                                    <Button
+                                        variant="plain"
+                                        className="upside-rename-btn"
+                                        aria-label={_("Rename")}
+                                        onClick={() => { setNameDraft(config.names[ups.ref.name] || ""); setRenaming(true) }}
+                                    >
+                                        <PencilAltIcon />
+                                    </Button>
+                                )}
+                        </FlexItem>
+                    </Flex>
                 </FlexItem>
                 <FlexItem align={{ default: "alignRight" }}>
                     <Flex alignItems={{ default: "alignItemsCenter" }} spaceItems={{ default: "spaceItemsMd" }}>

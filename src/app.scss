@@ -317,6 +317,23 @@ $upside-amber: #f59e0b;
     --pf-v6-c-breadcrumb__link--PaddingInlineEnd: 0;
 }
 
+// Inline rename pencil beside the UPS name — compact (no vertical padding) so
+// it doesn't inflate the breadcrumb row, subtle until hovered.
+.upside-rename-btn {
+    --pf-v6-c-button--PaddingBlockStart: 0;
+    --pf-v6-c-button--PaddingBlockEnd: 0;
+    --pf-v6-c-button--PaddingInlineStart: 0.25rem;
+    --pf-v6-c-button--PaddingInlineEnd: 0.25rem;
+    color: var(--pf-t--global--icon--color--subtle, #6a6e73);
+    line-height: 1;
+
+    svg {
+        inline-size: 0.85rem;
+        block-size: 0.85rem;
+        vertical-align: middle;
+    }
+}
+
 // SVG donut gauge.
 .upside-gauge {
     display: flex;
