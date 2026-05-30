@@ -149,10 +149,19 @@ npm run stylelint
 
 ## Roadmap
 
+UPSide is monitoring-first and headed toward carefully scoped **control**. The
+next control step is **safe instant commands** — a battery self-test and beeper
+mute/disable via NUT's `upscmd` — with credentials prompted per action (kept in
+memory, never stored) and only the commands the device reports shown.
+
+- [ ] **Control, tier A:** battery self-test + beeper control (`upscmd`)
 - [ ] Remote `upsd` support (`name@host`) for UPSes on other hosts
 - [ ] History spanning multiple `pmlogger` archive volumes (reads the latest now)
 - [ ] One-click "enable history" that installs the PCP scraper automatically
-- [ ] (later) Control actions — battery test, etc. — gated behind privilege
+- [ ] Event notifications on power events (`upssched` / `NOTIFYCMD`)
+
+See **[ROADMAP.md](ROADMAP.md)** for the full control ladder (tiers A–D) and the
+principles — capability-driven, least-privilege, no stored secrets — that gate it.
 
 > **Enabling history:** the Trends charts need a one-time host setup (an
 > OpenMetrics scraper + a `pmlogger` rule that feed NUT into PCP). See
