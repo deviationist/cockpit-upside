@@ -126,6 +126,10 @@ npm run stylelint
 
 ## Features
 
+- **Guided setup** — when no UPS is detected, a step-by-step guide diagnoses the
+  NUT setup (installed? `MODE`? device? services?), auto-detects a USB UPS with
+  **`nut-scanner`**, and applies each fix with one click — a preview of the
+  change, a `.bak` backup, and an admin prompt — or shows the command to run.
 - **Overview** — a card per UPS (status badge, battery, runtime, load),
   capability-driven (only shows what the device reports).
 - **Detail view** per UPS — battery/load donut gauges, runtime, the full NUT
