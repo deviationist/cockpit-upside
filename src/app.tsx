@@ -26,6 +26,7 @@ import { page_status } from 'notifications';
 
 import { Gauge } from './Gauge';
 import { Logo } from './Logo';
+import { Metrics } from './Metrics';
 import { Settings } from './Settings';
 import { Setup } from './Setup';
 import { Trends } from './Trends';
@@ -523,6 +524,14 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate }: {
                             </Button>
                         )}
                 </FlexItem>
+                <FlexItem>
+                    <Button
+                        variant="secondary"
+                        onClick={() => cockpit.location.go(["ups", ups.ref.name, "metrics"])}
+                    >
+                        {_("Detailed metrics")}
+                    </Button>
+                </FlexItem>
                 <FlexItem align={{ default: "alignRight" }}>
                     <Flex alignItems={{ default: "alignItemsCenter" }} spaceItems={{ default: "spaceItemsMd" }}>
                         <FlexItem><PollIndicator lastUpdate={lastUpdate} /></FlexItem>
@@ -724,7 +733,9 @@ export const Application = () => {
     const section = (path[0] === "about" || path[0] === "settings" || path[0] === "setup") ? path[0] : "overview";
 
     let view;
-    if (path[0] === "ups" && path[1])
+    if (path[0] === "ups" && path[1] && path[2] === "metrics")
+        view = <Metrics ups={path[1]} />;
+    else if (path[0] === "ups" && path[1])
         view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} config={config} descs={descs} lastUpdate={lastUpdate} />;
     else if (path[0] === "settings")
         view = <Settings />;
