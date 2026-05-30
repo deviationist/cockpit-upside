@@ -126,6 +126,11 @@ npm run stylelint
 
 ## Features
 
+- **Monitor / control mode** — UPSide is read-only (**monitor**) by default. Set
+  `"mode": "control"` to additionally surface control actions (battery test,
+  beeper, …; they require NUT authentication to run). The file
+  (`/etc/cockpit/upside.json`) pins the mode when set — an admin can force
+  monitor-only; otherwise it's a per-browser toggle in Settings.
 - **Guided setup** — when no UPS is detected, a step-by-step guide diagnoses the
   NUT setup (installed? `MODE`? device? services?), auto-detects a USB UPS with
   **`nut-scanner`**, and applies each fix with one click — a preview of the
@@ -144,8 +149,10 @@ npm run stylelint
   detail page. No embedded database; no NUT PMDA needed.
 - **Navigation status** — a status icon next to UPSide in the Cockpit menu when a
   UPS needs attention (via `page_status`), opt-in.
-- **Settings** — feature toggles + electricity rate/currency + custom UPS names
-  in `/etc/cockpit/upside.json` (admin-writable, defensively validated on read).
+- **Settings** — monitor/control mode, feature toggles, electricity rate/currency,
+  and custom UPS names. File-backed config lives in `/etc/cockpit/upside.json`
+  (admin-writable, defensively validated on read); the mode falls back to a
+  per-browser preference when the file doesn't pin it.
 
 ## Roadmap
 

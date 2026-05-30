@@ -31,7 +31,7 @@ import { Metrics } from './Metrics';
 import { Settings } from './Settings';
 import { Setup } from './Setup';
 import { Trends } from './Trends';
-import { UpsideConfig, saveConfig, useConfig } from './lib/config';
+import { Mode, UpsideConfig, loadModePref, resolveMode, saveConfig, saveModePref, useConfig } from './lib/config';
 import { formatElapsed, monthsBetween, parseNutDate } from './lib/derive';
 import { Ups, UpsState, UpsStatus, UpsVars, formatRuntime, listUps, num, readDescriptions, readUps, stateLabel } from './lib/nut';
 
@@ -647,7 +647,12 @@ export const Application = () => {
     const [descs, setDescs] = useState<Record<string, string>>({});
     const [lastUpdate, setLastUpdate] = useState<number | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
+    // Per-browser mode fallback; the file config pins it when set (resolveMode).
+    const [modePref, setModePref] = useState<Mode | null>(loadModePref);
     const obSince = useRef<Record<string, number>>({});
+
+    const { mode, locked: modeLocked } = resolveMode(config, modePref);
+    const setMode = (m: Mode) => { setModePref(m); saveModePref(m) };
 
     // NUT ups.conf descriptions (friendly names); refresh when settings change
     // too, in case a description was just edited.
@@ -758,7 +763,7 @@ export const Application = () => {
     } else if (path[0] === "ups" && path[1])
         view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} config={config} descs={descs} lastUpdate={lastUpdate} />;
     else if (path[0] === "settings")
-        view = <Settings />;
+        view = <Settings mode={mode} modeLocked={modeLocked} onModeChange={setMode} />;
     else if (path[0] === "setup")
         view = <Setup />;
     else if (path[0] === "about")
@@ -775,6 +780,8 @@ export const Application = () => {
                         <span className="upside-masthead__name">UP<span className="upside-masthead__name-accent">S</span>ide</span>
                         <span className="upside-masthead__tagline">{_("UPS monitoring · NUT")}</span>
                     </div>
+                    {mode === "control" &&
+                        <span className="upside-mode-badge" title={_("Control mode is on")}>{_("Control")}</span>}
                 </div>
                 <nav className="upside-masthead__nav" aria-label={_("Sections")}>
                     {NAV.map(item => (
