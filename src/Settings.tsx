@@ -4,8 +4,7 @@
  * Copyright (C) 2026 deviationist
  *
  * Settings page — edits the file-backed feature/install config
- * (/etc/cockpit/upside.json). UI preferences are not here; they live in
- * cockpit.localStorage (see lib/prefs.ts).
+ * (/etc/cockpit/upside.json), the plugin's only settings tier.
  */
 
 import React, { useEffect, useState } from 'react';

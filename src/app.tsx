@@ -25,6 +25,7 @@ import cockpit from 'cockpit';
 import { page_status } from 'notifications';
 
 import { Gauge } from './Gauge';
+import { Logo } from './Logo';
 import { Settings } from './Settings';
 import { Trends } from './Trends';
 import { UpsideConfig, saveConfig, useConfig } from './lib/config';
@@ -601,6 +602,7 @@ export const Application = () => {
 
     useEffect(() => {
         let cancelled = false;
+        let timer: number | undefined;
 
         const poll = async () => {
             try {
@@ -633,13 +635,37 @@ export const Application = () => {
             }
         };
 
-        poll();
-        const timer = window.setInterval(poll, POLL_INTERVAL);
+        const start = () => {
+            if (timer === undefined) {
+                poll();
+                timer = window.setInterval(poll, POLL_INTERVAL);
+            }
+        };
+        const stop = () => {
+            if (timer !== undefined) {
+                window.clearInterval(timer);
+                timer = undefined;
+            }
+        };
+        // Poll while the page is visible; in the background only when the
+        // nav-status feature needs us to keep watching. Without this, every
+        // Cockpit session would run a 5s upsc poll in its hidden preload frame
+        // (manifest preload) for nothing.
+        const sync = () => {
+            if (!document.hidden || config.overviewCard)
+                start();
+            else
+                stop();
+        };
+
+        sync();
+        document.addEventListener("visibilitychange", sync);
         return () => {
             cancelled = true;
-            window.clearInterval(timer);
+            stop();
+            document.removeEventListener("visibilitychange", sync);
         };
-    }, []);
+    }, [config.overviewCard]);
 
     // Surface UPS status next to the UPSide entry in Cockpit's navigation
     // (shell shows an icon for a page's status). Opt-in via settings; cleared
@@ -670,7 +696,7 @@ export const Application = () => {
         <Page className="pf-m-no-sidebar">
             <header className="upside-masthead">
                 <div className="upside-masthead__brand">
-                    <img className="upside-logo" src="logo-dark.svg" alt="" />
+                    <Logo className="upside-logo" />
                     <div className="upside-masthead__titles">
                         <span className="upside-masthead__name">UP<span className="upside-masthead__name-accent">S</span>ide</span>
                         <span className="upside-masthead__tagline">{_("UPS monitoring · NUT")}</span>

@@ -129,8 +129,8 @@ npm run stylelint
   detail page. No embedded database; no NUT PMDA needed.
 - **Navigation status** — a status icon next to UPSide in the Cockpit menu when a
   UPS needs attention (via `page_status`), opt-in.
-- **Settings** — feature toggles + electricity rate/currency in
-  `/etc/cockpit/upside.json`; UI preferences in `cockpit.localStorage`.
+- **Settings** — feature toggles + electricity rate/currency + custom UPS names
+  in `/etc/cockpit/upside.json` (admin-writable, defensively validated on read).
 
 ## Roadmap
 
