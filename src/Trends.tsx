@@ -10,7 +10,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { Alert } from "@patternfly/react-core/dist/esm/components/Alert/index.js";
-import { Card, CardBody, CardTitle } from "@patternfly/react-core/dist/esm/components/Card/index.js";
+import { Button } from "@patternfly/react-core/dist/esm/components/Button/index.js";
+import { Card, CardBody, CardFooter, CardTitle } from "@patternfly/react-core/dist/esm/components/Card/index.js";
 import { Content } from "@patternfly/react-core/dist/esm/components/Content/index.js";
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
 
@@ -120,6 +121,16 @@ export const Trends = ({ ups }: { ups: string }) => {
         <Card>
             <CardTitle>{_("Trends (last 6 hours)")}</CardTitle>
             <CardBody>{body}</CardBody>
+            <CardFooter>
+                <Button
+                    variant="link"
+                    isInline
+                    component="a"
+                    onClick={() => cockpit.location.go(["ups", ups, "metrics"])}
+                >
+                    {_("View detailed metrics →")}
+                </Button>
+            </CardFooter>
         </Card>
     );
 };
