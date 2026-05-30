@@ -32,6 +32,7 @@ import { Gauge } from './Gauge';
 import { Logo } from './Logo';
 import { Metrics } from './Metrics';
 import { NutAuthModal } from './NutAuthModal';
+import { NutUserWizard } from './NutUserWizard';
 import { Settings } from './Settings';
 import { Setup } from './Setup';
 import { Topology } from './Topology';
@@ -369,6 +370,7 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
     const [creds, setCreds] = useState<NutCreds | null>(loadNutCreds);
     const [remembered, setRemembered] = useState(() => loadNutCreds() !== null);
     const [authOpen, setAuthOpen] = useState(false);
+    const [wizardOpen, setWizardOpen] = useState(false);
 
     if (error !== null)
         return <NutError error={error} />;
@@ -626,6 +628,23 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
                     setAuthOpen(false);
                 }}
                 onForget={() => { setCreds(null); setRemembered(false); clearNutCreds(); setAuthOpen(false) }}
+                onCreateUser={() => { setAuthOpen(false); setWizardOpen(true) }}
+            />
+
+            <NutUserWizard
+                isOpen={wizardOpen}
+                ups={ups.ref.name}
+                onClose={() => setWizardOpen(false)}
+                onCreated={(user, pass, remember) => {
+                    const c = { user, pass };
+                    setCreds(c);
+                    setRemembered(remember);
+                    if (remember)
+                        saveNutCreds(c);
+                    else
+                        clearNutCreds();
+                    setWizardOpen(false);
+                }}
             />
         </div>
     );

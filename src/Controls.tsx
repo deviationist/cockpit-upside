@@ -95,7 +95,7 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                             <Alert
                                 variant={feedback.ok ? "success" : "danger"}
                                 isInline
-                                className="pf-v6-u-mt-md"
+                                className="upside-controls__feedback"
                                 title={feedback.ok ? _("Done") : _("Command failed")}
                             >
                                 {feedback.msg}
