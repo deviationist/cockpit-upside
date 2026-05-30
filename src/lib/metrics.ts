@@ -25,6 +25,7 @@ export interface HistPoint { t: number, v: number }
 
 export interface ArchiveRange {
     startMs: number; // window start (epoch ms) — older samples are dropped
+    endMs: number; // window end (epoch ms) — newer samples are dropped
     intervalMs: number; // sample spacing (>= 60s, our scraper's cadence)
     limit: number; // retained for API compatibility; pmrep bounds by interval + window
 }
@@ -105,10 +106,11 @@ export async function loadArchive(metricNames: string[], ups: string, range: Arc
     const tArg = `${intervalSec}s`;
     // One extra day of margin so a sample just after a rotation boundary isn't missed.
     const startDay = dayKey(range.startMs - 86400_000);
+    const endDay = dayKey(range.endMs);
 
     const bases = (await listArchiveBases()).filter(b => {
         const d = archiveDay(b);
-        return d === null || d >= startDay;
+        return d === null || (d >= startDay && d <= endDay);
     });
     if (bases.length === 0)
         return { points, instances, samples };
@@ -161,7 +163,7 @@ export async function loadArchive(metricNames: string[], ups: string, range: Arc
                 continue; // data rows start with an epoch timestamp
             const f = line.split(",");
             const t = Number(f[0]) * 1000;
-            if (Number.isNaN(t) || t < range.startMs)
+            if (Number.isNaN(t) || t < range.startMs || t > range.endMs)
                 continue;
             samples++;
             for (const n of queryable) {

@@ -15,10 +15,13 @@
 import React, { useEffect, useState } from 'react';
 import { Alert } from "@patternfly/react-core/dist/esm/components/Alert/index.js";
 import { Breadcrumb, BreadcrumbItem } from "@patternfly/react-core/dist/esm/components/Breadcrumb/index.js";
+import { Button } from "@patternfly/react-core/dist/esm/components/Button/index.js";
 import { Card, CardBody, CardTitle } from "@patternfly/react-core/dist/esm/components/Card/index.js";
 import { Content } from "@patternfly/react-core/dist/esm/components/Content/index.js";
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
 import { ToggleGroup, ToggleGroupItem } from "@patternfly/react-core/dist/esm/components/ToggleGroup/index.js";
+import { AngleLeftIcon } from "@patternfly/react-icons/dist/esm/icons/angle-left-icon.js";
+import { AngleRightIcon } from "@patternfly/react-icons/dist/esm/icons/angle-right-icon.js";
 
 import cockpit from 'cockpit';
 
@@ -53,6 +56,8 @@ const RANGES: Range[] = [
 
 export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
     const [rangeId, setRangeId] = useState("6h");
+    // How far back the window is shifted from "now", in ms (0 = latest).
+    const [offset, setOffset] = useState(0);
     const [result, setResult] = useState<ArchiveResult | null>(null);
     const [win, setWin] = useState<{ start: number, end: number }>({ start: 0, end: 0 });
     const [error, setError] = useState<string | null>(null);
@@ -60,24 +65,27 @@ export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
 
     const range = RANGES.find(r => r.id === rangeId) || RANGES[1];
 
+    const pickRange = (id: string) => { setRangeId(id); setOffset(0) };
+
     useEffect(() => {
         let cancelled = false;
         setLoading(true);
         setError(null);
         setResult(null);
         // Capture the exact window so the chart x-axis matches the fetched data.
-        const end = Date.now();
+        const end = Date.now() - offset;
         const start = end - range.ms;
         setWin({ start, end });
         loadArchive(SERIES.map(s => metricName(s.key)), ups, {
             startMs: start,
+            endMs: end,
             intervalMs: range.intervalMs,
             limit: range.limit,
         })
                 .then(r => { if (!cancelled) { setResult(r); setLoading(false) } })
                 .catch((e: { message?: string }) => { if (!cancelled) { setError(e?.message || String(e)); setLoading(false) } });
         return () => { cancelled = true };
-    }, [ups, rangeId, range.ms, range.intervalMs, range.limit]);
+    }, [ups, rangeId, offset, range.ms, range.intervalMs, range.limit]);
 
     const shown = result
         ? SERIES.filter(s => (result.points[metricName(s.key)]?.length ?? 0) >= 2)
@@ -103,10 +111,25 @@ export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
                             key={r.id}
                             text={r.label}
                             isSelected={r.id === rangeId}
-                            onChange={() => setRangeId(r.id)}
+                            onChange={() => pickRange(r.id)}
                         />
                     ))}
                 </ToggleGroup>
+                <div className="upside-metrics__nav">
+                    <Button
+                        variant="secondary"
+                        aria-label={_("Earlier")}
+                        icon={<AngleLeftIcon />}
+                        onClick={() => setOffset(o => o + range.ms)}
+                    />
+                    <Button
+                        variant="secondary"
+                        aria-label={_("Later")}
+                        icon={<AngleRightIcon />}
+                        isDisabled={offset === 0}
+                        onClick={() => setOffset(o => Math.max(0, o - range.ms))}
+                    />
+                </div>
             </div>
 
             {error &&
@@ -142,7 +165,7 @@ export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
                                     max={s.max}
                                     startMs={win.start}
                                     endMs={win.end}
-                                    height={150}
+                                    height={180}
                                 />
                             </CardBody>
                         </Card>
