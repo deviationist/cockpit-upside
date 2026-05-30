@@ -91,13 +91,13 @@ Integration tests live in `test/` (Cockpit test framework).
   (`io.github.deviationist.upside.metainfo.xml`).
 - **Static assets** must be added to the `copy-assets` plugin in `build.js` —
   esbuild does not copy them automatically, and `*.svg` is marked external.
-- **Brand kit lives in `logos/`** (canonical): `logo-colored.svg` (light-inked,
-  for dark backgrounds), `logo-colored-dark.svg` (dark-inked, for light
-  backgrounds), plus monochrome black/white. `build.js` copies the two colored
-  variants into `dist/` as `logo-light.svg` (light mode = dark-inked) and
-  `logo-dark.svg` (dark mode = light-inked) — served at
-  `/upside/logo-{light,dark}.svg`. The mapping is by *visibility*: dark ink on
-  light backgrounds, light ink on dark.
+- **Logo is an inline component** (`src/Logo.tsx`), bundled with the JS — no
+  separate asset fetch and no `copy-assets` entry. The editable vector source is
+  `logos/logo.svg`; keep the two in sync if the artwork changes. Only one logo
+  is needed because the masthead is navy in **both** themes (see `app.scss`), so
+  the light-inked artwork reads everywhere — there's no light-background case
+  that would need a dark-inked variant. (If one is ever added, that's the time
+  to add a second variant + a theme swap, not before.)
 - **PatternFly CSS is curated — some component styles must be imported
   explicitly.** `index.tsx` imports `patternfly/patternfly-6-cockpit.scss`,
   Cockpit's *curated* PatternFly bundle. It covers most components (Card, Label,
@@ -123,11 +123,13 @@ Integration tests live in `test/` (Cockpit test framework).
   `box-shadow--` capture artifact aside). Fix by matching versions, **not** by
   shimming tokens. Don't jump ahead of the bundle's PatternFly (e.g. to 6.5)
   without also bumping `COCKPIT_REPO_COMMIT`.
-- **GUI theme swap** is via the `.pf-v6-theme-dark` class (see `app.scss`),
-  with both `<img>`s rendered. Do **not** use a `prefers-color-scheme` media
-  query for the GUI — Cockpit's theme is user-selectable and independent of the
-  OS setting. (The README, on GitHub, is the exception: the banner is a single
-  dark SVG that reads on both GitHub themes.)
+- **GUI theming** keys off the `.pf-v6-theme-dark` class (see `app.scss`) — the
+  masthead lifts to a lighter navy in dark mode. Do **not** use a
+  `prefers-color-scheme` media query for the GUI — Cockpit's theme is
+  user-selectable and independent of the OS setting. The masthead logo is a
+  single inline `<Logo>` (`src/Logo.tsx`) that works in both themes since the
+  masthead stays navy. (The README banner, on GitHub, is likewise a single dark
+  SVG that reads on both GitHub themes.)
 - **Secrets:** never commit credentials or real `upsc` dumps containing
   sensitive values; redact before adding to docs/tests/issues.
 
@@ -141,7 +143,8 @@ src/app.scss        app styles
 src/manifest.json   Cockpit manifest (sidebar label, required cockpit version)
 io.github.deviationist.upside.metainfo.xml   AppStream metadata
 build.js            esbuild build
-logos/              brand kit (canonical SVGs); build.js picks two for dist/
+src/Logo.tsx        inline masthead logo (source vector: logos/logo.svg)
+logos/              brand kit (logo.svg — editable vector source for Logo.tsx)
 upside-github-banner.svg   README header banner (GitHub only)
 packaging/          RPM spec + Arch PKGBUILD
 test/               Cockpit integration tests

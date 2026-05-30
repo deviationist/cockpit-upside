@@ -3,13 +3,14 @@
  *
  * Copyright (C) 2026 deviationist
  *
- * Two-tier settings, matching Cockpit conventions:
+ * Feature / install config lives in a host file (/etc/cockpit/upside.json),
+ * read/written via privileged cockpit.file — shared across admins/browsers,
+ * the right home for "is this feature active" + install-wide values (feature
+ * toggles, electricity rate/currency, custom UPS names). This module owns it.
  *
- *  - FEATURE / INSTALL CONFIG lives in a host file (/etc/cockpit/upside.json),
- *    read/written via privileged cockpit.file — shared across admins/browsers,
- *    the right home for "is this feature active" + install-wide values. This
- *    module owns that tier.
- *  - FUNCTIONAL / UI PREFERENCES live in cockpit.localStorage (see prefs.ts).
+ * The file is admin-writable, so it isn't an untrusted input in the usual
+ * sense, but we still defensively coerce it on read (see sanitize) so a
+ * hand-edited or malformed file can't crash the UI.
  */
 
 import cockpit from 'cockpit';
@@ -102,9 +103,43 @@ export function defaultConfig(): UpsideConfig {
 const PATH = "/etc/cockpit/upside.json";
 
 const syntax = {
-    parse: (text: string): Partial<UpsideConfig> => (text ? JSON.parse(text) : {}),
+    // Tolerate a malformed file: a JSON parse error becomes {} (→ defaults)
+    // rather than rejecting the whole channel read.
+    parse: (text: string): Partial<UpsideConfig> => {
+        if (!text)
+            return {};
+        try {
+            return JSON.parse(text);
+        } catch {
+            return {};
+        }
+    },
     stringify: (obj: UpsideConfig): string => JSON.stringify(obj, null, 2) + "\n",
 };
+
+/**
+ * Coerce arbitrary parsed JSON into a valid UpsideConfig, falling back to
+ * defaults per-field. Guards against a hand-edited file with wrong types
+ * (e.g. costRate as a string, names as an array) crashing the render path.
+ */
+function sanitize(content: Partial<UpsideConfig> | null): UpsideConfig {
+    const d = defaultConfig();
+    const c = (content && typeof content === "object") ? content as Record<string, unknown> : {};
+    const names: Record<string, string> = {};
+    if (c.names && typeof c.names === "object" && !Array.isArray(c.names)) {
+        for (const [k, v] of Object.entries(c.names as Record<string, unknown>)) {
+            if (typeof v === "string")
+                names[k] = v;
+        }
+    }
+    return {
+        history: typeof c.history === "boolean" ? c.history : d.history,
+        overviewCard: typeof c.overviewCard === "boolean" ? c.overviewCard : d.overviewCard,
+        costRate: typeof c.costRate === "number" && Number.isFinite(c.costRate) ? c.costRate : d.costRate,
+        costCurrency: typeof c.costCurrency === "string" && c.costCurrency ? c.costCurrency : d.costCurrency,
+        names,
+    };
+}
 
 /** Persist the config to the host file (needs admin; cockpit prompts as needed). */
 export function saveConfig(config: UpsideConfig): Promise<void> {
@@ -123,7 +158,7 @@ export function useConfig(): { config: UpsideConfig, loading: boolean } {
     useEffect(() => {
         const file = cockpit.file(PATH, { superuser: "try", syntax });
         const handler = (content: Partial<UpsideConfig> | null) => {
-            setConfig({ ...defaultConfig(), ...(content ?? {}) });
+            setConfig(sanitize(content));
             setLoading(false);
         };
         file.watch(handler);

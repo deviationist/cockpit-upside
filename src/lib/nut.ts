@@ -67,6 +67,14 @@ export async function readUps(ref: UpsRef): Promise<Ups> {
  * per `[section]`), keyed by UPS name. upsc doesn't expose `desc` to clients, so
  * we read the file directly (needs admin; falls back to {} if unreadable).
  * Used as a friendly display name when the device only reports generic strings.
+ *
+ * SECURITY: cockpit.file reads whole files, so the entire ups.conf transits the
+ * channel even though we keep only `desc`. ups.conf can hold driver secrets for
+ * some drivers (e.g. snmp-ups `authPassword`/`privPassword`/`community`). We
+ * never store or surface anything but `desc` — the raw text is a local that's
+ * discarded — and the caller is already an admin who can read the file, but be
+ * aware the bytes briefly live in the browser heap. We deliberately do NOT read
+ * upsd.users (the upsd credential store).
  */
 export async function readDescriptions(): Promise<Record<string, string>> {
     const out: Record<string, string> = {};

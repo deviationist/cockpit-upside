@@ -117,9 +117,8 @@ const context = await esbuild.context({
                     if (output?.errors.length === 0) {
                         fs.copyFileSync('./src/manifest.json', './dist/manifest.json');
                         fs.copyFileSync('./src/index.html', './dist/index.html');
-                        // Theme logos: dark-inked artwork for light mode, light-inked for dark mode.
-                        fs.copyFileSync('./logos/logo-colored-dark.svg', './dist/logo-light.svg');
-                        fs.copyFileSync('./logos/logo-colored.svg', './dist/logo-dark.svg');
+                        // The masthead logo is inlined as a React component
+                        // (src/Logo.tsx), so no logo asset needs copying here.
                     }
                 });
             }
