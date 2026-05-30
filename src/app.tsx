@@ -325,24 +325,33 @@ const Overview = ({ upses, error, descs, names, lastUpdate }: {
     descs: Record<string, string>, names: Record<string, string>,
     lastUpdate: number | null,
 }) => {
-    if (error !== null)
-        return <NutError error={error} />;
-    if (upses === null)
+    // Still loading and nothing has errored yet.
+    if (upses === null && error === null)
         return <Spinner aria-label={_("Loading UPS data")} />;
-    if (upses.length === 0) {
-        // No UPS yet → drop the user straight into the guided setup rather than
-        // a dead-end "nothing here" message.
+
+    // No UPS to show — either NUT can't be read at all (not installed / upsd
+    // down → error set, upses still null) or it's running with nothing
+    // configured (empty list). Either way, drop the user into the guided setup,
+    // which probes the host and surfaces the right step, rather than a dead-end
+    // warning. This makes the very first visit always land somewhere actionable.
+    if (!upses || upses.length === 0) {
         return (
             <EmptyState headingLevel="h2" titleText={_("Let's connect a UPS")}>
                 <EmptyStateBody>
-                    {_("No UPS is reporting to NUT on this host yet. This guide walks you through it.")}
+                    {error
+                        ? _("UPSide couldn't read any UPS from NUT on this host. This guide checks each prerequisite — install, mode, device — and walks you through it.")
+                        : _("No UPS is reporting to NUT on this host yet. This guide walks you through it.")}
                 </EmptyStateBody>
                 <div className="upside-empty-setup"><Setup /></div>
             </EmptyState>
         );
     }
+
+    // We have data: show the gallery. A failed *latest* poll is surfaced as a
+    // banner above the last-known state rather than replacing the whole view.
     return (
         <>
+            {error && <NutError error={error} />}
             <div className="upside-poll-bar"><PollIndicator lastUpdate={lastUpdate} /></div>
             <Gallery className="upside-gallery" hasGutter>
                 {upses.map(ups => <UpsCard key={ups.id} ups={ups} descs={descs} names={names} />)}
