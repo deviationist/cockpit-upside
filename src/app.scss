@@ -75,6 +75,38 @@ $upside-amber: #f59e0b;
     letter-spacing: 0.09em;
 }
 
+// "Protecting these hosts" card (Topology.tsx).
+.upside-topo {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.upside-topo__host {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+}
+
+.upside-topo__name {
+    font-weight: 600;
+}
+
+.upside-topo__ip {
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+    font-family: var(--pf-t--global--font--family--mono, monospace);
+    font-size: 0.85rem;
+}
+
+.upside-topo__note {
+    display: block;
+    margin-block-start: 0.6rem;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
 // Control actions card (Controls.tsx).
 .upside-controls__actions {
     display: flex;

@@ -31,6 +31,7 @@ import { Logo } from './Logo';
 import { Metrics } from './Metrics';
 import { Settings } from './Settings';
 import { Setup } from './Setup';
+import { Topology } from './Topology';
 import { Trends } from './Trends';
 import { Mode, UpsideConfig, loadModePref, resolveMode, saveConfig, saveModePref, useConfig } from './lib/config';
 import { formatElapsed, monthsBetween, parseNutDate } from './lib/derive';
@@ -567,6 +568,8 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
             </Card>
 
             {mode === "control" && <Controls ups={ups.ref.name} />}
+
+            <Topology ups={ups.ref.name} />
 
             {config.history && <Trends ups={ups.ref.name} />}
 
