@@ -42,7 +42,8 @@ export function refId(ref: UpsRef): string {
  */
 export async function listUps(host?: string): Promise<UpsRef[]> {
     const argv = host ? ["upsc", "-l", host] : ["upsc", "-l"];
-    const out: string = await cockpit.spawn(argv, { err: "message", superuser: "try" });
+    // upsc is an unauthenticated client to upsd — it needs no privileges.
+    const out: string = await cockpit.spawn(argv, { err: "message" });
     return out.split("\n")
             .map(s => s.trim())
             .filter(Boolean)
@@ -51,7 +52,7 @@ export async function listUps(host?: string): Promise<UpsRef[]> {
 
 /** Read every variable for a single UPS. */
 export async function readUps(ref: UpsRef): Promise<Ups> {
-    const out: string = await cockpit.spawn(["upsc", refId(ref)], { err: "message", superuser: "try" });
+    const out: string = await cockpit.spawn(["upsc", refId(ref)], { err: "message" });
     const vars = parseVars(out);
     return {
         ref,

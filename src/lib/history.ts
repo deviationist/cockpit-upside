@@ -29,18 +29,32 @@ function headerMatchesUps(header: string, ups: string): boolean {
     return m ? m[1] === ups : false;
 }
 
+// Resolve the most recent pmlogger archive volume for this host (base name,
+// without the .index suffix). The shell command is a fixed literal — no values
+// are interpolated into it — so there is no injection surface.
+async function latestArchiveBase(): Promise<string | null> {
+    const out: string = await cockpit.spawn(
+        ["sh", "-c", "ls -t /var/log/pcp/pmlogger/$(hostname)/*.index 2>/dev/null | head -1"],
+        { err: "message" });
+    const index = out.trim();
+    return index ? index.replace(/\.index$/, "") : null;
+}
+
 export async function fetchHistory(metric: string, ups: string, opts: HistoryOptions = {}): Promise<HistPoint[]> {
     const intervalSec = Math.max(1, Math.round((opts.interval ?? 60_000) / 1000));
     const windowMs = opts.windowMs ?? 6 * 3600_000;
 
-    // Read the most recent pmlogger archive volume for this host, downsampled to
-    // the chart interval, as CSV with epoch timestamps. Archives are
-    // world-readable and pmrep needs no privileges.
-    const cmd =
-        `pmrep -z -a "$(ls -t /var/log/pcp/pmlogger/$(hostname)/*.index 2>/dev/null | head -1 | sed 's/[.]index$//')" ` +
-        `-t ${intervalSec}s -o csv -f '%s' ${metric}`;
+    // Read the most recent pmlogger archive volume, downsampled to the chart
+    // interval, as CSV with epoch timestamps. pmrep is invoked via argv (no
+    // shell), so `metric` can never be interpreted as a command. Archives are
+    // world-readable, so no privileges are needed.
+    const base = await latestArchiveBase();
+    if (!base)
+        return [];
 
-    const out: string = await cockpit.spawn(["bash", "-c", cmd], { err: "message" });
+    const out: string = await cockpit.spawn(
+        ["pmrep", "-z", "-a", base, "-t", `${intervalSec}s`, "-o", "csv", "-f", "%s", metric],
+        { err: "message" });
     const lines = out.split("\n").filter(l => l.length > 0);
     if (lines.length < 2)
         return [];
