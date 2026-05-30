@@ -51,7 +51,7 @@ const RANGES: Range[] = [
     { id: "7d", label: _("7 days"), ms: 7 * 24 * 3600_000, intervalMs: 1800_000, limit: 340 },
 ];
 
-export const Metrics = ({ ups }: { ups: string }) => {
+export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
     const [rangeId, setRangeId] = useState("6h");
     const [result, setResult] = useState<ArchiveResult | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -86,7 +86,7 @@ export const Metrics = ({ ups }: { ups: string }) => {
                     {_("Overview")}
                 </BreadcrumbItem>
                 <BreadcrumbItem to="#" onClick={(e: React.MouseEvent) => { e.preventDefault(); cockpit.location.go(["ups", ups]) }}>
-                    {ups}
+                    {title || ups}
                 </BreadcrumbItem>
                 <BreadcrumbItem isActive>{_("Metrics")}</BreadcrumbItem>
             </Breadcrumb>

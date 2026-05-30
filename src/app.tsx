@@ -746,9 +746,16 @@ export const Application = () => {
     };
 
     let view;
-    if (path[0] === "ups" && path[1] && path[2] === "metrics")
-        view = <Metrics ups={path[1]} />;
-    else if (path[0] === "ups" && path[1])
+    if (path[0] === "ups" && path[1] && path[2] === "metrics") {
+        // Resolve the friendly name from the custom name / NUT desc first — both
+        // load independently of (and faster than) the upsc poll — so the
+        // breadcrumb doesn't briefly show the raw name while the poll runs. Fall
+        // back to mfr/model (needs the polled vars) only if neither is set.
+        const u = upses?.find(x => x.ref.name === path[1]);
+        const title = config.names[path[1]] || descs[path[1]] ||
+            (u ? displayName(u, descs, config.names) : path[1]);
+        view = <Metrics ups={path[1]} title={title} />;
+    } else if (path[0] === "ups" && path[1])
         view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} config={config} descs={descs} lastUpdate={lastUpdate} />;
     else if (path[0] === "settings")
         view = <Settings />;
