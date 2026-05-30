@@ -385,10 +385,12 @@ $upside-amber: #f59e0b;
     margin-block-end: 1rem;
 }
 
-// Push the prev/next time navigation to the right of the range toggles.
+// Right-aligned control cluster: timeframe dropdown + zoom + prev/next.
 .upside-metrics__nav {
     margin-inline-start: auto;
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 0.5rem;
 }
 

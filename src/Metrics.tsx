@@ -157,27 +157,27 @@ export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
             </Breadcrumb>
 
             <div className="upside-metrics__bar">
-                <Dropdown
-                    isOpen={tfOpen}
-                    onOpenChange={(o: boolean) => setTfOpen(o)}
-                    onSelect={() => setTfOpen(false)}
-                    toggle={toggleRef => (
-                        <MenuToggle ref={toggleRef} isExpanded={tfOpen} onClick={() => setTfOpen(o => !o)}>
-                            {zoom ? _("Custom range") : range.label}
-                        </MenuToggle>
-                    )}
-                >
-                    <DropdownList>
-                        {RANGES.map(r => (
-                            <DropdownItem key={r.id} isSelected={!zoom && r.id === rangeId} onClick={() => pickRange(r.id)}>
-                                {r.label}
-                            </DropdownItem>
-                        ))}
-                    </DropdownList>
-                </Dropdown>
                 {loading && result !== null &&
                     <Spinner size="md" aria-label={_("Refreshing")} className="upside-metrics__busy" />}
                 <div className="upside-metrics__nav">
+                    <Dropdown
+                        isOpen={tfOpen}
+                        onOpenChange={(o: boolean) => setTfOpen(o)}
+                        onSelect={() => setTfOpen(false)}
+                        toggle={toggleRef => (
+                            <MenuToggle ref={toggleRef} isExpanded={tfOpen} onClick={() => setTfOpen(o => !o)}>
+                                {zoom ? _("Custom range") : range.label}
+                            </MenuToggle>
+                        )}
+                    >
+                        <DropdownList>
+                            {RANGES.map(r => (
+                                <DropdownItem key={r.id} isSelected={!zoom && r.id === rangeId} onClick={() => pickRange(r.id)}>
+                                    {r.label}
+                                </DropdownItem>
+                            ))}
+                        </DropdownList>
+                    </Dropdown>
                     {zoom &&
                         <Button variant="link" onClick={() => setZoom(null)}>{_("Reset zoom")}</Button>}
                     <Button variant="secondary" aria-label={_("Zoom in")} icon={<SearchPlusIcon />} isDisabled={rangeIdx <= 0} onClick={() => stepRange(-1)} />
