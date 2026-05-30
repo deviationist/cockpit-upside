@@ -505,7 +505,9 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate }: {
                                                     value={nameDraft}
                                                     onChange={(_ev, v) => setNameDraft(v)}
                                                     aria-label={_("Custom name")}
-                                                    placeholder={ups.ref.name}
+                                                    // Show what the name falls back to without a custom
+                                                    // override (NUT desc / model), not the raw NUT id.
+                                                    placeholder={displayName(ups, descs, {})}
                                                 />
                                             </FlexItem>
                                             <Button variant="primary" onClick={saveName}>{_("Save")}</Button>
