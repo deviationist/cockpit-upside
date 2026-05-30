@@ -311,6 +311,10 @@ $upside-amber: #f59e0b;
 .upside-detail .pf-v6-c-breadcrumb,
 .upside-metrics .pf-v6-c-breadcrumb {
     --pf-v6-c-breadcrumb__item--FontSize: var(--pf-t--global--font--size--body--default);
+    // Linked items carry inline padding that plain (active) items don't, so the
+    // same crumb shifts between pages. Zero it so link and active text align.
+    --pf-v6-c-breadcrumb__link--PaddingInlineStart: 0;
+    --pf-v6-c-breadcrumb__link--PaddingInlineEnd: 0;
 }
 
 // SVG donut gauge.
