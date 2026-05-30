@@ -75,7 +75,26 @@ $upside-amber: #f59e0b;
     letter-spacing: 0.09em;
 }
 
-// Shown in the masthead when control mode is active.
+// Control actions card (Controls.tsx).
+.upside-controls__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.upside-controls__creds {
+    display: block;
+    margin-block-start: 0.75rem;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
+.upside-controls__form {
+    margin-block-start: 1rem;
+    max-inline-size: 26rem;
+}
+
+// Shown in the masthead when control mode is active — sits right after the
+// GitHub link (which carries the auto margin), so both cluster at the far right.
 .upside-mode-badge {
     align-self: center;
     padding: 0.1rem 0.5rem;

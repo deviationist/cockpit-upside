@@ -25,6 +25,7 @@ import { PencilAltIcon } from "@patternfly/react-icons/dist/esm/icons/pencil-alt
 import cockpit from 'cockpit';
 import { page_status } from 'notifications';
 
+import { Controls } from './Controls';
 import { Gauge } from './Gauge';
 import { Logo } from './Logo';
 import { Metrics } from './Metrics';
@@ -346,7 +347,7 @@ const Overview = ({ upses, error, descs, names, lastUpdate }: {
 
 /* ---- detail ---- */
 
-const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate }: {
+const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }: {
     upses: Ups[] | null,
     error: string | null,
     name: string,
@@ -354,6 +355,7 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate }: {
     config: UpsideConfig,
     descs: Record<string, string>,
     lastUpdate: number | null,
+    mode: Mode,
 }) => {
     const [open, setOpen] = useState(false);
     const [renaming, setRenaming] = useState(false);
@@ -564,6 +566,8 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate }: {
                 </CardBody>
             </Card>
 
+            {mode === "control" && <Controls ups={ups.ref.name} />}
+
             {config.history && <Trends ups={ups.ref.name} />}
 
             <Gallery className="upside-gallery" hasGutter>
@@ -761,7 +765,7 @@ export const Application = () => {
             (u ? displayName(u, descs, config.names) : path[1]);
         view = <Metrics ups={path[1]} title={title} />;
     } else if (path[0] === "ups" && path[1])
-        view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} config={config} descs={descs} lastUpdate={lastUpdate} />;
+        view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} config={config} descs={descs} lastUpdate={lastUpdate} mode={mode} />;
     else if (path[0] === "settings")
         view = <Settings mode={mode} modeLocked={modeLocked} onModeChange={setMode} />;
     else if (path[0] === "setup")
@@ -780,8 +784,6 @@ export const Application = () => {
                         <span className="upside-masthead__name">UP<span className="upside-masthead__name-accent">S</span>ide</span>
                         <span className="upside-masthead__tagline">{_("UPS monitoring · NUT")}</span>
                     </div>
-                    {mode === "control" &&
-                        <span className="upside-mode-badge" title={_("Control mode is on")}>{_("Control")}</span>}
                 </div>
                 <nav className="upside-masthead__nav" aria-label={_("Sections")}>
                     {NAV.map(item => (
@@ -815,6 +817,8 @@ export const Application = () => {
                 >
                     <GithubMark />
                 </a>
+                {mode === "control" &&
+                    <span className="upside-mode-badge" title={_("Control mode is on")}>{_("Control")}</span>}
                 {menuOpen &&
                     <nav className="upside-masthead__menu" aria-label={_("Sections")}>
                         {NAV.map(item => (
