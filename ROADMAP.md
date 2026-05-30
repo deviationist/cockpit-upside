@@ -55,6 +55,10 @@ flag, or omitted.
 
 ## Other improvements
 
+- [ ] **"Protecting hosts" view** — list the `upsmon` secondaries connected to a
+      UPS via `upsc -c <ups>` (read-only, no auth), so the Detail page shows
+      every host that will shut down on it (e.g. a primary + its secondaries).
+      Note: NUT renamed master/secondary → primary/secondary in 2.8.
 - [ ] Remote `upsd` support (`name@host`) for UPSes on other hosts.
 - [ ] History across multiple `pmlogger` archive volumes (reads the latest now).
 - [ ] One-click "enable history" that installs the PCP scraper automatically.
