@@ -18,6 +18,7 @@ $upside-amber: #f59e0b;
 
 // Branded masthead — owns the top of the plugin's space.
 .upside-masthead {
+    position: relative; // anchor for the mobile dropdown menu
     display: flex;
     align-items: center;
     flex-wrap: wrap;
@@ -132,6 +133,70 @@ $upside-amber: #f59e0b;
     inline-size: 1.35rem;
     block-size: 1.35rem;
     fill: currentcolor;
+}
+
+// Hamburger — hidden on wide screens, revealed ≤767px (see media query below).
+.upside-masthead__burger {
+    display: none;
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: #cbd5e1;
+    padding: 0.3rem;
+    cursor: pointer;
+    align-items: center;
+
+    &:hover { color: #fff; }
+
+    &:focus-visible {
+        outline: 2px solid $upside-amber;
+        outline-offset: 2px;
+    }
+}
+
+.upside-masthead__burger-icon {
+    inline-size: 1.6rem;
+    block-size: 1.6rem;
+}
+
+// Mobile dropdown menu — an absolute panel anchored under the masthead.
+.upside-masthead__menu {
+    position: absolute;
+    inset-block-start: 100%;
+    inset-inline-end: 1rem;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-inline-size: 11rem;
+    margin-block-start: 0.25rem;
+    padding: 0.4rem;
+    background: $upside-navy;
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+
+    .upside-tab {
+        inline-size: 100%;
+        text-align: start;
+    }
+}
+
+// At ≤767px collapse the inline tabs into the hamburger.
+@media (width <= 767px) {
+    .upside-masthead__nav { display: none; }
+
+    .upside-masthead__burger {
+        display: inline-flex;
+        margin-inline-start: auto; // push the burger + GitHub link to the right
+    }
+
+    .upside-masthead__action { margin-inline-start: 0; }
+}
+
+// Safety: if the viewport widens while the menu is open, don't leave it showing.
+@media (width >= 768px) {
+    .upside-masthead__menu { display: none; }
 }
 
 // Status pills in a card title: give them room to breathe.

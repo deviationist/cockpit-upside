@@ -616,6 +616,12 @@ const GithubMark = () => (
     </svg>
 );
 
+const MenuIcon = () => (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="upside-masthead__burger-icon">
+        <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+    </svg>
+);
+
 const NAV: { key: string, label: string }[] = [
     { key: "overview", label: _("Overview") },
     { key: "setup", label: _("Setup") },
@@ -640,6 +646,7 @@ export const Application = () => {
     const [error, setError] = useState<string | null>(null);
     const [descs, setDescs] = useState<Record<string, string>>({});
     const [lastUpdate, setLastUpdate] = useState<number | null>(null);
+    const [menuOpen, setMenuOpen] = useState(false);
     const obSince = useRef<Record<string, number>>({});
 
     // NUT ups.conf descriptions (friendly names); refresh when settings change
@@ -732,6 +739,12 @@ export const Application = () => {
     const path = location.path;
     const section = (path[0] === "about" || path[0] === "settings" || path[0] === "setup") ? path[0] : "overview";
 
+    // Navigate to a top-level section and close the (mobile) menu.
+    const go = (key: string) => {
+        cockpit.location.go(key === "overview" ? [] : [key]);
+        setMenuOpen(false);
+    };
+
     let view;
     if (path[0] === "ups" && path[1] && path[2] === "metrics")
         view = <Metrics ups={path[1]} />;
@@ -763,12 +776,21 @@ export const Application = () => {
                             type="button"
                             className={"upside-tab" + (section === item.key ? " upside-tab--active" : "")}
                             aria-current={section === item.key ? "page" : undefined}
-                            onClick={() => cockpit.location.go(item.key === "overview" ? [] : [item.key])}
+                            onClick={() => go(item.key)}
                         >
                             {item.label}
                         </button>
                     ))}
                 </nav>
+                <button
+                    type="button"
+                    className="upside-masthead__burger"
+                    aria-label={_("Menu")}
+                    aria-expanded={menuOpen}
+                    onClick={() => setMenuOpen(o => !o)}
+                >
+                    <MenuIcon />
+                </button>
                 <a
                     className="upside-masthead__action"
                     href="https://github.com/deviationist/cockpit-upside"
@@ -779,6 +801,20 @@ export const Application = () => {
                 >
                     <GithubMark />
                 </a>
+                {menuOpen &&
+                    <nav className="upside-masthead__menu" aria-label={_("Sections")}>
+                        {NAV.map(item => (
+                            <button
+                                key={item.key}
+                                type="button"
+                                className={"upside-tab" + (section === item.key ? " upside-tab--active" : "")}
+                                aria-current={section === item.key ? "page" : undefined}
+                                onClick={() => go(item.key)}
+                            >
+                                {item.label}
+                            </button>
+                        ))}
+                    </nav>}
             </header>
             <PageSection hasBodyWrapper={false} className="upside-content">
                 {view}
