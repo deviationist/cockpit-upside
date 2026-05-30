@@ -202,6 +202,27 @@ function fieldValue(vars: UpsVars, f: FieldSpec): string | undefined {
 
 /* ---- small shared bits ---- */
 
+/* Live-poll heartbeat: a dot that pulses on each successful poll (the dot is
+ * keyed by the update time, so it remounts and replays its CSS animation every
+ * tick), plus a relative "updated Ns ago" label that counts up between polls. */
+const PollIndicator = ({ lastUpdate }: { lastUpdate: number | null }) => {
+    const [, tick] = useState(0);
+    useEffect(() => {
+        const t = window.setInterval(() => tick(n => n + 1), 1000);
+        return () => window.clearInterval(t);
+    }, []);
+    if (!lastUpdate)
+        return null;
+    const ago = Math.max(0, Math.round((Date.now() - lastUpdate) / 1000));
+    const rel = ago < 2 ? _("just now") : cockpit.format(_("$0s ago"), ago);
+    return (
+        <span className="upside-poll" title={_("Auto-refreshing")}>
+            <span key={lastUpdate} className="upside-poll__dot" aria-hidden="true" />
+            <span className="upside-poll__text">{cockpit.format(_("Updated $0"), rel)}</span>
+        </span>
+    );
+};
+
 const NutError = ({ error }: { error: string }) => (
     <Alert variant="warning" isInline title={_("Could not read UPS data")}>
         <p>{error}</p>
@@ -287,9 +308,10 @@ const UpsCard = ({ ups, descs, names }: { ups: Ups, descs: Record<string, string
     );
 };
 
-const Overview = ({ upses, error, descs, names }: {
+const Overview = ({ upses, error, descs, names, lastUpdate }: {
     upses: Ups[] | null, error: string | null,
     descs: Record<string, string>, names: Record<string, string>,
+    lastUpdate: number | null,
 }) => {
     if (error !== null)
         return <NutError error={error} />;
@@ -308,21 +330,25 @@ const Overview = ({ upses, error, descs, names }: {
         );
     }
     return (
-        <Gallery className="upside-gallery" hasGutter>
-            {upses.map(ups => <UpsCard key={ups.id} ups={ups} descs={descs} names={names} />)}
-        </Gallery>
+        <>
+            <div className="upside-poll-bar"><PollIndicator lastUpdate={lastUpdate} /></div>
+            <Gallery className="upside-gallery" hasGutter>
+                {upses.map(ups => <UpsCard key={ups.id} ups={ups} descs={descs} names={names} />)}
+            </Gallery>
+        </>
     );
 };
 
 /* ---- detail ---- */
 
-const Detail = ({ upses, error, name, obSince, config, descs }: {
+const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate }: {
     upses: Ups[] | null,
     error: string | null,
     name: string,
     obSince: Record<string, number>,
     config: UpsideConfig,
     descs: Record<string, string>,
+    lastUpdate: number | null,
 }) => {
     const [open, setOpen] = useState(false);
     const [renaming, setRenaming] = useState(false);
@@ -494,7 +520,12 @@ const Detail = ({ upses, error, name, obSince, config, descs }: {
                             </Button>
                         )}
                 </FlexItem>
-                <FlexItem align={{ default: "alignRight" }}><StatusLabels status={status} /></FlexItem>
+                <FlexItem align={{ default: "alignRight" }}>
+                    <Flex alignItems={{ default: "alignItemsCenter" }} spaceItems={{ default: "spaceItemsMd" }}>
+                        <FlexItem><PollIndicator lastUpdate={lastUpdate} /></FlexItem>
+                        <FlexItem><StatusLabels status={status} /></FlexItem>
+                    </Flex>
+                </FlexItem>
             </Flex>
 
             <Card>
@@ -596,6 +627,7 @@ export const Application = () => {
     const [upses, setUpses] = useState<Ups[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [descs, setDescs] = useState<Record<string, string>>({});
+    const [lastUpdate, setLastUpdate] = useState<number | null>(null);
     const obSince = useRef<Record<string, number>>({});
 
     // NUT ups.conf descriptions (friendly names); refresh when settings change
@@ -633,6 +665,7 @@ export const Application = () => {
                         delete ob[id];
                 }
                 setUpses(list);
+                setLastUpdate(now);
                 setError(null);
             } catch (ex) {
                 if (!cancelled)
@@ -689,7 +722,7 @@ export const Application = () => {
 
     let view;
     if (path[0] === "ups" && path[1])
-        view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} config={config} descs={descs} />;
+        view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} config={config} descs={descs} lastUpdate={lastUpdate} />;
     else if (path[0] === "settings")
         view = <Settings />;
     else if (path[0] === "setup")
@@ -697,7 +730,7 @@ export const Application = () => {
     else if (path[0] === "about")
         view = <About />;
     else
-        view = <Overview upses={upses} error={error} descs={descs} names={config.names} />;
+        view = <Overview upses={upses} error={error} descs={descs} names={config.names} lastUpdate={lastUpdate} />;
 
     return (
         <Page className="pf-m-no-sidebar">
