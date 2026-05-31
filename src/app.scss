@@ -498,8 +498,17 @@ $upside-amber: #f59e0b;
 }
 
 // ---- Metrics page (Metrics.tsx) ----
+// Breadcrumb + control bar share one line (breadcrumb left, controls right).
+.upside-metrics__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    margin-block-end: 1rem;
+}
+
 .upside-metrics__crumb {
-    margin-block-end: 0.75rem;
+    margin-block-end: 0;
 }
 
 .upside-metrics__bar {
@@ -507,7 +516,8 @@ $upside-amber: #f59e0b;
     flex-wrap: wrap;
     gap: 0.75rem;
     align-items: center;
-    margin-block-end: 1rem;
+    margin-block-end: 0;
+    margin-inline-start: auto; // push the controls to the right of the breadcrumb
 }
 
 // Right-aligned control cluster: timeframe dropdown + zoom + prev/next.
