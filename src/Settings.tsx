@@ -136,6 +136,18 @@ export const Settings = ({ mode, modeLocked, onModeChange }: {
                             />
                         </FormGroup>
 
+                        <FormGroup label={_("Date/time locale")} fieldId="upside-locale">
+                            <TextInput
+                                id="upside-locale"
+                                value={draft.locale ?? ""}
+                                placeholder={_("System default")}
+                                onChange={(_ev, v) => update({ locale: v.trim() || undefined })}
+                            />
+                            <Content component="small" className="pf-v6-u-mt-xs">
+                                {_("BCP-47 tag (e.g. en-GB, en-US, nb-NO) controlling date order and 12/24-hour clock. Blank follows the system locale.")}
+                            </Content>
+                        </FormGroup>
+
                         <ActionGroup>
                             <Button variant="primary" onClick={onSave} isLoading={saving} isDisabled={saving}>
                                 {_("Save")}

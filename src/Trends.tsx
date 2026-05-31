@@ -42,7 +42,7 @@ const SERIES: Series[] = [
 
 const WINDOW_MS = 6 * 3600_000; // last 6 hours
 
-export const Trends = ({ ups, archiveDir }: { ups: string, archiveDir?: string }) => {
+export const Trends = ({ ups, archiveDir, locale }: { ups: string, archiveDir?: string, locale?: string }) => {
     const [data, setData] = useState<Record<string, HistPoint[]> | null>(null);
     const [failed, setFailed] = useState(false);
     const [diag, setDiag] = useState<string | null>(null);
@@ -112,6 +112,7 @@ export const Trends = ({ ups, archiveDir }: { ups: string, archiveDir?: string }
                             min={s.min}
                             max={s.max}
                             emptyLabel={_("Collecting…")}
+                            locale={locale}
                         />
                     ))}
                 </div>

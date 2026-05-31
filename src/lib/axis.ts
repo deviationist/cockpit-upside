@@ -65,18 +65,21 @@ export function timeTicks(startMs: number, endMs: number, target = 6): number[] 
     return ticks;
 }
 
-/** HH:MM for a sub-day window; "D/M HH:MM" (or just the date at midnight) for wider. */
-export function formatTimeTick(ms: number, spanMs: number): string {
+/**
+ * Time-of-day for a sub-day window; "date time" (or just the date at midnight)
+ * for wider spans. Date order and 12- vs 24-hour follow `locale` (a BCP-47 tag;
+ * undefined = the runtime/system locale).
+ */
+export function formatTimeTick(ms: number, spanMs: number, locale?: string): string {
     const d = new Date(ms);
-    const hh = String(d.getHours()).padStart(2, "0");
-    const mm = String(d.getMinutes()).padStart(2, "0");
+    const time = d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
     if (spanMs <= 86400_000)
-        return `${hh}:${mm}`;
-    const date = `${d.getDate()}/${d.getMonth() + 1}`;
+        return time;
+    const date = d.toLocaleDateString(locale, { month: "numeric", day: "numeric" });
     // A midnight tick on a multi-day span: show just the date.
-    if (spanMs > 2 * 86400_000 && hh === "00" && mm === "00")
+    if (spanMs > 2 * 86400_000 && d.getHours() === 0 && d.getMinutes() === 0)
         return date;
-    return `${date} ${hh}:${mm}`;
+    return `${date} ${time}`;
 }
 
 /** Compact value label: drop trailing ".0", keep one decimal otherwise. */
