@@ -14,19 +14,22 @@ web console.
 
 > **Status:** early scaffold. Built on the official
 > [cockpit-project/starter-kit](https://github.com/cockpit-project/starter-kit)
-> (React + PatternFly + esbuild). Monitoring-first; the dashboard is under
-> construction.
+ (React + PatternFly + esbuild). Monitoring is complete; control is at
+> tier A.
 
 ## How it works
 
-The plugin is a read-only client of a running NUT setup. It uses Cockpit's
-`cockpit.spawn()` channel API to call `upsc` locally — enumerating UPSes with
+The plugin is a client of a running NUT setup. It uses Cockpit's
+`cockpit.spawn()` channel API to call `upsc` — enumerating UPSes with
 `upsc -l`, then reading each one's variables with `upsc <name>` — and renders
 them with PatternFly. It does **not** drive the UPS hardware directly, and it
 runs no backend service of its own: NUT's `upsd` is the backend.
 
-A working NUT installation (`nut-server` + `nut-client`, with at least one UPS
-configured in `ups.conf`) is therefore a prerequisite.
+A working NUT installation with `upsd` running and at least one UPS in
+`ups.conf` is the prerequisite. By default UPSide reads the **local** `upsd`;
+set a **remote source** (`nutHost` — see below) and it reads `upsd` on another
+host instead, so you can run UPSide on a **secondary** that has no UPS of its
+own (only `nut-client` is needed there, not `nut-server`).
 
 ### Multiple UPSes
 
@@ -126,15 +129,28 @@ npm run stylelint
 
 ## Features
 
-- **Monitor / control mode** — UPSide is read-only (**monitor**) by default. Set
-  `"mode": "control"` to additionally surface control actions (battery test,
-  beeper, …; they require NUT authentication to run). The file
-  (`/etc/cockpit/upside.json`) pins the mode when set — an admin can force
-  monitor-only; otherwise it's a per-browser toggle in Settings.
-- **Guided setup** — when no UPS is detected, a step-by-step guide diagnoses the
-  NUT setup (installed? `MODE`? device? services?), auto-detects a USB UPS with
-  **`nut-scanner`**, and applies each fix with one click — a preview of the
-  change, a `.bak` backup, and an admin prompt — or shows the command to run.
+- **Monitor / control mode** — UPSide is read-only (**monitor**) by default;
+  **control** mode surfaces tier-A actions (battery self-test, beeper). Actions
+  authenticate to NUT with a least-privilege control user (`upscmd`), and the
+  step-6 wizard sets that up — **create** a new user or **reuse** an existing one
+  (validated by a no-op LOGIN, password entered by you, never read from
+  `upsd.users`). The file (`/etc/cockpit/upside.json`) pins the mode when set (an
+  admin can force monitor-only); otherwise it's a per-browser toggle in Settings.
+- **Guided setup wizard** — on its own route (`#/setup`); when no UPS is found the
+  overview redirects there. Choose **"this machine"** or **"another host"**
+  (remote `upsd`). For a local UPS it walks install → `MODE` → device → services →
+  verify → (optional) control, applying each fix with one click: a preview, a
+  `.bak` backup, and an admin prompt — or the equivalent command. It **gates the
+  steps behind administrative access** (with an in-wizard *Enable administrative
+  access* button), auto-detects a USB UPS with **`nut-scanner`** (one-click
+  **Install libusb & scan** if the scanner can't load it), can **add a standard
+  USB HID UPS manually** with a config preview, and has a **"can't find your UPS?"**
+  troubleshooter (`lsusb`).
+- **Remote NUT source** — set `"nutHost": "host[:port]"` (or pick *another host*
+  in the wizard) to read/control a `upsd` over the network — running UPSide on a
+  **secondary** pointed at the primary. Reads need no credentials; control
+  authenticates a user that exists on the primary. History is local to each host,
+  so Trends is hidden for a remote source.
 - **Overview** — a card per UPS (status badge, battery, runtime, load),
   capability-driven (only shows what the device reports).
 - **Detail view** per UPS — battery/load donut gauges, runtime, the full NUT
@@ -145,8 +161,11 @@ npm run stylelint
   alongside.
 - **Live updates** via `cockpit.spawn(upsc)` polling (NUT has no push model).
 - **Historical trends** from **PCP** — a small OpenMetrics scraper feeds NUT into
-  PCP (`pmlogger` archives it), read back with **`pmrep`** and charted on the
-  detail page. No embedded database; no NUT PMDA needed.
+  PCP (`pmlogger` archives it), read back with **`pmrep`** across multiple daily
+  archive volumes and charted on the detail page (hover crosshair, drag-to-zoom,
+  a **remembered** time window, locale-aware axes, CSV export, configurable
+  retention + an optional dedicated NUT-only archive). No embedded database; no
+  NUT PMDA needed.
 - **Navigation status** — a status icon next to UPSide in the Cockpit menu when a
   UPS needs attention (via `page_status`), opt-in.
 - **Settings** — monitor/control mode, feature toggles, electricity rate/currency,
@@ -156,15 +175,30 @@ npm run stylelint
 
 ## Roadmap
 
-UPSide is monitoring-first and headed toward carefully scoped **control**. The
-next control step is **safe instant commands** — a battery self-test and beeper
-mute/disable via NUT's `upscmd` — with credentials prompted per action (kept in
-memory, never stored) and only the commands the device reports shown.
+UPSide is monitoring-complete and at the first rung of carefully scoped
+**control**. Done so far:
 
-- [ ] **Control, tier A:** battery self-test + beeper control (`upscmd`)
-- [ ] Remote `upsd` support (`name@host`) for UPSes on other hosts
-- [ ] History spanning multiple `pmlogger` archive volumes (reads the latest now)
+- [x] **Control, tier A:** battery self-test + beeper control (`upscmd`)
+- [x] Remote `upsd` support (`name@host`) — monitor/control a UPS on another host
+- [x] History spanning multiple `pmlogger` archive volumes
+- [x] Guided setup wizard (admin-gated) with create/reuse of the NUT control user
+
+Future plans:
+
+- [ ] **Setup `MODE` choice** — the wizard auto-sets `standalone` (local
+      monitoring). Decide how to handle **`netserver`** (sharing the UPS to other
+      hosts): fold the standalone set into "start services" + a note, vs. a real
+      standalone/netserver toggle. Full netserver also needs `LISTEN` + a firewall
+      rule, which the wizard doesn't write yet — so for now netserver is a manual,
+      advanced path.
+- [ ] **Secondary onboarding** — deploy + guide UPSide on a secondary (remote
+      source): a `.deb` without `nut-server`, plus the wizard's "another host" tab
+      to set `nutHost`. (Reading a remote `upsd` already works; this is the
+      packaging + guided-setup polish.)
+- [ ] **History on a secondary** — optionally run a local OpenMetrics scraper +
+      `pmlogger` on a remote-source host so Trends works there too.
 - [ ] One-click "enable history" that installs the PCP scraper automatically
+- [ ] Control tiers B–D (variables via `upsrw`, shutdown via `upsmon`) — gated
 - [ ] Event notifications on power events (`upssched` / `NOTIFYCMD`)
 
 See **[ROADMAP.md](ROADMAP.md)** for the full control ladder (tiers A–D) and the

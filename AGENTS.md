@@ -6,8 +6,10 @@ this repository. Keep this file current as conventions evolve.
 ## What this project is
 
 **UPSide** is a [Cockpit](https://cockpit-project.org/) plugin for monitoring
-UPS devices managed by **NUT (Network UPS Tools)**. Monitoring-first;
-control actions (battery test, shutdown) are a possible later addition.
+UPS devices managed by **NUT (Network UPS Tools)**. Monitoring is complete;
+**control tier A** (battery self-test + beeper, via authenticated `upscmd`) is
+implemented. Higher tiers (variables via `upsrw`, shutdown via `upsmon`) are
+deliberately not started.
 
 It is based on the official
 [cockpit-project/starter-kit](https://github.com/cockpit-project/starter-kit).
@@ -49,6 +51,29 @@ It is based on the official
   NUT `desc` (read from `ups.conf` via `readDescriptions()`, privileged
   `cockpit.file`) → mfr+model → NUT name. Identity/routing always uses the unique
   NUT name; the display name is purely presentational.
+- **Remote NUT source** (`config.nutHost`, `lib/nut.ts` `UpsRef`/`refId`): every
+  NUT call is addressed by `name` (local) or `name@host` (remote `upsd`), so the
+  same client works against another host — run UPSide on a **secondary**. When
+  `nutHost` is set the app reads `name@host`, hides Trends (history is local to
+  each host), and hides the create-user wizard (can't write a remote `upsd.users`
+  — remote control is authenticate-only). Validate-creds dials `host:port`.
+- **Admin gating in the wizard** (`lib/admin.ts` `useAdmin` over
+  `cockpit.permission({admin:true})`): the setup steps change system
+  files/services, so `Setup.tsx` renders **only the guidance until admin access is
+  on** — including the "where is the UPS?" chooser. It tracks the permission's
+  `changed` event so it reveals live. `requestAdmin()` opens Cockpit's escalation
+  dialog by clicking the shell's `.ct-locked` toggle (same-origin parent) — the
+  plugin can't escalate itself (`superuser:"require"` returns access-denied, no
+  `cockpit.superuser` API). Keep the gate: don't surface privileged fields without
+  admin.
+- **Control-user wizard** (`lib/control-user.ts`, `NutUserWizard.tsx`): the ONE
+  place UPSide writes `upsd.users`, on an explicit action. **Create** a
+  least-privilege user (generated password, granted only chosen instcmds +
+  `upsmon secondary` for LOGIN validation) or **reuse** an existing one — for
+  reuse the operator types the password (we never read it out of `upsd.users` to
+  store; we only add a missing `upsmon` role in place). Writes back up to `.bak`,
+  re-chmod 0640 root:nut. Control is enabled (the mode pref) only after a no-op
+  LOGIN validates the creds, and only if the config doesn't pin monitor.
 
 ## Build / lint / test
 
@@ -103,11 +128,15 @@ Integration tests live in `test/` (Cockpit test framework).
   Cockpit's *curated* PatternFly bundle. It covers most components (Card, Label,
   Menu, Breadcrumb, Progress, EmptyState, …) but **omits some** — notably the
   **Table** component, so we `import "@patternfly/patternfly/components/Table/table.css"`
-  separately. If you start using a `pf-v6-c-*` class (or a react-core component)
-  that renders unstyled, check `dist/index.css` for its class count; if missing,
-  import the standalone compiled CSS from
-  `@patternfly/patternfly/components/<Name>/<name>.css`. Don't try to load
-  another Cockpit page's bundled CSS — it isn't a stable interface.
+  separately. The curated bundle **also omits the utilities layer**, so the
+  `pf-v6-u-*` spacer classes (used across the app) were silent no-ops until we
+  added `import "@patternfly/patternfly/utilities/Spacing/spacing.css"` — keep
+  that import; don't hand-roll spacer shims. If you start using a `pf-v6-c-*`
+  class (or a react-core component) that renders unstyled, check `dist/index.css`
+  for its class count; if missing, import the standalone compiled CSS from
+  `@patternfly/patternfly/components/<Name>/<name>.css` (or
+  `utilities/<Name>/<name>.css`). Don't try to load another Cockpit page's
+  bundled CSS — it isn't a stable interface.
 - **Keep PatternFly versions aligned with Cockpit's `pkg/lib`.** The
   `patternfly-6-cockpit.scss` we import is fetched from a pinned Cockpit commit
   (see `COCKPIT_REPO_COMMIT` in the Makefile) and expects a specific PatternFly
@@ -132,11 +161,15 @@ Integration tests live in `test/` (Cockpit test framework).
   SVG that reads on both GitHub themes.)
 - **Setup guide privilege model** (`src/lib/setup.ts`): probes read config with
   `superuser:"try"` (graceful for non-admins); every mutation (file write,
-  `systemctl`, `nut-scanner`) uses `superuser:"require"` and runs ONLY from an
-  explicit button press. Writes back up to `<path>.bak` first, and every step
-  has a shown shell-command fallback. Keep that posture — don't add silent or
-  passive privileged actions, and never auto-edit `upsd.users` (credentials).
-  Scope is monitoring-only (no `upsmon`/shutdown) for now.
+  `systemctl`, `nut-scanner`, package install) uses `superuser:"require"` and runs
+  ONLY from an explicit button press. Writes back up to `<path>.bak` first, and
+  every step has a shown shell-command fallback. The wizard also **gates its
+  whole UI behind admin access** (see *Admin gating*). Keep that posture — don't
+  add silent or passive privileged actions. The control-user wizard
+  (`lib/control-user.ts`) is the ONE exception that writes `upsd.users`, on an
+  explicit action, and even then only adds a missing `upsmon` role — it never
+  reads a stored password out to use it (the operator types it). No
+  shutdown/`upsmon`-monitoring config is written.
 - **Monitor / control mode** (`lib/config.ts` `resolveMode`): a two-tier setting.
   The file (`/etc/cockpit/upside.json` `mode`) is authoritative when set
   (`locked`) — an admin can pin monitor-only; the Settings UI shows it read-only
@@ -145,15 +178,15 @@ Integration tests live in `test/` (Cockpit test framework).
   effective mode is resolved in `app.tsx` (masthead shows a "Control" badge) and
   gates whether control affordances render — it does NOT grant privilege; actions
   still authenticate (see next bullet).
-- **Future control features** (see `ROADMAP.md`): control will use NUT's
-  `upscmd` (instant commands), `upsrw` (variables) and `upsmon` (shutdown) —
-  NOT the unauthenticated `upsc` path monitoring uses. Hard rules when building
-  these: discover capabilities with `upscmd -l` (render only supported
-  commands, no dead buttons); prompt for the NUT user/password **per action and
-  hold it in memory only** (never persist it, never write it to config, never
-  read `upsd.users`); and gate any power-affecting command behind explicit
-  confirmation. Tier A (battery self-test + beeper) is the only committed step;
-  tiers B–D are deliberately not started.
+- **Control features** (see `ROADMAP.md`): control uses NUT's `upscmd` (instant
+  commands; `upsrw`/`upsmon` are tiers B–D, not started) — NOT the
+  unauthenticated `upsc` path monitoring uses. Hard rules: discover capabilities
+  with `upscmd -l` (render only supported commands, no dead buttons); credentials
+  come from the auth modal or the control-user wizard, are stored only with the
+  operator's opt-in ("remember", `cockpit.localStorage`), and the create/reuse
+  flow never lifts a password out of `upsd.users`; gate any power-affecting
+  command behind explicit confirmation. **Tier A (battery self-test + beeper) is
+  implemented**; tiers B–D are deliberately not started.
 - **Secrets:** never commit credentials or real `upsc` dumps containing
   sensitive values; redact before adding to docs/tests/issues.
 
@@ -163,12 +196,15 @@ Integration tests live in `test/` (Cockpit test framework).
 src/index.html      Cockpit page shell
 src/index.tsx       React entrypoint
 src/app.tsx         top-level component (shell, routing, polling, Overview/Detail)
-src/Setup.tsx       guided NUT setup wizard (replaces the empty state + Setup tab)
+src/Setup.tsx       guided NUT setup wizard (admin-gated; #/setup route + empty-state redirect)
 src/Settings.tsx    file-backed settings form
-src/Trends.tsx      PCP history charts; src/Gauge.tsx + src/Chart.tsx (SVG)
-src/lib/nut*.ts     NUT client (nut.ts) + pure parsing (nut-parse.ts)
+src/Controls.tsx    control-mode action card (tier A); NutAuthModal.tsx (auth), NutUserWizard.tsx (create/reuse user)
+src/Trends.tsx      PCP sparklines; src/Metrics.tsx full charts; Gauge/Chart/MetricChart (SVG); src/lib/axis.ts (ticks)
+src/lib/nut*.ts     NUT client (nut.ts, UpsRef/refId — local or name@host) + pure parsing (nut-parse.ts)
 src/lib/setup*.ts   setup probes/apply (setup.ts) + pure parsing (setup-parse.ts)
-src/lib/{config,derive,history}.ts   config, derived values, PCP reader
+src/lib/control*.ts control commands/validate (control.ts) + control-user create/reuse (control-user.ts) + parsers
+src/lib/admin.ts    useAdmin (cockpit.permission) + requestAdmin (opens the shell escalation dialog)
+src/lib/{config,derive,metrics,prefs}.ts   config (+ nutHost/mode), derived values, PCP reader (metrics.ts), localStorage prefs
 src/app.scss        app styles
 src/manifest.json   Cockpit manifest (sidebar label, required cockpit version)
 io.github.deviationist.upside.metainfo.xml   AppStream metadata
