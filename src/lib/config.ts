@@ -130,6 +130,15 @@ function localeCurrency(): string {
     }
 }
 
+/**
+ * A NUT source host is a hostname/IP with an optional :port. Only ever passed
+ * as an argv element to upsc/upscmd or as a cockpit.channel address — never a
+ * shell string — but validate strictly (no @, /, or whitespace) as defence.
+ */
+export function isValidNutHost(v: string): boolean {
+    return /^[A-Za-z0-9.-]+(?::\d{1,5})?$/.test(v);
+}
+
 /** A BCP-47 locale tag if Intl can parse it (and it's non-empty), else undefined. */
 function validLocale(v: unknown): string | undefined {
     if (typeof v !== "string" || !v.trim())
@@ -190,10 +199,7 @@ function sanitize(content: Partial<UpsideConfig> | null): UpsideConfig {
         // Only a valid value counts as "pinned in the file"; anything else
         // (absent/garbage) leaves mode undefined so the pref tier decides.
         mode: c.mode === "monitor" || c.mode === "control" ? c.mode : undefined,
-        // Hostname/IP with an optional :port. Only ever passed as an argv element
-        // to upsc/upscmd or as a cockpit.channel address — never a shell string —
-        // but validate strictly (no @, /, or whitespace) as defence in depth.
-        nutHost: typeof c.nutHost === "string" && /^[A-Za-z0-9.-]+(?::\d{1,5})?$/.test(c.nutHost)
+        nutHost: typeof c.nutHost === "string" && isValidNutHost(c.nutHost)
             ? c.nutHost
             : undefined,
         history: typeof c.history === "boolean" ? c.history : d.history,
