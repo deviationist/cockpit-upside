@@ -378,12 +378,55 @@ $upside-amber: #f59e0b;
     font-weight: 700;
 }
 
+.upside-chart__plot {
+    position: relative;
+}
+
 .upside-chart__svg {
     display: block;
     inline-size: 100%;
     // Responsive height: scales with viewport so charts use the extra space (and
     // resolution) on big screens, clamped so they're neither tiny nor huge.
     block-size: clamp(7rem, 12vw, 14rem);
+}
+
+// Hover crosshair + dot + readout (HTML overlay over the stretched SVG).
+.upside-chart__cursor {
+    position: absolute;
+    inset-block: 0;
+    inline-size: 1px;
+    background: var(--pf-t--global--border--color--default, #b8bbbe);
+    transform: translateX(-0.5px);
+    pointer-events: none;
+}
+
+.upside-chart__dot {
+    position: absolute;
+    inline-size: 0.45rem;
+    block-size: 0.45rem;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 0 2px var(--pf-t--global--background--color--primary--default, #fff);
+    pointer-events: none;
+}
+
+.upside-chart__tip {
+    position: absolute;
+    inset-block-start: -0.4rem;
+    transform: translate(-50%, -100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.05rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    background: var(--pf-t--global--background--color--inverse--default, #1b1d21);
+    color: var(--pf-t--global--text--color--inverse--default, #fff);
+    font-size: 0.75rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 1;
 }
 
 // Start / middle / end time labels under each trend chart.
