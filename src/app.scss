@@ -432,7 +432,13 @@ $upside-amber: #f59e0b;
     padding: 0.15rem 0.4rem;
     border-radius: 4px;
     background: var(--pf-t--global--background--color--inverse--default, #1b1d21);
-    color: var(--pf-t--global--text--color--inverse--default, #fff);
+    // The text--color--inverse token isn't defined in the curated PF bundle, so
+    // it'd fall back to #fff — fine on the dark chip in light mode, but the
+    // inverse background flips *light* in dark mode, leaving white-on-light and
+    // unreadable. The primary (page) background colour is the inverse chip's
+    // contrast in either theme, so use it for the text: white-ish in light,
+    // dark in dark — readable on the chip both ways.
+    color: var(--pf-t--global--background--color--primary--default, #fff);
     font-size: 0.75rem;
     line-height: 1.2;
     white-space: nowrap;
