@@ -350,8 +350,12 @@ $upside-amber: #f59e0b;
 // Trends: a responsive grid of small history charts.
 .upside-trends {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
-    gap: 1.25rem;
+    // auto-fit (not auto-fill) so the charts expand to fill a wide screen rather
+    // than leaving empty tracks; min(100%, 22rem) keeps a single column from
+    // overflowing on narrow screens. Net: 1 column on phones, many large charts
+    // on big monitors.
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+    gap: 1.25rem 1.5rem;
 }
 
 .upside-chart {
@@ -377,6 +381,19 @@ $upside-amber: #f59e0b;
 .upside-chart__svg {
     display: block;
     inline-size: 100%;
+    // Responsive height: scales with viewport so charts use the extra space (and
+    // resolution) on big screens, clamped so they're neither tiny nor huge.
+    block-size: clamp(7rem, 12vw, 14rem);
+}
+
+// Start / middle / end time labels under each trend chart.
+.upside-chart__xaxis {
+    display: flex;
+    justify-content: space-between;
+    margin-block-start: 0.25rem;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
 }
 
 .upside-chart__empty {
