@@ -138,6 +138,24 @@ export async function lsusb(): Promise<string> {
     return cockpit.spawn(["sh", "-c", "lsusb 2>&1 || true"], { err: "out" });
 }
 
+/**
+ * Install the libusb dev package (the unversioned libusb-1.0.so symlink
+ * nut-scanner dlopen's) so USB auto-detection works — no shell needed from the
+ * user. Needs admin; non-interactive per package manager. Fixed argv (the
+ * package name is chosen from a closed set, never interpolated user input).
+ */
+export async function installUsbLib(pkg: SetupState["pkgManager"]): Promise<void> {
+    const argv = (() => {
+        switch (pkg) {
+        case "dnf": return ["dnf", "install", "-y", "libusb1-devel"];
+        case "zypper": return ["zypper", "--non-interactive", "install", "libusb-1_0-devel"];
+        case "pacman": return ["pacman", "-S", "--noconfirm", "libusb"];
+        default: return ["apt-get", "install", "-y", "libusb-1.0-0-dev"];
+        }
+    })();
+    await cockpit.spawn(argv, { superuser: "require", err: "message" });
+}
+
 /** Back up <path> to <path>.bak (best-effort) then write `content`. Needs admin. */
 async function writeWithBackup(path: string, content: string, current: string | null): Promise<void> {
     if (current !== null) {

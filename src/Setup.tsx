@@ -27,8 +27,8 @@ import cockpit from 'cockpit';
 
 import {
     ScannedDevice, SetupState, UsbDevice, applyMode, applyStanza, buildManualUsbStanza, buildUpsStanza,
-    commands, describeDevice, detect, isValidSectionName, lsusb, parseLsusb, parseScannerOutput,
-    removeSection, scanUsb, startServices, usbScanDisabled,
+    commands, describeDevice, detect, installUsbLib, isValidSectionName, lsusb, parseLsusb,
+    parseScannerOutput, removeSection, scanUsb, startServices, usbScanDisabled,
 } from './lib/setup';
 import { isValidNutHost, saveConfig, useConfig } from './lib/config';
 import { listUps } from './lib/nut';
@@ -96,6 +96,14 @@ const LocalSetup = ({ state, busy, refresh, run }: {
     // (libusb missing vs. genuinely absent) + a manual fallback instead of a
     // bare error. nut-scanner's stderr is folded into the output (see scanUsb).
     const scan = run("scan", async () => {
+        const out = await scanUsb();
+        setScanResult({ devices: parseScannerOutput(out), usbDisabled: usbScanDisabled(out) });
+    });
+
+    // Install libusb (so nut-scanner can enumerate USB) then re-scan — saves the
+    // user from running the command by hand. Re-probes via run()'s refresh.
+    const enableUsbScan = run("usblib", async () => {
+        await installUsbLib(state.pkgManager);
         const out = await scanUsb();
         setScanResult({ devices: parseScannerOutput(out), usbDisabled: usbScanDisabled(out) });
     });
@@ -223,7 +231,7 @@ const LocalSetup = ({ state, busy, refresh, run }: {
 
                             {devices && devices.length > 0 &&
                                 <div className="upside-scan">
-                                    <Content component="p" className="pf-v6-u-mt-md">
+                                    <Content component="p">
                                         <strong>{cockpit.format(_("Found $0 device(s):"), devices.length)}</strong>
                                     </Content>
                                     {devices.map((d, i) => {
@@ -254,10 +262,22 @@ const LocalSetup = ({ state, busy, refresh, run }: {
                                     title={scanResult.usbDisabled ? _("USB auto-detection is unavailable") : _("No USB UPS was auto-detected")}
                                 >
                                     {scanResult.usbDisabled
-                                        ? _("nut-scanner couldn't load libusb, so it can't enumerate the USB bus — but the usbhid-ups driver still works. Add the UPS manually above, or install the libusb dev package to enable scanning:")
+                                        ? _("nut-scanner couldn't load libusb, so it can't enumerate the USB bus — but the usbhid-ups driver still works. Install the libusb library to enable scanning, or just add the UPS manually above.")
                                         : _("Make sure the UPS is connected and powered on. If it's a USB model, add it manually above (usbhid-ups auto-detects it); serial/SNMP devices need manual configuration.")}
                                     {scanResult.usbDisabled &&
-                                        <pre className="upside-cmd">{commands.installUsbLib(state.pkgManager)}</pre>}
+                                        <>
+                                            <div className="upside-step__actions">
+                                                <Button
+                                                    variant="primary"
+                                                    isLoading={busy === "usblib"}
+                                                    isDisabled={busy !== null}
+                                                    onClick={enableUsbScan}
+                                                >
+                                                    {_("Install libusb & scan")}
+                                                </Button>
+                                            </div>
+                                            <Cmd text={commands.installUsbLib(state.pkgManager)} />
+                                        </>}
                                 </Alert>}
 
                             <div className="upside-cmd-wrap">

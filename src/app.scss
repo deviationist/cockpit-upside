@@ -869,10 +869,20 @@ $upside-amber: #f59e0b;
 
 .upside-cmd-wrap { margin-block-start: 0.25rem; }
 
+// The scanned-devices block, set off from the scan controls above it.
+.upside-scan {
+    margin-block-start: 1.25rem;
+}
+
 .upside-scan__dev {
     margin-block-start: 0.75rem;
     padding-block-start: 0.5rem;
     border-block-start: 1px solid var(--pf-t--global--border--color--default, #ededed);
+
+    // Space the "Add … to ups.conf" button below the stanza preview.
+    .pf-v6-c-button {
+        margin-block-start: 0.5rem;
+    }
 }
 
 .upside-field {
