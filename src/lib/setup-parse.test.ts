@@ -10,8 +10,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
-    appendStanza, buildUpsStanza, describeDevice, isValidSectionName,
-    parseConfSections, parseMode, parseScannerOutput, setModeText,
+    appendStanza, buildManualUsbStanza, buildUpsStanza, describeDevice, isValidSectionName,
+    parseConfSections, parseLsusb, parseMode, parseScannerOutput, setModeText, usbScanDisabled,
 } from './setup-parse.ts';
 
 const NUT_CONF = `# Network UPS Tools: example nut.conf
@@ -98,4 +98,32 @@ test("isValidSectionName", () => {
     assert.equal(isValidSectionName("bad name"), false);
     assert.equal(isValidSectionName("[nope]"), false);
     assert.equal(isValidSectionName(""), false);
+});
+
+test("usbScanDisabled: detects nut-scanner's missing-libusb warning", () => {
+    assert.equal(usbScanDisabled("Cannot load USB library (libusb-1.0.so) : file not found. USB search disabled."), true);
+    assert.equal(usbScanDisabled("[nutdev1]\n\tdriver = \"usbhid-ups\"\n"), false);
+    assert.equal(usbScanDisabled(""), false);
+    assert.equal(usbScanDisabled(null), false);
+});
+
+test("buildManualUsbStanza: usbhid-ups + port=auto, no scanner needed", () => {
+    const stanza = buildManualUsbStanza("myups", "Server UPS");
+    assert.match(stanza, /^\[myups\]\n/);
+    assert.match(stanza, /\tdriver = "usbhid-ups"\n/);
+    assert.match(stanza, /\tport = "auto"\n/);
+    assert.match(stanza, /\tdesc = "Server UPS"\n/);
+    // No desc → no desc line.
+    assert.doesNotMatch(buildManualUsbStanza("u"), /desc/);
+});
+
+test("parseLsusb: id + name, flags UPS-looking devices", () => {
+    const out = parseLsusb([
+        "Bus 001 Device 002: ID 06da:ffff Phoenixtec Power Co., Ltd Offline UPS",
+        "Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub",
+        "garbage line",
+    ].join("\n"));
+    assert.equal(out.length, 2);
+    assert.deepEqual(out[0], { id: "06da:ffff", name: "Phoenixtec Power Co., Ltd Offline UPS", likelyUps: true });
+    assert.equal(out[1].likelyUps, false);
 });
