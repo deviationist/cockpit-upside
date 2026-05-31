@@ -411,6 +411,9 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
     const runtime = vars["battery.runtime"];
     const onBatteryNow = ups.status.discharging ||
         ups.status.state === "onBattery" || ups.status.state === "lowBattery";
+    // On battery it's a live countdown ("Runtime left"); on mains it's the UPS's
+    // estimate at the current load (often a fixed placeholder), so relabel + caveat.
+    const runtimeLabel = onBatteryNow ? _("Runtime left") : _("Est. runtime");
     const runtimeTip = onBatteryNow
         ? _("Estimated by the UPS from the current load.")
         : _("Reported by the UPS. On mains power many UPSes report a fixed placeholder — this figure is only accurate while running on battery.");
@@ -598,7 +601,7 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
                                 <Tooltip content={runtimeTip}>
                                     <div className="upside-tile" tabIndex={0}>
                                         <div className="upside-tile__value">{formatRuntime(runtime)}</div>
-                                        <div className="upside-tile__label">{_("Runtime left")}</div>
+                                        <div className="upside-tile__label">{runtimeLabel}</div>
                                     </div>
                                 </Tooltip>
                             </FlexItem>}
