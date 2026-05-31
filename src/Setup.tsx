@@ -621,21 +621,27 @@ export const Setup = ({ onDone, mode, modeLocked, onEnableControl }: {
                 </ToggleGroup>
             </div>
 
-            {admin === false &&
-                <Alert
-                    variant="warning"
-                    isInline
-                    className="upside-setup__error"
-                    title={_("Administrative access needed")}
-                >
-                    {_("Most of these steps change system files and services, so they need administrative access. Turn it on with the access button at the top of the page (it may read \"Limited access\"), enter your password, then come back here — this notice clears itself once it's on. Each step also shows the equivalent command if you'd rather run it yourself.")}
-                </Alert>}
-
             {error && <Alert variant="danger" isInline className="upside-setup__error" title={_("Something went wrong")}>{error}</Alert>}
 
-            {scope === "local"
-                ? <LocalSetup state={state} busy={busy} refresh={refresh} run={run} onDone={onDone} mode={mode} modeLocked={modeLocked} onEnableControl={onEnableControl} />
-                : <RemoteSetup state={state} busy={busy} refresh={refresh} run={run} onDone={onDone} mode={mode} modeLocked={modeLocked} onEnableControl={onEnableControl} />}
+            {/* Gate the actual setup behind admin access: the steps change system
+                files/services, so don't surface their fields until access is on.
+                The banner clears (and the steps appear) live via useAdmin. */}
+            {admin === false
+                ? (
+                    <Alert
+                        variant="warning"
+                        isInline
+                        className="upside-setup__error"
+                        title={_("Administrative access needed")}
+                    >
+                        {_("Setting up NUT changes system files and services, so it needs administrative access. Turn it on with the access button at the top of the page (it may read \"Limited access\") and enter your password — the setup steps appear here automatically once it's on.")}
+                    </Alert>
+                )
+                : admin === null
+                    ? <Spinner aria-label={_("Checking administrative access")} />
+                    : scope === "local"
+                        ? <LocalSetup state={state} busy={busy} refresh={refresh} run={run} onDone={onDone} mode={mode} modeLocked={modeLocked} onEnableControl={onEnableControl} />
+                        : <RemoteSetup state={state} busy={busy} refresh={refresh} run={run} onDone={onDone} mode={mode} modeLocked={modeLocked} onEnableControl={onEnableControl} />}
         </div>
     );
 };
