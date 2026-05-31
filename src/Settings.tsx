@@ -157,9 +157,16 @@ export const Settings = ({ mode, modeLocked, onModeChange }: {
                             <Button variant="primary" onClick={onSave} isLoading={saving} isDisabled={saving}>
                                 {_("Save")}
                             </Button>
-                            {saved && <Content component="small">{_("Saved.")}</Content>}
                         </ActionGroup>
                     </Form>
+
+                    {saved && !error &&
+                    <Alert
+                        variant="success"
+                        isInline
+                        className="pf-v6-u-mt-md"
+                        title={_("Settings saved.")}
+                    />}
 
                     {error &&
                     <Alert
