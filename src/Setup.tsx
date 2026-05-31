@@ -110,16 +110,19 @@ const ControlStep = ({ n, upsId, canCreate, ready, mode, modeLocked, onEnableCon
     // /setup shows this step Done (not just within the session that did it).
     const complete = done || (mode === "control" && loadNutCreds() !== null);
 
-    // Either modal lands here on success — store the creds and turn control mode
-    // on. The wizard is admin-gated, so the create/reuse flow's privileged bits
-    // are fine; remote can only authenticate an existing user on the primary.
+    // Both modals land here on success. The only reason to authenticate in this
+    // step is to use control mode, so enable it — unless the config pins monitor
+    // (we respect that; the auth isn't even offered then). Store the validated
+    // creds so the device page works without re-authenticating.
     const finish = (user: string, pass: string, remember: boolean) => {
         if (remember)
             saveNutCreds({ user, pass });
         else
             clearNutCreds();
-        onEnableControl();
-        setDone(true);
+        if (!pinnedOff) {
+            onEnableControl();
+            setDone(true);
+        }
         setOpen(false);
     };
 
