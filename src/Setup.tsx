@@ -410,7 +410,7 @@ export const Setup = () => {
                 </ToggleGroup>
             </div>
 
-            {error && <Alert variant="danger" isInline title={_("Something went wrong")}>{error}</Alert>}
+            {error && <Alert variant="danger" isInline className="upside-setup__error" title={_("Something went wrong")}>{error}</Alert>}
 
             {scope === "local"
                 ? <LocalSetup state={state} busy={busy} refresh={refresh} run={run} />
