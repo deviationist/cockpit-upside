@@ -72,7 +72,7 @@ function intervalForSpan(ms: number): number {
 
 const FETCH_LIMIT = 100000; // pmrep is bounded by the window; this is just the API field
 
-export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
+export const Metrics = ({ ups, title, archiveDir }: { ups: string, title?: string, archiveDir?: string }) => {
     const [rangeId, setRangeId] = useState("6h");
     // How far back the window is shifted from "now", in ms (0 = latest).
     const [offset, setOffset] = useState(0);
@@ -133,11 +133,11 @@ export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
         const intervalMs = zoom ? intervalForSpan(end - start) : range.intervalMs;
         loadArchive(SERIES.map(s => metricName(s.key)), ups, {
             startMs: start, endMs: end, intervalMs, limit: FETCH_LIMIT,
-        })
+        }, archiveDir)
                 .then(r => { if (!cancelled) { setResult(r); setWin({ start, end }); setLoading(false) } })
                 .catch((e: { message?: string }) => { if (!cancelled) { setError(e?.message || String(e)); setLoading(false) } });
         return () => { cancelled = true };
-    }, [ups, rangeId, offset, zoom, range.ms, range.intervalMs]);
+    }, [ups, rangeId, offset, zoom, range.ms, range.intervalMs, archiveDir]);
 
     const shown = result
         ? SERIES.filter(s => (result.points[metricName(s.key)]?.length ?? 0) >= 2)
@@ -146,21 +146,22 @@ export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
 
     return (
         <div className="upside-metrics">
-            <Breadcrumb className="upside-metrics__crumb">
-                <BreadcrumbItem to="#" onClick={(e: React.MouseEvent) => { e.preventDefault(); cockpit.location.go([]) }}>
-                    {_("Overview")}
-                </BreadcrumbItem>
-                <BreadcrumbItem to="#" onClick={(e: React.MouseEvent) => { e.preventDefault(); cockpit.location.go(["ups", ups]) }}>
-                    {title || ups}
-                </BreadcrumbItem>
-                <BreadcrumbItem isActive>{_("Metrics")}</BreadcrumbItem>
-            </Breadcrumb>
+            <div className="upside-metrics__header">
+                <Breadcrumb className="upside-metrics__crumb">
+                    <BreadcrumbItem to="#" onClick={(e: React.MouseEvent) => { e.preventDefault(); cockpit.location.go([]) }}>
+                        {_("Overview")}
+                    </BreadcrumbItem>
+                    <BreadcrumbItem to="#" onClick={(e: React.MouseEvent) => { e.preventDefault(); cockpit.location.go(["ups", ups]) }}>
+                        {title || ups}
+                    </BreadcrumbItem>
+                    <BreadcrumbItem isActive>{_("Metrics")}</BreadcrumbItem>
+                </Breadcrumb>
 
-            <div className="upside-metrics__bar">
-                {loading && result !== null &&
+                <div className="upside-metrics__bar">
+                    {loading && result !== null &&
                     <Spinner size="md" aria-label={_("Refreshing")} className="upside-metrics__busy" />}
-                <div className="upside-metrics__nav">
-                    <Dropdown
+                    <div className="upside-metrics__nav">
+                        <Dropdown
                         isOpen={tfOpen}
                         onOpenChange={(o: boolean) => setTfOpen(o)}
                         onSelect={() => setTfOpen(false)}
@@ -169,21 +170,22 @@ export const Metrics = ({ ups, title }: { ups: string, title?: string }) => {
                                 {zoom ? _("Custom range") : range.label}
                             </MenuToggle>
                         )}
-                    >
-                        <DropdownList>
-                            {RANGES.map(r => (
-                                <DropdownItem key={r.id} isSelected={!zoom && r.id === rangeId} onClick={() => pickRange(r.id)}>
-                                    {r.label}
-                                </DropdownItem>
-                            ))}
-                        </DropdownList>
-                    </Dropdown>
-                    {zoom &&
+                        >
+                            <DropdownList>
+                                {RANGES.map(r => (
+                                    <DropdownItem key={r.id} isSelected={!zoom && r.id === rangeId} onClick={() => pickRange(r.id)}>
+                                        {r.label}
+                                    </DropdownItem>
+                                ))}
+                            </DropdownList>
+                        </Dropdown>
+                        {zoom &&
                         <Button variant="link" onClick={() => setZoom(null)}>{_("Reset zoom")}</Button>}
-                    <Button variant="secondary" aria-label={_("Zoom in")} icon={<SearchPlusIcon />} isDisabled={rangeIdx <= 0} onClick={() => stepRange(-1)} />
-                    <Button variant="secondary" aria-label={_("Zoom out")} icon={<SearchMinusIcon />} isDisabled={rangeIdx >= RANGES.length - 1} onClick={() => stepRange(1)} />
-                    <Button variant="secondary" aria-label={_("Earlier")} icon={<AngleLeftIcon />} onClick={shiftBack} />
-                    <Button variant="secondary" aria-label={_("Later")} icon={<AngleRightIcon />} isDisabled={!canForward} onClick={shiftForward} />
+                        <Button variant="secondary" aria-label={_("Zoom in")} icon={<SearchPlusIcon />} isDisabled={rangeIdx <= 0} onClick={() => stepRange(-1)} />
+                        <Button variant="secondary" aria-label={_("Zoom out")} icon={<SearchMinusIcon />} isDisabled={rangeIdx >= RANGES.length - 1} onClick={() => stepRange(1)} />
+                        <Button variant="secondary" aria-label={_("Earlier")} icon={<AngleLeftIcon />} onClick={shiftBack} />
+                        <Button variant="secondary" aria-label={_("Later")} icon={<AngleRightIcon />} isDisabled={!canForward} onClick={shiftForward} />
+                    </div>
                 </div>
             </div>
 
