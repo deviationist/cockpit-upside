@@ -101,6 +101,16 @@ $upside-amber: #f59e0b;
     font-size: 0.85rem;
 }
 
+.upside-topo__summary {
+    margin-block-end: 0.75rem;
+}
+
+.upside-topo__self,
+.upside-topo__conn {
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+    font-size: 0.85rem;
+}
+
 .upside-topo__note {
     display: block;
     margin-block-start: 0.6rem;

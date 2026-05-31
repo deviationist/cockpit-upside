@@ -5,37 +5,42 @@
  *
  * "Protecting these hosts" — the hosts currently running upsmon against a UPS
  * (its blast radius). `upsc -c <ups>` lists the connected client IPs (no auth);
- * we resolve each to a name with `getent hosts`. Read-only.
+ * we resolve each to a name with `getent hosts`, name the loopback client after
+ * this machine's `hostname`, and fold them into per-host rows. Read-only.
  */
 
 import cockpit from 'cockpit';
 
-export interface ProtectedHost {
-    ip: string;
-    name: string; // resolved hostname, or the IP if it doesn't resolve
-    local: boolean; // the primary itself (loopback)
-}
+import { ProtectedHost, buildHosts, parseClientIps } from './topology-parse';
 
-/** IP-ish lines from `upsc -c` output (skips banners like "Init SSL ..."). */
-function parseClientIps(text: string): string[] {
-    return text.split("\n")
-            .map(s => s.trim())
-            .filter(s => /[.:]/.test(s) && /^[0-9a-fA-F.:]+$/.test(s));
-}
+export * from './topology-parse';
 
-/** Clients (upsmon connections) of `ups`, resolved to names. */
+const LOOPBACK = new Set(["127.0.0.1", "::1"]);
+
+/** Clients (upsmon connections) of `ups`, folded into per-host rows. */
 export async function listProtectedHosts(ups: string): Promise<ProtectedHost[]> {
     const out: string = await cockpit.spawn(["upsc", "-c", ups], { err: "message" });
     const ips = parseClientIps(out);
-    return Promise.all(ips.map(async ip => {
-        const local = ip === "127.0.0.1" || ip === "::1";
-        let name = ip;
+    const unique = [...new Set(ips)];
+
+    // Name the loopback client after this machine (nicer than "localhost").
+    let hostname = "";
+    if (unique.some(ip => LOOPBACK.has(ip))) {
+        try {
+            hostname = (await cockpit.spawn(["hostname"], { err: "message" })).trim();
+        } catch { /* fall back to "this host" */ }
+    }
+
+    // Reverse-resolve the remote clients.
+    const rdns: Record<string, string> = {};
+    await Promise.all(unique.filter(ip => !LOOPBACK.has(ip)).map(async ip => {
         try {
             const g: string = await cockpit.spawn(["getent", "hosts", ip], { err: "message" });
             const parts = g.trim().split(/\s+/);
             if (parts[1])
-                name = parts[1];
-        } catch { /* no resolution — keep the IP */ }
-        return { ip, name, local };
+                rdns[ip] = parts[1];
+        } catch { /* unresolved — keep the IP */ }
     }));
+
+    return buildHosts(ips, hostname, rdns);
 }
