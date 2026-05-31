@@ -87,8 +87,28 @@ $upside-amber: #f59e0b;
 
 .upside-topo__host {
     display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.upside-topo__row {
+    display: flex;
     align-items: baseline;
     gap: 0.6rem;
+}
+
+// Per-host shutdown detail (local host only) — indented under its row.
+.upside-topo__detail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.9rem;
+    margin-inline-start: 0.2rem;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+    font-size: 0.85rem;
+}
+
+.upside-topo__policy {
+    margin-block-start: 0.75rem;
 }
 
 .upside-topo__name {
