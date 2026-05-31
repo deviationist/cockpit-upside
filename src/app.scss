@@ -29,10 +29,15 @@ $upside-amber: #f59e0b;
     border-block-end: 3px solid $upside-amber;
 }
 
-// The guided setup wizard takes over the iframe — hide our own masthead so the
-// flow reads as a focused, full-bleed installer (Cockpit's own shell stays).
-.upside-masthead--hidden {
-    display: none;
+// During the guided setup wizard, slim the masthead down to just the brand
+// (logo + wordmark) — keep it so the user knows which wizard they're in — and
+// drop the section nav + right-hand actions for a focused installer feel.
+.upside-masthead--wizard {
+    .upside-masthead__nav,
+    .upside-masthead__right,
+    .upside-masthead__menu {
+        display: none;
+    }
 }
 
 // Cockpit's dark theme has a dark page background too, so the navy masthead
