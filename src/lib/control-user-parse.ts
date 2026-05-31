@@ -85,3 +85,40 @@ export function parseUserBlock(text: string | null | undefined, name: string): U
     }
     return found ? g : null;
 }
+
+/**
+ * Add `upsmon secondary` to the `[name]` block if it has no upsmon role, leaving
+ * everything else — crucially the password — untouched. Used to make an existing
+ * user validatable (no-op LOGIN) without rewriting/handling its password. Returns
+ * the text unchanged if the user is absent or already has a role.
+ */
+export function addUpsmonRole(text: string | null | undefined, name: string): string {
+    if (!text)
+        return text ?? "";
+    const lines = text.split("\n");
+    let start = -1;
+    let end = lines.length;
+    for (let i = 0; i < lines.length; i++) {
+        const sec = /^\s*\[(.+?)\]\s*$/.exec(lines[i]);
+        if (!sec)
+            continue;
+        if (start < 0 && sec[1] === name)
+            start = i;
+        else if (start >= 0) {
+            end = i;
+            break;
+        }
+    }
+    if (start < 0)
+        return text; // user not present
+    for (let i = start + 1; i < end; i++) {
+        if (/^\s*upsmon\s+\S+/i.test(lines[i]))
+            return text; // already has a role
+    }
+    // Insert after the block's last non-blank line.
+    let at = end;
+    while (at - 1 > start && lines[at - 1].trim() === "")
+        at--;
+    lines.splice(at, 0, "\tupsmon secondary");
+    return lines.join("\n");
+}
