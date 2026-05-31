@@ -31,6 +31,10 @@ import cockpit from 'cockpit';
 
 import { MetricChart } from './MetricChart';
 import { ArchiveResult, loadArchive } from './lib/metrics';
+import { getPref, setPref } from './lib/prefs';
+
+// Remembered time window (per browser). Honoured on next visit if still valid.
+const RANGE_PREF = "metrics-range";
 
 const _ = cockpit.gettext;
 
@@ -82,7 +86,13 @@ function intervalForSpan(ms: number): number {
 const FETCH_LIMIT = 100000; // pmrep is bounded by the window; this is just the API field
 
 export const Metrics = ({ ups, title, archiveDir, retentionDays, locale }: { ups: string, title?: string, archiveDir?: string, retentionDays?: number, locale?: string }) => {
-    const [rangeId, setRangeId] = useState("6h");
+    // Restore the last-used window from the per-browser pref — but only if it
+    // still exists and fits the configured retention; otherwise fall back to 6h.
+    const [rangeId, setRangeId] = useState(() => {
+        const saved = getPref(RANGE_PREF) || "";
+        const r = RANGES.find(x => x.id === saved);
+        return r && r.ms <= (retentionDays ?? 90) * 86400_000 ? saved : "6h";
+    });
     // How far back the window is shifted from "now", in ms (0 = latest).
     const [offset, setOffset] = useState(0);
     // A custom window from drag-to-zoom; overrides the preset + offset when set.
@@ -99,6 +109,9 @@ export const Metrics = ({ ups, title, archiveDir, retentionDays, locale }: { ups
     // showing "6 months" if we only keep 90 days of archives (default 90d).
     const retentionMs = (retentionDays ?? 90) * 86400_000;
     const visibleRanges = RANGES.filter(r => r.ms <= retentionMs);
+
+    // Persist the chosen window (from the dropdown or zoom-step) for next time.
+    useEffect(() => { setPref(RANGE_PREF, rangeId) }, [rangeId]);
 
     const pickRange = (id: string) => { setRangeId(id); setOffset(0); setZoom(null); setTfOpen(false) };
     const onZoom = (start: number, end: number) => {
