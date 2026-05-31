@@ -24,7 +24,7 @@ import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/
 import cockpit from 'cockpit';
 
 import { InstantCommand, commandLabel, listSafeCommands } from './lib/control';
-import { DEFAULT_USER, createControlUser, generatePassword, isValidUserName, listControlUsers } from './lib/control-user';
+import { DEFAULT_USER, UserGrants, createControlUser, generatePassword, isValidUserName, listControlUsers, readControlUser, reuseControlUser } from './lib/control-user';
 
 const _ = cockpit.gettext;
 
@@ -40,6 +40,7 @@ export const NutUserWizard = ({ isOpen, ups, onClose, onCreated }: {
     const [cmds, setCmds] = useState<InstantCommand[] | null>(null);
     const [selected, setSelected] = useState<Record<string, boolean>>({});
     const [existing, setExisting] = useState<string[]>([]);
+    const [grants, setGrants] = useState<UserGrants | null>(null); // existing user's privileges, when name is taken
     const [remember, setRemember] = useState(true);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -62,14 +63,40 @@ export const NutUserWizard = ({ isOpen, ups, onClose, onCreated }: {
                 .catch(() => { /* non-admin — checked again on write */ });
     }, [isOpen, ups]);
 
+    // When the typed name belongs to an existing user, read its grants so we can
+    // offer to reuse it (and show whether its privileges already suffice) rather
+    // than dead-ending on "already exists".
+    const isExisting = existing.includes(name);
+    useEffect(() => {
+        if (!isOpen || !isExisting) {
+            setGrants(null);
+            return;
+        }
+        let cancelled = false;
+        readControlUser(name).then(g => { if (!cancelled) setGrants(g); })
+                .catch(() => { if (!cancelled) setGrants(null); });
+        return () => { cancelled = true };
+    }, [isOpen, name, isExisting]);
+
     const chosen = Object.entries(selected).filter(([, v]) => v)
             .map(([k]) => k);
 
     const nameError = !isValidUserName(name)
         ? _("Use letters, digits, dot, dash or underscore — no spaces.")
-        : existing.includes(name)
-            ? cockpit.format(_("\"$0\" already exists in upsd.users."), name)
-            : null;
+        : null;
+
+    // Reuse an existing user instead of creating: hand back its password (adding
+    // an upsmon role first if it lacks one, so the credentials can be validated).
+    const reuse = () => {
+        if (busy)
+            return;
+        setBusy(true);
+        setError(null);
+        reuseControlUser(name)
+                .then(({ password }) => onCreated(name, password, remember))
+                .catch(e => setError(msg(e)))
+                .finally(() => setBusy(false));
+    };
 
     const create = () => {
         if (nameError || chosen.length === 0 || busy)
@@ -84,16 +111,18 @@ export const NutUserWizard = ({ isOpen, ups, onClose, onCreated }: {
     };
 
     return (
-        <Modal variant="medium" isOpen={isOpen} onClose={onClose} aria-label={_("Create a NUT control user")}>
-            <ModalHeader title={_("Create a NUT control user")} />
+        <Modal variant="medium" isOpen={isOpen} onClose={onClose} aria-label={_("Set up a NUT control user")}>
+            <ModalHeader title={isExisting ? _("Reuse a NUT control user") : _("Create a NUT control user")} />
             <ModalBody>
                 {!created
                     ? (
                         <>
                             <Content component="p">
-                                {_("This creates a dedicated, least-privilege user in upsd.users that can run only the commands you pick below. It's separate from your Cockpit login and is what UPSide uses to send control actions.")}
+                                {isExisting
+                                    ? _("UPSide uses a dedicated NUT user (from upsd.users) to send control actions — separate from your Cockpit login. One with this name already exists; you can reuse it, or type a different name to create a new one.")
+                                    : _("This creates a dedicated, least-privilege user in upsd.users that can run only the commands you pick below. It's separate from your Cockpit login and is what UPSide uses to send control actions.")}
                             </Content>
-                            <Form onSubmit={e => { e.preventDefault(); create() }}>
+                            <Form onSubmit={e => { e.preventDefault(); if (isExisting) reuse(); else create(); }}>
                                 <FormGroup label={_("User name")} fieldId="nutwiz-name">
                                     <TextInput
                                         id="nutwiz-name"
@@ -105,30 +134,57 @@ export const NutUserWizard = ({ isOpen, ups, onClose, onCreated }: {
                                     {nameError && <Content component="small" className="upside-warn">{nameError}</Content>}
                                 </FormGroup>
 
-                                <FormGroup label={_("Commands to allow")} fieldId="nutwiz-cmds">
-                                    {cmds === null && <Spinner size="md" aria-label={_("Loading commands")} />}
-                                    {cmds && cmds.length === 0 &&
-                                        <Content component="small" className="upside-warn">
-                                            {_("This UPS exposes no safe control commands.")}
-                                        </Content>}
-                                    {cmds && cmds.map(c => (
-                                        <Checkbox
-                                            key={c.name}
-                                            id={`nutwiz-cmd-${c.name}`}
-                                            label={commandLabel(c)}
-                                            isChecked={!!selected[c.name]}
-                                            onChange={(_ev, v) => setSelected(s => ({ ...s, [c.name]: v }))}
-                                        />
-                                    ))}
-                                </FormGroup>
+                                {isExisting
+                                    ? (
+                                        <FormGroup label={cockpit.format(_("Reuse \"$0\""), name)} fieldId="nutwiz-existing">
+                                            {grants === null
+                                                ? (
+                                                    <Content component="small" className="upside-warn">
+                                                        {_("Administrator access is needed to read and reuse this user.")}
+                                                    </Content>
+                                                )
+                                                : (
+                                                    <>
+                                                        <Content component="small">
+                                                            {_("Allowed commands:")}{" "}
+                                                            <strong>{grants.allCmds ? _("all") : (grants.instcmds.join(", ") || _("none yet"))}</strong>
+                                                        </Content>
+                                                        <Content component="small" className="pf-v6-u-mt-xs">
+                                                            {grants.hasUpsmon
+                                                                ? _("Its credentials can be verified — ready to use. The password is reused unchanged.")
+                                                                : _("UPSide will add the upsmon role it needs to verify the password (its commands and password are left as-is).")}
+                                                        </Content>
+                                                    </>
+                                                )}
+                                        </FormGroup>
+                                    )
+                                    : (
+                                        <FormGroup label={_("Commands to allow")} fieldId="nutwiz-cmds">
+                                            {cmds === null && <Spinner size="md" aria-label={_("Loading commands")} />}
+                                            {cmds && cmds.length === 0 &&
+                                                <Content component="small" className="upside-warn">
+                                                    {_("This UPS exposes no safe control commands.")}
+                                                </Content>}
+                                            {cmds && cmds.map(c => (
+                                                <Checkbox
+                                                    key={c.name}
+                                                    id={`nutwiz-cmd-${c.name}`}
+                                                    label={commandLabel(c)}
+                                                    isChecked={!!selected[c.name]}
+                                                    onChange={(_ev, v) => setSelected(s => ({ ...s, [c.name]: v }))}
+                                                />
+                                            ))}
+                                        </FormGroup>
+                                    )}
 
-                                <Content component="small" className="upside-controls__creds">
-                                    {_("A strong password is generated for you, and the user is granted an upsmon role so UPSide can verify the credentials. Only the commands above are permitted — never shutdown or load control.")}
-                                </Content>
+                                {!isExisting &&
+                                    <Content component="small" className="upside-controls__creds">
+                                        {_("A strong password is generated for you, and the user is granted an upsmon role so UPSide can verify the credentials. Only the commands above are permitted — never shutdown or load control.")}
+                                    </Content>}
                             </Form>
 
                             {error &&
-                                <Alert variant="danger" isInline title={_("Could not create the user")} className="pf-v6-u-mt-md">
+                                <Alert variant="danger" isInline title={isExisting ? _("Could not use the user") : _("Could not create the user")} className="pf-v6-u-mt-md">
                                     {error}
                                 </Alert>}
                         </>
@@ -159,14 +215,27 @@ export const NutUserWizard = ({ isOpen, ups, onClose, onCreated }: {
                 {!created
                     ? (
                         <>
-                            <Button
-                                variant="primary"
-                                onClick={create}
-                                isLoading={busy}
-                                isDisabled={busy || !!nameError || chosen.length === 0}
-                            >
-                                {_("Create user")}
-                            </Button>
+                            {isExisting
+                                ? (
+                                    <Button
+                                        variant="primary"
+                                        onClick={reuse}
+                                        isLoading={busy}
+                                        isDisabled={busy || !!nameError || grants === null}
+                                    >
+                                        {cockpit.format(_("Use \"$0\""), name)}
+                                    </Button>
+                                )
+                                : (
+                                    <Button
+                                        variant="primary"
+                                        onClick={create}
+                                        isLoading={busy}
+                                        isDisabled={busy || !!nameError || chosen.length === 0}
+                                    >
+                                        {_("Create user")}
+                                    </Button>
+                                )}
                             <Button variant="link" onClick={onClose} isDisabled={busy}>{_("Cancel")}</Button>
                         </>
                     )
