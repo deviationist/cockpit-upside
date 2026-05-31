@@ -185,7 +185,7 @@ const LocalSetup = ({ state, busy, refresh, run }: {
                                     </Button>
                                 ))}
                             </div>
-                            <Content component="small" className="pf-v6-u-mt-md">
+                            <Content component="small" className="pf-v6-u-mt-sm">
                                 {_("Wrong device, or want to start over? Remove it to return to scanning (ups.conf is backed up first).")}
                             </Content>
                         </>
