@@ -605,27 +605,10 @@ export const Setup = ({ onDone, mode, modeLocked, onEnableControl }: {
                 {_("This guide gets a UPS visible to UPSide. It checks each prerequisite and can apply the fix for you (with a preview and an admin prompt), or show you the command to run.")}
             </Content>
 
-            <div className="upside-setup__scope">
-                <Content component="small">{_("Where is the UPS?")}</Content>
-                <ToggleGroup aria-label={_("UPS location")}>
-                    <ToggleGroupItem
-                        text={_("Attached to this machine")}
-                        isSelected={scope === "local"}
-                        onChange={() => setScope("local")}
-                    />
-                    <ToggleGroupItem
-                        text={_("On another host")}
-                        isSelected={scope === "remote"}
-                        onChange={() => setScope("remote")}
-                    />
-                </ToggleGroup>
-            </div>
-
-            {error && <Alert variant="danger" isInline className="upside-setup__error" title={_("Something went wrong")}>{error}</Alert>}
-
-            {/* Gate the actual setup behind admin access: the steps change system
-                files/services, so don't surface their fields until access is on.
-                The banner clears (and the steps appear) live via useAdmin. */}
+            {/* Everything below changes system files/services, so it's gated
+                behind admin access — including the "Where is the UPS?" choice.
+                Without access we show only the guidance; it all appears live
+                (useAdmin tracks the permission's changed event) once it's on. */}
             {admin === false
                 ? (
                     <Alert
@@ -639,9 +622,31 @@ export const Setup = ({ onDone, mode, modeLocked, onEnableControl }: {
                 )
                 : admin === null
                     ? <Spinner aria-label={_("Checking administrative access")} />
-                    : scope === "local"
-                        ? <LocalSetup state={state} busy={busy} refresh={refresh} run={run} onDone={onDone} mode={mode} modeLocked={modeLocked} onEnableControl={onEnableControl} />
-                        : <RemoteSetup state={state} busy={busy} refresh={refresh} run={run} onDone={onDone} mode={mode} modeLocked={modeLocked} onEnableControl={onEnableControl} />}
+                    : (
+                        <>
+                            <div className="upside-setup__scope">
+                                <Content component="small">{_("Where is the UPS?")}</Content>
+                                <ToggleGroup aria-label={_("UPS location")}>
+                                    <ToggleGroupItem
+                                        text={_("Attached to this machine")}
+                                        isSelected={scope === "local"}
+                                        onChange={() => setScope("local")}
+                                    />
+                                    <ToggleGroupItem
+                                        text={_("On another host")}
+                                        isSelected={scope === "remote"}
+                                        onChange={() => setScope("remote")}
+                                    />
+                                </ToggleGroup>
+                            </div>
+
+                            {error && <Alert variant="danger" isInline className="upside-setup__error" title={_("Something went wrong")}>{error}</Alert>}
+
+                            {scope === "local"
+                                ? <LocalSetup state={state} busy={busy} refresh={refresh} run={run} onDone={onDone} mode={mode} modeLocked={modeLocked} onEnableControl={onEnableControl} />
+                                : <RemoteSetup state={state} busy={busy} refresh={refresh} run={run} onDone={onDone} mode={mode} modeLocked={modeLocked} onEnableControl={onEnableControl} />}
+                        </>
+                    )}
         </div>
     );
 };
