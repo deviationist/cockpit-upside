@@ -614,7 +614,7 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
 
             <Topology ups={ups.ref.name} />
 
-            {config.history && <Trends ups={ups.ref.name} />}
+            {config.history && <Trends ups={ups.ref.name} archiveDir={config.historyArchiveDir} />}
 
             <Gallery className="upside-gallery" hasGutter>
                 {groups.map(g => (
