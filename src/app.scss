@@ -712,6 +712,22 @@ $upside-amber: #f59e0b;
     color: var(--pf-t--global--text--color--subtle, #6a6e73);
 }
 
+// "Where is the UPS?" scope chooser — label above the toggle group.
+.upside-setup__scope {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-block-end: 1.25rem;
+}
+
+// Lead-in line for the remote-source scope.
+.upside-setup__hint {
+    display: block;
+    max-inline-size: 56rem;
+    margin-block-end: 1rem;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
 // When embedded in the empty-state, keep the steps readable and left-aligned.
 .upside-empty-setup {
     inline-size: 100%;

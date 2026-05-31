@@ -7,8 +7,11 @@
  * where the prerequisite is met, an actionable card where it isn't. Fixes are
  * one click — each previews the exact change, backs the file up, prompts for
  * admin (via setup.ts), and shows the equivalent shell command as a fallback.
- * Monitoring-only scope: install → MODE → device (nut-scanner) → services →
- * verify. Shutdown (upsmon) is intentionally out of scope for now.
+ *
+ * Two scopes, chosen up top: "this machine" (a locally-attached UPS — install →
+ * MODE → device (nut-scanner) → services → verify) and "another host" (point at
+ * a remote upsd: client installed → connect → save nutHost). Shutdown (upsmon)
+ * is intentionally out of scope for now.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -18,6 +21,7 @@ import { Card, CardBody, CardTitle } from "@patternfly/react-core/dist/esm/compo
 import { Content } from "@patternfly/react-core/dist/esm/components/Content/index.js";
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
 import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/index.js";
+import { ToggleGroup, ToggleGroupItem } from "@patternfly/react-core/dist/esm/components/ToggleGroup/index.js";
 
 import cockpit from 'cockpit';
 
@@ -25,12 +29,15 @@ import {
     ScannedDevice, SetupState, applyMode, applyStanza, buildUpsStanza, commands,
     describeDevice, detect, isValidSectionName, parseScannerOutput, scanUsb, startServices,
 } from './lib/setup';
+import { isValidNutHost, saveConfig, useConfig } from './lib/config';
+import { listUps } from './lib/nut';
 
 const _ = cockpit.gettext;
 
 const msg = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 type StepState = "ok" | "todo" | "blocked";
+type RunFn = (key: string, fn: () => Promise<unknown>) => () => Promise<void>;
 
 const Badge = ({ s }: { s: StepState }) => (
     <span className={`upside-step__badge upside-step__badge--${s}`}>
@@ -64,37 +71,21 @@ const Cmd = ({ text }: { text: string }) => {
     );
 };
 
-export const Setup = () => {
-    const [state, setState] = useState<SetupState | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [busy, setBusy] = useState<string | null>(null);
+// A step is "blocked" (greyed, no action yet) until the steps it depends on pass.
+const st = (ok: boolean, ready: boolean): StepState => ok ? "ok" : ready ? "todo" : "blocked";
+
+/* ---- local scope: a UPS attached to this machine ---- */
+const LocalSetup = ({ state, busy, refresh, run }: {
+    state: SetupState, busy: string | null, refresh: () => void, run: RunFn,
+}) => {
     const [devices, setDevices] = useState<ScannedDevice[] | null>(null);
     const [section, setSection] = useState("ups");
 
-    const refresh = useCallback(async () => {
-        setError(null);
-        try {
-            setState(await detect());
-        } catch (e) {
-            setError(msg(e));
-        }
-    }, []);
-
-    useEffect(() => { refresh() }, [refresh]);
-
-    // Run a privileged action, then re-probe. `key` drives the per-button spinner.
-    const run = (key: string, fn: () => Promise<unknown>) => async () => {
-        setBusy(key);
-        setError(null);
-        try {
-            await fn();
-            await refresh();
-        } catch (e) {
-            setError(msg(e));
-        } finally {
-            setBusy(null);
-        }
-    };
+    const installedOk = state.installed;
+    const modeOk = state.modeOk;
+    const deviceOk = state.sections.length > 0;
+    const serverOk = state.serverActive;
+    const verifiedOk = state.upsList.length > 0;
 
     const scan = run("scan", async () => {
         const out = await scanUsb();
@@ -104,18 +95,6 @@ export const Setup = () => {
             throw new Error(_("nut-scanner found no USB UPS. Is it plugged in? Serial/SNMP devices need manual configuration."));
     });
 
-    if (!state)
-        return <Spinner aria-label={_("Probing NUT setup")} />;
-
-    const installedOk = state.installed;
-    const modeOk = state.modeOk;
-    const deviceOk = state.sections.length > 0;
-    const serverOk = state.serverActive;
-    const verifiedOk = state.upsList.length > 0;
-
-    // A step is "blocked" (greyed, no action yet) until the steps it depends on pass.
-    const st = (ok: boolean, ready: boolean): StepState => ok ? "ok" : ready ? "todo" : "blocked";
-
     const dupSection = !isValidSectionName(section)
         ? _("Use letters, digits, dot, dash or underscore — no spaces.")
         : state.sections.includes(section)
@@ -123,12 +102,7 @@ export const Setup = () => {
             : null;
 
     return (
-        <div className="upside-setup">
-            <Content component="p" className="upside-setup__intro">
-                {_("This guide gets a UPS visible to UPSide. It checks each prerequisite and can apply the fix for you (with a preview and an admin prompt), or show you the command to run.")}
-            </Content>
-
-            {error && <Alert variant="danger" isInline title={_("Something went wrong")}>{error}</Alert>}
+        <>
             {state.needAdmin &&
                 <Alert variant="info" isInline title={_("Administrator access needed")}>
                     {_("NUT configuration exists but couldn't be read. Applying a step will prompt for admin access.")}
@@ -275,6 +249,172 @@ export const Setup = () => {
                         </>
                     )}
             </Step>
+        </>
+    );
+};
+
+/* ---- remote scope: point at a upsd on another host ---- */
+const RemoteSetup = ({ state, busy, refresh, run }: {
+    state: SetupState, busy: string | null, refresh: () => void, run: RunFn,
+}) => {
+    const { config } = useConfig();
+    const [host, setHost] = useState(config.nutHost ?? "");
+    const [found, setFound] = useState<string[] | null>(null);
+
+    // Test reachability with `upsc -l <host>` (no auth), then save it as the NUT
+    // source. The app watches the config and switches to the live view as soon
+    // as nutHost is set and the remote upsd answers.
+    const connect = run("connect", async () => {
+        const h = host.trim();
+        if (!isValidNutHost(h))
+            throw new Error(_("Enter a valid host name or address (optionally host:port)."));
+        const refs = await listUps(h);
+        if (refs.length === 0)
+            throw new Error(_("Reached a server there, but it serves no UPS. Check the NUT host and that its upsd has a UPS configured."));
+        setFound(refs.map(r => r.name));
+        await saveConfig({ ...config, nutHost: h });
+    });
+
+    return (
+        <>
+            <Content component="small" className="upside-setup__hint">
+                {_("UPSide will read — and, in control mode, command — a upsd running on another host (the machine the UPS is attached to). Reads need no credentials. History stays on the host with the UPS, so the Trends section is hidden here.")}
+            </Content>
+
+            {/* 1 — client installed */}
+            <Step n={1} title={_("NUT client installed")} state={st(state.clientInstalled, true)}>
+                {!state.clientInstalled &&
+                    <>
+                        <Content component="p">
+                            {_("The NUT client tools (upsc/upscmd) aren't installed. Only the client is needed to monitor a remote server — not the full NUT server.")}
+                        </Content>
+                        <pre className="upside-cmd">{commands.installClient(state.pkgManager)}</pre>
+                        <Button variant="secondary" onClick={refresh}>{_("Re-check")}</Button>
+                    </>}
+            </Step>
+
+            {/* 2 — connect */}
+            <Step n={2} title={_("Connect to the NUT server")} state={st(!!found?.length, state.clientInstalled)}>
+                {state.clientInstalled &&
+                    <>
+                        <Content component="p">
+                            {_("Enter the host running upsd (the machine the UPS is attached to). Append :port if it's not the default 3493.")}
+                        </Content>
+                        <div className="upside-field">
+                            <label htmlFor="upside-nuthost-setup">{_("NUT server host")}</label>
+                            <TextInput
+                                id="upside-nuthost-setup"
+                                value={host}
+                                placeholder="10.0.0.1"
+                                onChange={(_ev, v) => { setHost(v); setFound(null) }}
+                                aria-label={_("NUT server host")}
+                            />
+                        </div>
+                        <div className="upside-step__actions">
+                            <Button
+                                variant="primary"
+                                isLoading={busy === "connect"}
+                                isDisabled={busy !== null || !host.trim()}
+                                onClick={connect}
+                            >
+                                {_("Test & connect")}
+                            </Button>
+                        </div>
+                        <Cmd text={`upsc -l ${host.trim() || "HOST"}`} />
+
+                        {found && found.length > 0 &&
+                            <>
+                                <Alert
+                                    variant="success" isInline isPlain className="pf-v6-u-mt-md"
+                                    title={cockpit.format(_("Connected — found $0 UPS. Opening the live view…"), found.length)}
+                                />
+                                <div className="upside-step__actions">
+                                    {found.map(name => (
+                                        <Button key={name} variant="link" isInline onClick={() => cockpit.location.go(["ups", name])}>
+                                            {cockpit.format(_("Open $0"), name)}
+                                        </Button>
+                                    ))}
+                                </div>
+                            </>}
+                    </>}
+            </Step>
+        </>
+    );
+};
+
+export const Setup = () => {
+    const [state, setState] = useState<SetupState | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [busy, setBusy] = useState<string | null>(null);
+    // "Where is the UPS?" — local (attached here) or remote (another host's upsd).
+    // null until config loads, then seeded from whether a remote source is set.
+    const [scope, setScope] = useState<"local" | "remote" | null>(null);
+
+    const { config, loading: configLoading } = useConfig();
+
+    // Seed the scope once, when config first loads: land on the remote tab if a
+    // remote source is already configured (but unreachable → we're on the empty
+    // state), so the operator can correct it; otherwise default to local.
+    useEffect(() => {
+        if (!configLoading && scope === null)
+            setScope(config.nutHost ? "remote" : "local");
+    }, [configLoading, config.nutHost, scope]);
+
+    const refresh = useCallback(async () => {
+        setError(null);
+        try {
+            setState(await detect());
+        } catch (e) {
+            setError(msg(e));
+        }
+    }, []);
+
+    useEffect(() => { refresh() }, [refresh]);
+
+    // Run a privileged action, then re-probe. `key` drives the per-button spinner.
+    const run: RunFn = (key, fn) => async () => {
+        setBusy(key);
+        setError(null);
+        try {
+            await fn();
+            await refresh();
+        } catch (e) {
+            setError(msg(e));
+        } finally {
+            setBusy(null);
+        }
+    };
+
+    if (!state || scope === null)
+        return <Spinner aria-label={_("Probing NUT setup")} />;
+
+    return (
+        <div className="upside-setup">
+            <Content component="p" className="upside-setup__intro">
+                {_("This guide gets a UPS visible to UPSide. It checks each prerequisite and can apply the fix for you (with a preview and an admin prompt), or show you the command to run.")}
+            </Content>
+
+            <div className="upside-setup__scope">
+                <Content component="small">{_("Where is the UPS?")}</Content>
+                <ToggleGroup aria-label={_("UPS location")}>
+                    <ToggleGroupItem
+                        text={_("Attached to this machine")}
+                        isSelected={scope === "local"}
+                        onChange={() => setScope("local")}
+                    />
+                    <ToggleGroupItem
+                        text={_("On another host")}
+                        isSelected={scope === "remote"}
+                        onChange={() => setScope("remote")}
+                    />
+                </ToggleGroup>
+            </div>
+
+            {error && <Alert variant="danger" isInline title={_("Something went wrong")}>{error}</Alert>}
+
+            {scope === "local"
+                ? <LocalSetup state={state} busy={busy} refresh={refresh} run={run} />
+                : <RemoteSetup state={state} busy={busy} refresh={refresh} run={run} />}
         </div>
     );
 };

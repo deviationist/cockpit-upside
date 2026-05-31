@@ -26,8 +26,10 @@ const SERVER_UNIT = "nut-server.service";
 const DRIVER_UNIT = "nut-driver-enumerator.service";
 
 export interface SetupState {
-    /** upsd/upsdrvctl present on PATH. */
+    /** upsd/upsdrvctl present on PATH (the server — a locally-attached UPS). */
     installed: boolean;
+    /** upsc present on PATH (the client — enough to read a remote upsd). */
+    clientInstalled: boolean;
     /** NUT config directory in use (/etc/nut or /etc/ups). */
     confDir: string;
     /** Active MODE, or undefined if nut.conf is missing/unreadable. */
@@ -90,6 +92,7 @@ async function detectPkgManager(): Promise<SetupState["pkgManager"]> {
 /** Probe the full NUT state. Cheap and read-only (no nut-scanner — that's on demand). */
 export async function detect(): Promise<SetupState> {
     const installed = (await sh("command -v upsd || command -v upsdrvctl")) !== "";
+    const clientInstalled = (await sh("command -v upsc")) !== "";
     const { dir, nutConf, needAdmin } = await detectConfDir();
     const mode = parseMode(nutConf);
     const upsConf = await readTry(`${dir}/ups.conf`);
@@ -105,6 +108,7 @@ export async function detect(): Promise<SetupState> {
 
     return {
         installed,
+        clientInstalled,
         confDir: dir,
         mode,
         modeOk: mode === "standalone" || mode === "netserver",
@@ -179,6 +183,15 @@ export const commands = {
         case "zypper": return "sudo zypper install nut";
         case "pacman": return "sudo pacman -S nut";
         default: return "sudo apt install nut";
+        }
+    },
+    // Client only — enough to read/control a remote upsd from a secondary host.
+    installClient: (pkg: SetupState["pkgManager"]): string => {
+        switch (pkg) {
+        case "dnf": return "sudo dnf install nut-client";
+        case "zypper": return "sudo zypper install nut-client";
+        case "pacman": return "sudo pacman -S nut";
+        default: return "sudo apt install nut-client";
         }
     },
     setMode: (confDir: string, mode: NutMode): string =>
