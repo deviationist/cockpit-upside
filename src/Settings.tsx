@@ -55,78 +55,82 @@ export const Settings = ({ mode, modeLocked, onModeChange }: {
     };
 
     return (
-        <Card>
-            <CardTitle>{_("Settings")}</CardTitle>
-            <CardBody>
-                <Form isHorizontal>
-                    <FormGroup label={_("Mode")} fieldId="upside-mode">
-                        {modeLocked
-                            ? (
-                                <Content component="small">
-                                    {cockpit.format(
-                                        _("Set in /etc/cockpit/upside.json — currently $0."),
-                                        mode === "control" ? _("control") : _("monitor"))}
+        <div className="upside-settings">
+            <Card>
+                <CardTitle>{_("Mode")}</CardTitle>
+                <CardBody>
+                    {modeLocked
+                        ? (
+                            <Content component="small">
+                                {cockpit.format(
+                                    _("Pinned in /etc/cockpit/upside.json — currently $0. Change it there to override."),
+                                    mode === "control" ? _("control") : _("monitor"))}
+                            </Content>
+                        )
+                        : (
+                            <>
+                                <Switch
+                                    id="upside-mode"
+                                    isChecked={mode === "control"}
+                                    onChange={(_ev, v) => onModeChange(v ? "control" : "monitor")}
+                                    label={_("Control mode — show control actions (battery test, beeper, …)")}
+                                />
+                                <Content component="small" className="pf-v6-u-mt-xs">
+                                    {_("Applies immediately to this browser — no save or admin needed. Read-only (monitor) otherwise; control actions still require NUT authentication to run.")}
                                 </Content>
-                            )
-                            : (
-                                <>
-                                    <Switch
-                                        id="upside-mode"
-                                        isChecked={mode === "control"}
-                                        onChange={(_ev, v) => onModeChange(v ? "control" : "monitor")}
-                                        label={_("Control mode — show control actions (battery test, beeper, …)")}
-                                    />
-                                    <Content component="small" className="pf-v6-u-mt-xs">
-                                        {_("Read-only otherwise. Control actions still require NUT authentication to run.")}
-                                    </Content>
-                                </>
-                            )}
-                    </FormGroup>
+                            </>
+                        )}
+                </CardBody>
+            </Card>
 
-                    <FormGroup label={_("Historical trends")} fieldId="upside-history">
-                        <Switch
+            <Card className="pf-v6-u-mt-md">
+                <CardTitle>{_("Settings")}</CardTitle>
+                <CardBody>
+                    <Form isHorizontal>
+                        <FormGroup label={_("Historical trends")} fieldId="upside-history">
+                            <Switch
                             id="upside-history"
                             isChecked={draft.history}
                             onChange={(_ev, v) => update({ history: v })}
                             label={_("Show the Trends section (reads PCP history)")}
-                        />
-                    </FormGroup>
+                            />
+                        </FormGroup>
 
-                    <FormGroup label={_("Navigation status")} fieldId="upside-overview">
-                        <Switch
+                        <FormGroup label={_("Navigation status")} fieldId="upside-overview">
+                            <Switch
                             id="upside-overview"
                             isChecked={draft.overviewCard}
                             onChange={(_ev, v) => update({ overviewCard: v })}
                             label={_("Show a status icon next to UPSide in the Cockpit menu when a UPS needs attention")}
-                        />
-                    </FormGroup>
+                            />
+                        </FormGroup>
 
-                    <FormGroup label={_("Electricity rate (per kWh)")} fieldId="upside-rate">
-                        <TextInput
+                        <FormGroup label={_("Electricity rate (per kWh)")} fieldId="upside-rate">
+                            <TextInput
                             id="upside-rate"
                             type="number"
                             value={String(draft.costRate)}
                             onChange={(_ev, v) => update({ costRate: Number(v) || 0 })}
-                        />
-                    </FormGroup>
+                            />
+                        </FormGroup>
 
-                    <FormGroup label={_("Currency")} fieldId="upside-currency">
-                        <TextInput
+                        <FormGroup label={_("Currency")} fieldId="upside-currency">
+                            <TextInput
                             id="upside-currency"
                             value={draft.costCurrency}
                             onChange={(_ev, v) => update({ costCurrency: v })}
-                        />
-                    </FormGroup>
+                            />
+                        </FormGroup>
 
-                    <ActionGroup>
-                        <Button variant="primary" onClick={onSave} isLoading={saving} isDisabled={saving}>
-                            {_("Save")}
-                        </Button>
-                        {saved && <Content component="small">{_("Saved.")}</Content>}
-                    </ActionGroup>
-                </Form>
+                        <ActionGroup>
+                            <Button variant="primary" onClick={onSave} isLoading={saving} isDisabled={saving}>
+                                {_("Save")}
+                            </Button>
+                            {saved && <Content component="small">{_("Saved.")}</Content>}
+                        </ActionGroup>
+                    </Form>
 
-                {error &&
+                    {error &&
                     <Alert
                         variant="danger"
                         isInline
@@ -135,7 +139,8 @@ export const Settings = ({ mode, modeLocked, onModeChange }: {
                     >
                         {error}
                     </Alert>}
-            </CardBody>
-        </Card>
+                </CardBody>
+            </Card>
+        </div>
     );
 };
