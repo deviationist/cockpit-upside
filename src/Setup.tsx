@@ -33,7 +33,7 @@ import {
 import { Mode, isValidNutHost, saveConfig, useConfig } from './lib/config';
 import { listUps, refId } from './lib/nut';
 import { validateCreds } from './lib/control';
-import { useAdmin } from './lib/admin';
+import { requestAdmin, useAdmin } from './lib/admin';
 import { clearNutCreds, loadNutCreds, saveNutCreds } from './lib/prefs';
 import { NutUserWizard } from './NutUserWizard';
 import { NutAuthModal } from './NutAuthModal';
@@ -617,7 +617,12 @@ export const Setup = ({ onDone, mode, modeLocked, onEnableControl }: {
                         className="upside-setup__error"
                         title={_("Administrative access needed")}
                     >
-                        {_("Setting up NUT changes system files and services, so it needs administrative access. Turn it on with the access button at the top of the page (it may read \"Limited access\") and enter your password — the setup steps appear here automatically once it's on.")}
+                        {_("Setting up NUT changes system files and services, so it needs administrative access. Enable it below (or with the access button at the top of the page) and enter your password — the setup steps appear here automatically once it's on.")}
+                        <div className="upside-step__actions">
+                            <Button variant="primary" onClick={() => requestAdmin()}>
+                                {_("Enable administrative access")}
+                            </Button>
+                        </div>
                     </Alert>
                 )
                 : admin === null
