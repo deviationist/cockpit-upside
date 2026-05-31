@@ -71,7 +71,7 @@ export const Topology = ({ ups }: { ups: string }) => {
                                         <Label isCompact color={h.role === "primary" ? "blue" : "grey"}>
                                             {h.role === "primary" ? _("Primary") : _("Secondary")}
                                         </Label>
-                                        {h.local && <span className="upside-topo__self">{_("this host")}</span>}
+                                        {h.local && <Label isCompact variant="outline">{_("this host")}</Label>}
                                     </div>
                                     <div className="upside-topo__name">{h.name}</div>
                                     <div className="upside-topo__ip">{h.ip}</div>
@@ -83,7 +83,7 @@ export const Topology = ({ ups }: { ups: string }) => {
                                     {h.upsmon && (h.upsmon.shutdownCmd || h.upsmon.powerValue) &&
                                         <div className="upside-topo__card-detail">
                                             {h.upsmon.shutdownCmd &&
-                                                <div>{cockpit.format(_("On shutdown: $0"), h.upsmon.shutdownCmd)}</div>}
+                                                <div>{_("On shutdown:")} <code className="upside-code">{h.upsmon.shutdownCmd}</code></div>}
                                             {h.upsmon.powerValue &&
                                                 <div>{cockpit.format(_("Feeds $0 supply (min $1)"),
                                                                      h.upsmon.powerValue, h.upsmon.minSupplies || "1")}

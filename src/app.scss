@@ -114,7 +114,6 @@ $upside-amber: #f59e0b;
     font-size: 0.85rem;
 }
 
-.upside-topo__self,
 .upside-topo__conn {
     color: var(--pf-t--global--text--color--subtle, #6a6e73);
     font-size: 0.85rem;
@@ -135,6 +134,15 @@ $upside-amber: #f59e0b;
 .upside-topo__policy {
     display: block;
     margin-block-start: 0.75rem;
+}
+
+// Inline command shown in code style.
+.upside-code {
+    padding: 0.05rem 0.3rem;
+    border-radius: 3px;
+    background: rgb(127 127 127 / 15%);
+    font-family: var(--pf-t--global--font--family--mono, monospace);
+    font-size: 0.8rem;
 }
 
 .upside-topo__note {
