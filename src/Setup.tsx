@@ -250,7 +250,7 @@ const LocalSetup = ({ state, busy, refresh, run }: {
                                 <Alert
                                     variant="warning"
                                     isInline
-                                    className="pf-v6-u-mt-md"
+                                    className="upside-setup__notice"
                                     title={scanResult.usbDisabled ? _("USB auto-detection is unavailable") : _("No USB UPS was auto-detected")}
                                 >
                                     {scanResult.usbDisabled
