@@ -28,7 +28,7 @@ import cockpit from 'cockpit';
 import {
     ScannedDevice, SetupState, UsbDevice, applyMode, applyStanza, buildManualUsbStanza, buildUpsStanza,
     commands, describeDevice, detect, isValidSectionName, lsusb, parseLsusb, parseScannerOutput,
-    scanUsb, startServices, usbScanDisabled,
+    removeSection, scanUsb, startServices, usbScanDisabled,
 } from './lib/setup';
 import { isValidNutHost, saveConfig, useConfig } from './lib/config';
 import { listUps } from './lib/nut';
@@ -161,7 +161,27 @@ const LocalSetup = ({ state, busy, refresh, run }: {
             {/* 3 — device configured */}
             <Step n={3} title={_("UPS device configured")} state={st(deviceOk, installedOk)}>
                 {deviceOk
-                    ? <Content component="p">{cockpit.format(_("ups.conf defines: $0"), state.sections.join(", "))}</Content>
+                    ? (
+                        <>
+                            <Content component="p">{cockpit.format(_("ups.conf defines: $0"), state.sections.join(", "))}</Content>
+                            <div className="upside-step__actions">
+                                {state.sections.map(name => (
+                                    <Button
+                                        key={name}
+                                        variant="secondary"
+                                        isDisabled={busy !== null}
+                                        isLoading={busy === `rm-${name}`}
+                                        onClick={run(`rm-${name}`, () => removeSection(state.confDir, name))}
+                                    >
+                                        {cockpit.format(_("Remove \"$0\""), name)}
+                                    </Button>
+                                ))}
+                            </div>
+                            <Content component="small">
+                                {_("Wrong device, or want to start over? Remove it to return to scanning (ups.conf is backed up first).")}
+                            </Content>
+                        </>
+                    )
                     : installedOk &&
                         <>
                             <Content component="p">

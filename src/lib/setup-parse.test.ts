@@ -11,7 +11,7 @@ import { test } from 'node:test';
 
 import {
     appendStanza, buildManualUsbStanza, buildUpsStanza, describeDevice, isValidSectionName,
-    parseConfSections, parseLsusb, parseMode, parseScannerOutput, setModeText, usbScanDisabled,
+    parseConfSections, parseLsusb, parseMode, parseScannerOutput, removeStanza, setModeText, usbScanDisabled,
 } from './setup-parse.ts';
 
 const NUT_CONF = `# Network UPS Tools: example nut.conf
@@ -98,6 +98,16 @@ test("isValidSectionName", () => {
     assert.equal(isValidSectionName("bad name"), false);
     assert.equal(isValidSectionName("[nope]"), false);
     assert.equal(isValidSectionName(""), false);
+});
+
+test("removeStanza: drops the named section + its body, keeps the rest", () => {
+    const conf = "# header\nmaxretry = 3\n\n[a]\n\tdriver = \"usbhid-ups\"\n\tport = \"auto\"\n\n[b]\n\tdriver = \"nutdrv_qx\"\n";
+    assert.equal(removeStanza(conf, "a"), "# header\nmaxretry = 3\n\n[b]\n\tdriver = \"nutdrv_qx\"\n");
+    // Removing the only section leaves just the header.
+    assert.equal(removeStanza("# header\n\n[a]\n\tdriver = \"x\"\n", "a"), "# header\n");
+    // Unknown section → unchanged content (modulo trailing newline normalisation).
+    assert.equal(removeStanza("[a]\n\tdriver = \"x\"\n", "z"), "[a]\n\tdriver = \"x\"\n");
+    assert.equal(removeStanza("", "a"), "");
 });
 
 test("usbScanDisabled: detects nut-scanner's missing-libusb warning", () => {
