@@ -159,8 +159,7 @@ $upside-amber: #f59e0b;
     gap: 0.5rem;
 }
 
-.upside-controls__creds,
-.upside-controls__status {
+.upside-controls__creds {
     display: block;
     margin-block-start: 0.75rem;
     color: var(--pf-t--global--text--color--subtle, #6a6e73);

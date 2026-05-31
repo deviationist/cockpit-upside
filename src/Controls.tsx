@@ -59,9 +59,19 @@ export const Controls = ({ ups, creds, vars, onAuthNeeded }: {
                 .finally(() => setBusy(null));
     };
 
-    // Current beeper state, so the Toggle button shows what it switches from.
+    // Current beeper state — label the toggle by what it'll do (on/off).
     const beeper = vars?.["ups.beeper.status"];
-    const hasBeeper = !!cmds?.some(c => c.name.startsWith("beeper."));
+    const labelFor = (c: InstantCommand): string => {
+        if (c.name === "beeper.toggle" && beeper === "disabled")
+            return _("Toggle beeper on");
+        if (c.name === "beeper.toggle" && beeper === "enabled")
+            return _("Toggle beeper off");
+        return commandLabel(c);
+    };
+    const titleFor = (c: InstantCommand): string =>
+        (c.name === "beeper.toggle" && beeper)
+            ? cockpit.format(_("Beeper is currently $0"), beeper)
+            : c.desc;
 
     return (
         <Card>
@@ -85,17 +95,12 @@ export const Controls = ({ ups, creds, vars, onAuthNeeded }: {
                                     isDisabled={busy !== null}
                                     isLoading={busy === c.name}
                                     onClick={() => run(c.name)}
-                                    title={c.desc}
+                                    title={titleFor(c)}
                                 >
-                                    {commandLabel(c)}
+                                    {labelFor(c)}
                                 </Button>
                             ))}
                         </div>
-
-                        {hasBeeper && beeper &&
-                            <Content component="small" className="upside-controls__status">
-                                {cockpit.format(_("Beeper is currently $0."), beeper)}
-                            </Content>}
 
                         {!creds &&
                             <Content component="small" className="upside-controls__creds">
