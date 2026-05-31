@@ -25,6 +25,7 @@ import { AngleLeftIcon } from "@patternfly/react-icons/dist/esm/icons/angle-left
 import { AngleRightIcon } from "@patternfly/react-icons/dist/esm/icons/angle-right-icon.js";
 import { SearchMinusIcon } from "@patternfly/react-icons/dist/esm/icons/search-minus-icon.js";
 import { SearchPlusIcon } from "@patternfly/react-icons/dist/esm/icons/search-plus-icon.js";
+import { DownloadIcon } from "@patternfly/react-icons/dist/esm/icons/download-icon.js";
 
 import cockpit from 'cockpit';
 
@@ -134,6 +135,30 @@ export const Metrics = ({ ups, title, archiveDir, retentionDays }: { ups: string
         setZoom(null);
     };
 
+    // Export the currently-loaded window as CSV: a union of timestamps (ISO) with
+    // one column per series that has data. Pure client-side download of data
+    // already on screen — no backend, no privilege.
+    const exportCsv = () => {
+        if (!result)
+            return;
+        const cols = SERIES.filter(s => (result.points[metricName(s.key)]?.length ?? 0) > 0);
+        const maps = cols.map(s => new Map(result.points[metricName(s.key)].map(p => [p.t, p.v])));
+        const times = [...new Set(cols.flatMap(s => result.points[metricName(s.key)].map(p => p.t)))].sort((a, b) => a - b);
+        const header = ["time", ...cols.map(s => s.key)].join(",");
+        const body = times.map(t =>
+            [new Date(t).toISOString(), ...maps.map(m => m.has(t) ? m.get(t) : "")].join(","));
+        const csv = [header, ...body].join("\n") + "\n";
+        const blob = new Blob([csv], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `upside-${ups}-${zoom ? "custom" : rangeId}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    };
+
     useEffect(() => {
         let cancelled = false;
         setLoading(true);
@@ -198,6 +223,9 @@ export const Metrics = ({ ups, title, archiveDir, retentionDays }: { ups: string
                         <Button variant="secondary" aria-label={_("Zoom out")} icon={<SearchMinusIcon />} isDisabled={rangeIdx >= visibleRanges.length - 1} onClick={() => stepRange(1)} />
                         <Button variant="secondary" aria-label={_("Earlier")} icon={<AngleLeftIcon />} onClick={shiftBack} />
                         <Button variant="secondary" aria-label={_("Later")} icon={<AngleRightIcon />} isDisabled={!canForward} onClick={shiftForward} />
+                        <Button variant="secondary" icon={<DownloadIcon />} isDisabled={!result || shown.length === 0} onClick={exportCsv}>
+                            {_("Export")}
+                        </Button>
                     </div>
                 </div>
             </div>
