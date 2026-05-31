@@ -79,6 +79,20 @@ const Cmd = ({ text }: { text: string }) => {
 // A step is "blocked" (greyed, no action yet) until the steps it depends on pass.
 const st = (ok: boolean, ready: boolean): StepState => ok ? "ok" : ready ? "todo" : "blocked";
 
+/* ---- finish actions, below all steps (so the optional control step doesn't
+   strand them mid-list) — go to the overview, or open a connected UPS ---- */
+const FinishBar = ({ onDone, upsNames }: { onDone?: () => void, upsNames: string[] }) => (
+    <div className="upside-setup__finish">
+        {onDone &&
+            <Button variant="primary" onClick={onDone}>{_("Go to the overview")}</Button>}
+        {upsNames.map(name => (
+            <Button key={name} variant="link" isInline onClick={() => cockpit.location.go(["ups", name])}>
+                {cockpit.format(_("Open $0"), name)}
+            </Button>
+        ))}
+    </div>
+);
+
 /* ---- optional final step: enable control mode + its NUT auth ---- */
 const ControlStep = ({ n, upsId, canCreate, ready, mode, modeLocked, onEnableControl }: {
     n: number, upsId: string, canCreate: boolean, ready: boolean,
@@ -415,20 +429,7 @@ const LocalSetup = ({ state, busy, refresh, run, onDone, mode, modeLocked, onEna
             {/* 5 — verify */}
             <Step n={5} title={_("UPS visible to UPSide")} state={st(verifiedOk, serverOk)}>
                 {verifiedOk
-                    ? (
-                        <>
-                            <Alert variant="success" isInline isPlain title={_("All set — your UPS is connected.")} />
-                            <div className="upside-step__actions">
-                                {onDone &&
-                                    <Button variant="primary" onClick={onDone}>{_("Go to the overview")}</Button>}
-                                {state.upsList.map(name => (
-                                    <Button key={name} variant="link" isInline onClick={() => cockpit.location.go(["ups", name])}>
-                                        {cockpit.format(_("Open $0"), name)}
-                                    </Button>
-                                ))}
-                            </div>
-                        </>
-                    )
+                    ? <Alert variant="success" isInline isPlain title={_("All set — your UPS is connected.")} />
                     : (
                         <>
                             <Content component="p">
@@ -448,6 +449,8 @@ const LocalSetup = ({ state, busy, refresh, run, onDone, mode, modeLocked, onEna
                 modeLocked={modeLocked}
                 onEnableControl={onEnableControl}
             />
+
+            {verifiedOk && <FinishBar onDone={onDone} upsNames={state.upsList} />}
         </>
     );
 };
@@ -523,21 +526,10 @@ const RemoteSetup = ({ state, busy, refresh, run, onDone, mode, modeLocked, onEn
                         <Cmd text={`upsc -l ${host.trim() || "HOST"}`} />
 
                         {found && found.length > 0 &&
-                            <>
-                                <Alert
-                                    variant="success" isInline isPlain className="pf-v6-u-mt-md"
-                                    title={cockpit.format(_("Connected — found $0 UPS."), found.length)}
-                                />
-                                <div className="upside-step__actions">
-                                    {onDone &&
-                                        <Button variant="primary" onClick={onDone}>{_("Go to the overview")}</Button>}
-                                    {found.map(name => (
-                                        <Button key={name} variant="link" isInline onClick={() => cockpit.location.go(["ups", name])}>
-                                            {cockpit.format(_("Open $0"), name)}
-                                        </Button>
-                                    ))}
-                                </div>
-                            </>}
+                            <Alert
+                                variant="success" isInline isPlain className="pf-v6-u-mt-md"
+                                title={cockpit.format(_("Connected — found $0 UPS."), found.length)}
+                            />}
                     </>}
             </Step>
 
@@ -550,6 +542,8 @@ const RemoteSetup = ({ state, busy, refresh, run, onDone, mode, modeLocked, onEn
                 modeLocked={modeLocked}
                 onEnableControl={onEnableControl}
             />
+
+            {found && found.length > 0 && <FinishBar onDone={onDone} upsNames={found} />}
         </>
     );
 };
