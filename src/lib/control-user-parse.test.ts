@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { buildUserBlock, isValidUserName } from './control-user-parse.ts';
+import { buildUserBlock, isValidUserName, parseUserBlock } from './control-user-parse.ts';
 
 test("buildUserBlock: tab-indented block with password, instcmds and upsmon role", () => {
     const block = buildUserBlock("upside", "deadbeef", ["test.battery.start", "beeper.toggle"]);
@@ -32,6 +32,22 @@ test("buildUserBlock: one instcmds line per command, in order", () => {
     const lines = block.trimEnd().split("\n")
             .filter(l => l.includes("instcmds"));
     assert.deepEqual(lines, ["\tinstcmds = a", "\tinstcmds = b", "\tinstcmds = c"]);
+});
+
+test("parseUserBlock: extracts password, instcmds, upsmon role for a named user", () => {
+    const text = "[other]\n\tpassword = x\n\n[upside]\n\tpassword = s3cr3t\n\tinstcmds = beeper.toggle\n\tinstcmds = test.battery.start\n\tupsmon secondary\n";
+    assert.deepEqual(parseUserBlock(text, "upside"), {
+        password: "s3cr3t", instcmds: ["beeper.toggle", "test.battery.start"], allCmds: false, hasUpsmon: true,
+    });
+    // Different section's fields don't bleed in.
+    assert.deepEqual(parseUserBlock(text, "other"), { password: "x", instcmds: [], allCmds: false, hasUpsmon: false });
+});
+
+test("parseUserBlock: ALL → allCmds, no upsmon → hasUpsmon false, missing → null", () => {
+    assert.deepEqual(parseUserBlock("[u]\n\tpassword = p\n\tinstcmds = ALL\n", "u"),
+                     { password: "p", instcmds: [], allCmds: true, hasUpsmon: false });
+    assert.equal(parseUserBlock("[u]\n\tpassword = p\n", "absent"), null);
+    assert.equal(parseUserBlock("", "u"), null);
 });
 
 test("isValidUserName: rejects whitespace/brackets, accepts safe names", () => {

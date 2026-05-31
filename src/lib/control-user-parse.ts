@@ -32,3 +32,56 @@ export function buildUserBlock(name: string, password: string, instcmds: string[
 export function isValidUserName(name: string): boolean {
     return isValidSectionName(name);
 }
+
+/** What an existing upsd.users entry grants — for reusing it instead of failing. */
+export interface UserGrants {
+    /** Plaintext password (upsd.users stores it in the clear), or null if absent. */
+    password: string | null;
+    /** Explicitly granted instant commands (excludes the ALL wildcard). */
+    instcmds: string[];
+    /** `instcmds = ALL` — every command permitted. */
+    allCmds: boolean;
+    /** Has an `upsmon <role>` line — required for UPSide's no-op LOGIN validation. */
+    hasUpsmon: boolean;
+}
+
+/**
+ * Parse the `[name]` block out of upsd.users text: its password, granted
+ * instcmds, and whether it carries an upsmon role. Returns null if the user
+ * isn't present. Lets the wizard reuse an existing control user (and tell
+ * whether its privileges suffice) rather than dead-ending on "already exists".
+ */
+export function parseUserBlock(text: string | null | undefined, name: string): UserGrants | null {
+    if (!text)
+        return null;
+    let inSection = false;
+    let found = false;
+    const g: UserGrants = { password: null, instcmds: [], allCmds: false, hasUpsmon: false };
+    for (const line of text.split("\n")) {
+        const sec = /^\s*\[(.+?)\]\s*$/.exec(line);
+        if (sec) {
+            inSection = sec[1] === name;
+            if (inSection)
+                found = true;
+            continue;
+        }
+        if (!inSection)
+            continue;
+        const pw = /^\s*password\s*=\s*"?(.*?)"?\s*$/i.exec(line);
+        if (pw) {
+            g.password = pw[1];
+            continue;
+        }
+        const ic = /^\s*instcmds\s*=\s*"?(.*?)"?\s*$/i.exec(line);
+        if (ic) {
+            if (ic[1].toUpperCase() === "ALL")
+                g.allCmds = true;
+            else if (ic[1])
+                g.instcmds.push(ic[1]);
+            continue;
+        }
+        if (/^\s*upsmon\s+\S+/i.test(line))
+            g.hasUpsmon = true;
+    }
+    return found ? g : null;
+}
