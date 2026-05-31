@@ -46,6 +46,12 @@ export interface UpsideConfig {
      * the system archives (complete, but slow on wide windows). See docs.
      */
     historyArchiveDir?: string;
+    /**
+     * How many days of NUT history to keep in the dedicated archive. Enforced
+     * host-side by the upside-history-cull timer (it prunes only that dir). Only
+     * meaningful alongside historyArchiveDir.
+     */
+    historyRetentionDays: number;
 }
 
 // Region (ISO 3166) → currency (ISO 4217), for a locale-derived default
@@ -116,6 +122,7 @@ export function defaultConfig(): UpsideConfig {
         costRate: 1.5,
         costCurrency: localeCurrency(),
         names: {},
+        historyRetentionDays: 90,
     };
 }
 
@@ -165,6 +172,10 @@ function sanitize(content: Partial<UpsideConfig> | null): UpsideConfig {
         historyArchiveDir: typeof c.historyArchiveDir === "string" && /^\/[\w./-]+$/.test(c.historyArchiveDir)
             ? c.historyArchiveDir
             : undefined,
+        // Clamp to a sane range; the culler also re-validates host-side.
+        historyRetentionDays: typeof c.historyRetentionDays === "number" && Number.isFinite(c.historyRetentionDays)
+            ? Math.min(3650, Math.max(1, Math.round(c.historyRetentionDays)))
+            : d.historyRetentionDays,
     };
 }
 
