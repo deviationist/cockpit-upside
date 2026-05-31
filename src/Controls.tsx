@@ -20,13 +20,15 @@ import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/inde
 import cockpit from 'cockpit';
 
 import { NutCreds } from './lib/prefs';
+import { UpsVars } from './lib/nut';
 import { InstantCommand, commandLabel, listSafeCommands, runCommand } from './lib/control';
 
 const _ = cockpit.gettext;
 
-export const Controls = ({ ups, creds, onAuthNeeded }: {
+export const Controls = ({ ups, creds, vars, onAuthNeeded }: {
     ups: string,
     creds: NutCreds | null,
+    vars?: UpsVars,
     onAuthNeeded: () => void,
 }) => {
     const [cmds, setCmds] = useState<InstantCommand[] | null>(null);
@@ -57,6 +59,10 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                 .finally(() => setBusy(null));
     };
 
+    // Current beeper state, so the Toggle button shows what it switches from.
+    const beeper = vars?.["ups.beeper.status"];
+    const hasBeeper = !!cmds?.some(c => c.name.startsWith("beeper."));
+
     return (
         <Card>
             <CardTitle>{_("Controls")}</CardTitle>
@@ -85,6 +91,11 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                                 </Button>
                             ))}
                         </div>
+
+                        {hasBeeper && beeper &&
+                            <Content component="small" className="upside-controls__status">
+                                {cockpit.format(_("Beeper is currently $0."), beeper)}
+                            </Content>}
 
                         {!creds &&
                             <Content component="small" className="upside-controls__creds">
