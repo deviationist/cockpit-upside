@@ -96,6 +96,20 @@ export const Settings = ({ mode, modeLocked, onModeChange }: {
                             />
                         </FormGroup>
 
+                        <FormGroup label={_("Keep history for (days)")} fieldId="upside-retention">
+                            <TextInput
+                                id="upside-retention"
+                                type="number"
+                                min={1}
+                                max={3650}
+                                value={String(draft.historyRetentionDays)}
+                                onChange={(_ev, v) => update({ historyRetentionDays: Math.min(3650, Math.max(1, Math.round(Number(v) || 0))) })}
+                            />
+                            <Content component="small" className="pf-v6-u-mt-xs">
+                                {_("How long the dedicated NUT archive is kept (pruned daily host-side). Only applies when a dedicated archive is configured.")}
+                            </Content>
+                        </FormGroup>
+
                         <FormGroup label={_("Navigation status")} fieldId="upside-overview">
                             <Switch
                             id="upside-overview"
