@@ -28,6 +28,16 @@ export interface UpsideConfig {
      * decides (see resolveMode / prefs.ts).
      */
     mode?: Mode;
+    /**
+     * Remote NUT source: the upsd host (`host` or `host:port`) to read/control
+     * over the network, instead of the local upsd. This is what lets UPSide run
+     * on a *secondary* host pointed at the primary's upsd (e.g. quim → xavi over
+     * wg-trunk0). Unset → local upsd (the default). Reads (upsc) need no auth;
+     * control still authenticates with a upsd.users credential on the remote.
+     * History (PCP) is always local to *this* host, so it's hidden when set —
+     * a secondary has no local archive of the remote UPS.
+     */
+    nutHost?: string;
     /** Show the historical Trends section (reads PCP archives). */
     history: boolean;
     /** Contribute a UPS health card to Cockpit's System Overview page. */
@@ -180,6 +190,12 @@ function sanitize(content: Partial<UpsideConfig> | null): UpsideConfig {
         // Only a valid value counts as "pinned in the file"; anything else
         // (absent/garbage) leaves mode undefined so the pref tier decides.
         mode: c.mode === "monitor" || c.mode === "control" ? c.mode : undefined,
+        // Hostname/IP with an optional :port. Only ever passed as an argv element
+        // to upsc/upscmd or as a cockpit.channel address — never a shell string —
+        // but validate strictly (no @, /, or whitespace) as defence in depth.
+        nutHost: typeof c.nutHost === "string" && /^[A-Za-z0-9.-]+(?::\d{1,5})?$/.test(c.nutHost)
+            ? c.nutHost
+            : undefined,
         history: typeof c.history === "boolean" ? c.history : d.history,
         overviewCard: typeof c.overviewCard === "boolean" ? c.overviewCard : d.overviewCard,
         costRate: typeof c.costRate === "number" && Number.isFinite(c.costRate) ? c.costRate : d.costRate,

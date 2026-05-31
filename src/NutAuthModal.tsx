@@ -30,7 +30,8 @@ export const NutAuthModal = ({ isOpen, authenticated, currentUser, remembered, o
     onClose: () => void,
     onApply: (user: string, pass: string, remember: boolean) => void | Promise<void>,
     onForget: () => void,
-    onCreateUser: () => void,
+    /** Omitted when the upsd is remote — UPSide can't create users on another host. */
+    onCreateUser?: () => void,
 }) => {
     const [user, setUser] = useState(currentUser);
     const [pass, setPass] = useState("");
@@ -84,12 +85,13 @@ export const NutAuthModal = ({ isOpen, authenticated, currentUser, remembered, o
                         {_("Remembering stores the password unencrypted in this browser. Use only with a least-privilege NUT user.")}
                     </Content>
                 </Form>
-                <Content component="small" className="upside-controls__creds">
-                    {_("No control user yet?")}{" "}
-                    <Button variant="link" isInline isDisabled={busy} onClick={onCreateUser}>
-                        {_("Create one")}
-                    </Button>
-                </Content>
+                {onCreateUser &&
+                    <Content component="small" className="upside-controls__creds">
+                        {_("No control user yet?")}{" "}
+                        <Button variant="link" isInline isDisabled={busy} onClick={onCreateUser}>
+                            {_("Create one")}
+                        </Button>
+                    </Content>}
                 {error &&
                     <Alert variant="danger" isInline title={_("Authentication failed")} className="pf-v6-u-mt-md">
                         {error}

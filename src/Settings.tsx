@@ -90,6 +90,18 @@ export const Settings = ({ mode, modeLocked, onModeChange }: {
                 <CardTitle>{_("Settings")}</CardTitle>
                 <CardBody>
                     <Form isHorizontal>
+                        <FormGroup label={_("NUT source")} fieldId="upside-nuthost">
+                            <TextInput
+                                id="upside-nuthost"
+                                value={draft.nutHost ?? ""}
+                                placeholder={_("Local (this host's upsd)")}
+                                onChange={(_ev, v) => update({ nutHost: v.trim() || undefined })}
+                            />
+                            <Content component="small" className="pf-v6-u-mt-xs">
+                                {_("Leave blank to read the local upsd. Set a host (or host:port) to monitor a remote upsd over the network — e.g. running UPSide on a secondary pointed at the primary. History is local to this host, so the Trends section is hidden when a remote source is set.")}
+                            </Content>
+                        </FormGroup>
+
                         <FormGroup label={_("Historical trends")} fieldId="upside-history">
                             <Switch
                             id="upside-history"
