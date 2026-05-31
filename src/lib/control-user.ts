@@ -18,8 +18,8 @@
 
 import cockpit from 'cockpit';
 
-import { appendStanza, parseConfSections, removeStanza } from './setup-parse';
-import { UserGrants, buildUserBlock, parseUserBlock } from './control-user-parse';
+import { appendStanza, parseConfSections } from './setup-parse';
+import { UserGrants, addUpsmonRole, buildUserBlock, parseUserBlock } from './control-user-parse';
 
 export * from './control-user-parse';
 
@@ -124,13 +124,14 @@ export async function readControlUser(name: string): Promise<UserGrants | null> 
 }
 
 /**
- * Reuse an existing control user instead of creating one: return its password
- * so UPSide can authenticate as it. Non-destructive — never changes the password
- * (other consumers may depend on it). If the user lacks an upsmon role (so a
- * no-op LOGIN can't validate the credentials), add one, preserving its password
- * and instcmds. Returns the password and whether a role was added.
+ * Make an existing control user validatable: if it lacks an `upsmon` role (so a
+ * no-op LOGIN can't verify its password), add one — leaving its password and
+ * instcmds untouched. We do NOT read or return the password: when reusing a
+ * user, the operator types it so UPSide validates and stores what they entered,
+ * never a credential silently lifted out of upsd.users. Returns whether a role
+ * was added (false = already validatable / nothing changed).
  */
-export async function reuseControlUser(name: string): Promise<{ password: string, grantedUpsmon: boolean }> {
+export async function ensureUpsmonRole(name: string): Promise<{ grantedUpsmon: boolean }> {
     const path = await findUsersFile();
     const current = await read(path, "try");
     if (current === null)
@@ -138,14 +139,8 @@ export async function reuseControlUser(name: string): Promise<{ password: string
     const g = parseUserBlock(current, name);
     if (!g)
         throw new Error(cockpit.format(_("\"$0\" isn't in upsd.users."), name));
-    if (g.password === null)
-        throw new Error(cockpit.format(_("Couldn't read a password for \"$0\" from upsd.users."), name));
     if (g.hasUpsmon)
-        return { password: g.password, grantedUpsmon: false };
-
-    // Missing the upsmon role → rewrite just this block (drop + re-append),
-    // keeping its password and commands; buildUserBlock adds `upsmon secondary`.
-    const rebuilt = buildUserBlock(name, g.password, g.allCmds ? ["ALL"] : g.instcmds);
-    await writeUsersFile(path, appendStanza(removeStanza(current, name), rebuilt), current);
-    return { password: g.password, grantedUpsmon: true };
+        return { grantedUpsmon: false };
+    await writeUsersFile(path, addUpsmonRole(current, name), current);
+    return { grantedUpsmon: true };
 }

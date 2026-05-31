@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { buildUserBlock, isValidUserName, parseUserBlock } from './control-user-parse.ts';
+import { addUpsmonRole, buildUserBlock, isValidUserName, parseUserBlock } from './control-user-parse.ts';
 
 test("buildUserBlock: tab-indented block with password, instcmds and upsmon role", () => {
     const block = buildUserBlock("upside", "deadbeef", ["test.battery.start", "beeper.toggle"]);
@@ -48,6 +48,25 @@ test("parseUserBlock: ALL → allCmds, no upsmon → hasUpsmon false, missing �
                      { password: "p", instcmds: [], allCmds: true, hasUpsmon: false });
     assert.equal(parseUserBlock("[u]\n\tpassword = p\n", "absent"), null);
     assert.equal(parseUserBlock("", "u"), null);
+});
+
+test("addUpsmonRole: adds a role to a user missing one, leaves the password", () => {
+    const text = "[upside]\n\tpassword = s3cr3t\n\tinstcmds = beeper.toggle\n";
+    const out = addUpsmonRole(text, "upside");
+    assert.match(out, /\tpassword = s3cr3t\n/); // password untouched
+    assert.match(out, /\tupsmon secondary\n?$/);
+});
+
+test("addUpsmonRole: no-op when the role exists, the user is absent, or text empty", () => {
+    const has = "[upside]\n\tpassword = p\n\tupsmon secondary\n";
+    assert.equal(addUpsmonRole(has, "upside"), has);
+    assert.equal(addUpsmonRole("[a]\n\tpassword = p\n", "absent"), "[a]\n\tpassword = p\n");
+    assert.equal(addUpsmonRole("", "u"), "");
+    // Only the named block gets the role, not a neighbour.
+    const two = "[a]\n\tpassword = 1\n\n[b]\n\tpassword = 2\n";
+    const out = addUpsmonRole(two, "a");
+    assert.match(out, /\[a\]\n\tpassword = 1\n\tupsmon secondary/);
+    assert.match(out, /\[b\]\n\tpassword = 2\n$/);
 });
 
 test("isValidUserName: rejects whitespace/brackets, accepts safe names", () => {

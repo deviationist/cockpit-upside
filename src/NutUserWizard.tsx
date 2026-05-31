@@ -24,7 +24,7 @@ import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/
 import cockpit from 'cockpit';
 
 import { InstantCommand, commandLabel, listSafeCommands, validateCreds } from './lib/control';
-import { DEFAULT_USER, UserGrants, createControlUser, generatePassword, isValidUserName, listControlUsers, readControlUser, reuseControlUser } from './lib/control-user';
+import { DEFAULT_USER, UserGrants, createControlUser, ensureUpsmonRole, generatePassword, isValidUserName, listControlUsers, readControlUser } from './lib/control-user';
 
 const _ = cockpit.gettext;
 
@@ -41,6 +41,7 @@ export const NutUserWizard = ({ isOpen, ups, onClose, onCreated }: {
     const [selected, setSelected] = useState<Record<string, boolean>>({});
     const [existing, setExisting] = useState<string[]>([]);
     const [grants, setGrants] = useState<UserGrants | null>(null); // existing user's privileges, when name is taken
+    const [password, setPassword] = useState(""); // operator-entered password, when reusing an existing user
     const [remember, setRemember] = useState(true);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -51,6 +52,7 @@ export const NutUserWizard = ({ isOpen, ups, onClose, onCreated }: {
             return;
         setName(DEFAULT_USER);
         setRemember(true);
+        setPassword("");
         setBusy(false);
         setError(null);
         setCreated(null);
@@ -85,17 +87,18 @@ export const NutUserWizard = ({ isOpen, ups, onClose, onCreated }: {
         ? _("Use letters, digits, dot, dash or underscore — no spaces.")
         : null;
 
-    // Reuse an existing user instead of creating: hand back its password (adding
-    // an upsmon role first if it lacks one, so the credentials can be validated).
+    // Reuse an existing user: the operator types its password, we validate that
+    // (no-op LOGIN) and hand it back to store for control mode — so they don't
+    // re-authenticate on the device page. We only add a missing upsmon role to
+    // the file; the password is never read out of upsd.users, only entered here.
     const reuse = () => {
-        if (busy)
+        if (busy || !password)
             return;
         setBusy(true);
         setError(null);
-        reuseControlUser(name)
-                // Confirm the stored password actually authenticates (no-op LOGIN)
-                // before enabling control — the password came from the file, not us.
-                .then(({ password }) => validateCreds(ups, name, password).then(() => onCreated(name, password, remember)))
+        ensureUpsmonRole(name)
+                .then(() => validateCreds(ups, name, password))
+                .then(() => onCreated(name, password, remember))
                 .catch(e => setError(msg(e)))
                 .finally(() => setBusy(false));
     };
@@ -141,27 +144,41 @@ export const NutUserWizard = ({ isOpen, ups, onClose, onCreated }: {
 
                                 {isExisting
                                     ? (
-                                        <FormGroup label={cockpit.format(_("Reuse \"$0\""), name)} fieldId="nutwiz-existing">
-                                            {grants === null
-                                                ? (
-                                                    <Content component="small" className="upside-warn">
-                                                        {_("Administrator access is needed to read and reuse this user.")}
+                                        <>
+                                            {grants !== null &&
+                                                <FormGroup label={cockpit.format(_("\"$0\" already exists"), name)} fieldId="nutwiz-existing">
+                                                    <Content component="small">
+                                                        {_("Allowed commands:")}{" "}
+                                                        <strong>{grants.allCmds ? _("all") : (grants.instcmds.join(", ") || _("none yet"))}</strong>
                                                     </Content>
-                                                )
-                                                : (
-                                                    <>
-                                                        <Content component="small">
-                                                            {_("Allowed commands:")}{" "}
-                                                            <strong>{grants.allCmds ? _("all") : (grants.instcmds.join(", ") || _("none yet"))}</strong>
-                                                        </Content>
+                                                    {!grants.hasUpsmon &&
                                                         <Content component="small" className="pf-v6-u-mt-xs">
-                                                            {grants.hasUpsmon
-                                                                ? _("Its credentials can be verified — ready to use. The password is reused unchanged.")
-                                                                : _("UPSide will add the upsmon role it needs to verify the password (its commands and password are left as-is).")}
-                                                        </Content>
-                                                    </>
-                                                )}
-                                        </FormGroup>
+                                                            {_("UPSide will add the upsmon role it needs to verify the password (commands and password left as-is).")}
+                                                        </Content>}
+                                                </FormGroup>}
+                                            <FormGroup label={cockpit.format(_("Password for \"$0\""), name)} fieldId="nutwiz-pass">
+                                                <TextInput
+                                                    id="nutwiz-pass"
+                                                    type="password"
+                                                    value={password}
+                                                    onChange={(_ev, v) => setPassword(v)}
+                                                    autoComplete="current-password"
+                                                    aria-label={_("NUT user password")}
+                                                />
+                                                <Content component="small" className="pf-v6-u-mt-xs">
+                                                    {_("Enter this NUT user's password so UPSide can verify it and store it for control actions — no need to re-authenticate on the device page.")}
+                                                </Content>
+                                            </FormGroup>
+                                            <Checkbox
+                                                id="nutwiz-reuse-remember"
+                                                isChecked={remember}
+                                                onChange={(_ev, v) => setRemember(v)}
+                                                label={_("Remember on this device")}
+                                            />
+                                            <Content component="small" className="upside-warn">
+                                                {_("Remembering stores the password unencrypted in this browser.")}
+                                            </Content>
+                                        </>
                                     )
                                     : (
                                         <FormGroup label={_("Commands to allow")} fieldId="nutwiz-cmds">
@@ -226,7 +243,7 @@ export const NutUserWizard = ({ isOpen, ups, onClose, onCreated }: {
                                         variant="primary"
                                         onClick={reuse}
                                         isLoading={busy}
-                                        isDisabled={busy || !!nameError || grants === null}
+                                        isDisabled={busy || !!nameError || grants === null || !password}
                                     >
                                         {cockpit.format(_("Use \"$0\""), name)}
                                     </Button>
