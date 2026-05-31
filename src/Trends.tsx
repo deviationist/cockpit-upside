@@ -18,7 +18,7 @@ import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/inde
 import cockpit from 'cockpit';
 
 import { Chart } from './Chart';
-import { HistPoint, fetchHistory } from './lib/history';
+import { HistPoint, loadArchive } from './lib/metrics';
 
 const _ = cockpit.gettext;
 
@@ -42,7 +42,7 @@ const SERIES: Series[] = [
 
 const WINDOW_MS = 6 * 3600_000; // last 6 hours
 
-export const Trends = ({ ups }: { ups: string }) => {
+export const Trends = ({ ups, archiveDir }: { ups: string, archiveDir?: string }) => {
     const [data, setData] = useState<Record<string, HistPoint[]> | null>(null);
     const [failed, setFailed] = useState(false);
     const [diag, setDiag] = useState<string | null>(null);
@@ -53,22 +53,24 @@ export const Trends = ({ ups }: { ups: string }) => {
         setFailed(false);
         setDiag(null);
 
-        Promise.all(SERIES.map(s =>
-            fetchHistory(`openmetrics.nut.${s.key}`, ups, { windowMs: WINDOW_MS })
-                    .then(points => ({ key: s.key, points, err: undefined as string | undefined }))
-                    .catch((e: { message?: string }) => ({ key: s.key, points: [] as HistPoint[], err: e?.message || String(e) }))
-        )).then(results => {
-            if (cancelled)
-                return;
-            const map = Object.fromEntries(results.map(r => [r.key, r.points]));
-            if (results.every(r => r.points.length === 0)) {
-                const firstErr = results.find(r => r.err)?.err;
-                setDiag(firstErr ? `channel error: ${firstErr}` : "the PCP channel returned 0 samples for this UPS");
-                setFailed(true);
-            } else {
-                setData(map);
-            }
-        })
+        // Same data path as the metrics page (loadArchive): one window-aware,
+        // multi-archive read that honours the dedicated NUT-only archive when
+        // configured — so Trends is as fast as, and consistent with, /metrics.
+        const end = Date.now();
+        const start = end - WINDOW_MS;
+        loadArchive(SERIES.map(s => `openmetrics.nut.${s.key}`), ups,
+                    { startMs: start, endMs: end, intervalMs: 60_000, limit: 100000 }, archiveDir)
+                .then(r => {
+                    if (cancelled)
+                        return;
+                    const map = Object.fromEntries(SERIES.map(s => [s.key, r.points[`openmetrics.nut.${s.key}`] ?? []]));
+                    if (SERIES.every(s => (map[s.key]?.length ?? 0) === 0)) {
+                        setDiag(cockpit.format(_("PCP returned $0 samples for this UPS"), r.samples));
+                        setFailed(true);
+                    } else {
+                        setData(map);
+                    }
+                })
                 .catch((e: { message?: string }) => {
                     if (!cancelled) {
                         setDiag(e?.message || String(e));
@@ -77,7 +79,7 @@ export const Trends = ({ ups }: { ups: string }) => {
                 });
 
         return () => { cancelled = true };
-    }, [ups]);
+    }, [ups, archiveDir]);
 
     let body;
     if (failed) {
