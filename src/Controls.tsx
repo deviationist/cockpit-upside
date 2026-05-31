@@ -35,6 +35,13 @@ export const Controls = ({ ups, creds, vars, onAuthNeeded }: {
     const [listErr, setListErr] = useState<string | null>(null);
     const [busy, setBusy] = useState<string | null>(null);
     const [feedback, setFeedback] = useState<{ ok: boolean, msg: string } | null>(null);
+    // After a successful beeper toggle we flip the shown state immediately
+    // (optimistic) instead of waiting up to 5s for the next poll to relabel.
+    const [optimisticBeeper, setOptimisticBeeper] = useState<string | null>(null);
+
+    const polledBeeper = vars?.["ups.beeper.status"];
+    // Current beeper state — label the toggle by what it'll do (on/off).
+    const beeper = optimisticBeeper ?? polledBeeper;
 
     useEffect(() => {
         let cancelled = false;
@@ -46,6 +53,12 @@ export const Controls = ({ ups, creds, vars, onAuthNeeded }: {
         return () => { cancelled = true };
     }, [ups]);
 
+    // A fresh poll of the beeper state is ground truth: drop the optimistic
+    // override once a new value lands (the toggle's `-w` applies before it
+    // resolves, so the next poll already reflects it — and this self-corrects a
+    // wrong guess on multi-state beepers).
+    useEffect(() => { setOptimisticBeeper(null) }, [polledBeeper]);
+
     const run = (cmd: string) => {
         if (!creds) {
             onAuthNeeded();
@@ -54,13 +67,15 @@ export const Controls = ({ ups, creds, vars, onAuthNeeded }: {
         setBusy(cmd);
         setFeedback(null);
         runCommand(ups, cmd, creds.user, creds.pass)
-                .then(out => setFeedback({ ok: true, msg: out.trim() || _("Command sent.") }))
+                .then(out => {
+                    setFeedback({ ok: true, msg: out.trim() || _("Command sent.") });
+                    if (cmd === "beeper.toggle" && beeper)
+                        setOptimisticBeeper(beeper === "enabled" ? "disabled" : "enabled");
+                })
                 .catch((e: { message?: string }) => setFeedback({ ok: false, msg: e?.message || String(e) }))
                 .finally(() => setBusy(null));
     };
 
-    // Current beeper state — label the toggle by what it'll do (on/off).
-    const beeper = vars?.["ups.beeper.status"];
     const labelFor = (c: InstantCommand): string => {
         if (c.name === "beeper.toggle" && beeper === "disabled")
             return _("Toggle beeper on");
