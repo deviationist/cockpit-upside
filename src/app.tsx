@@ -610,7 +610,7 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
             </Card>
 
             {mode === "control" &&
-                <Controls ups={ups.ref.name} creds={creds} onAuthNeeded={() => setAuthOpen(true)} />}
+                <Controls ups={ups.ref.name} creds={creds} vars={vars} onAuthNeeded={() => setAuthOpen(true)} />}
 
             <Topology ups={ups.ref.name} />
 
