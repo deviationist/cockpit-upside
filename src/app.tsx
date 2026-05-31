@@ -846,7 +846,7 @@ export const Application = () => {
         const u = upses?.find(x => x.ref.name === path[1]);
         const title = config.names[path[1]] || descs[path[1]] ||
             (u ? displayName(u, descs, config.names) : path[1]);
-        view = <Metrics ups={path[1]} title={title} />;
+        view = <Metrics ups={path[1]} title={title} archiveDir={config.historyArchiveDir} />;
     } else if (path[0] === "ups" && path[1])
         view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} config={config} descs={descs} lastUpdate={lastUpdate} mode={mode} />;
     else if (path[0] === "settings")

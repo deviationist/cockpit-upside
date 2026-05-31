@@ -38,6 +38,14 @@ export interface UpsideConfig {
     costCurrency: string;
     /** Custom display names per UPS, keyed by NUT name (overrides desc/model). */
     names: Record<string, string>;
+    /**
+     * Optional path to a dedicated PCP archive directory holding ONLY the NUT
+     * metrics (a small "pmlogger farm" instance). When set, the metrics page
+     * reads history from here instead of the full system pmlogger dir — orders
+     * of magnitude faster, since it isn't scanning every system metric. Unset →
+     * the system archives (complete, but slow on wide windows). See docs.
+     */
+    historyArchiveDir?: string;
 }
 
 // Region (ISO 3166) → currency (ISO 4217), for a locale-derived default
@@ -152,6 +160,11 @@ function sanitize(content: Partial<UpsideConfig> | null): UpsideConfig {
         costRate: typeof c.costRate === "number" && Number.isFinite(c.costRate) ? c.costRate : d.costRate,
         costCurrency: typeof c.costCurrency === "string" && c.costCurrency ? c.costCurrency : d.costCurrency,
         names,
+        // Absolute path, safe chars only — it's only ever passed to pmrep as an
+        // argv element (never a shell string), but validate anyway as defence.
+        historyArchiveDir: typeof c.historyArchiveDir === "string" && /^\/[\w./-]+$/.test(c.historyArchiveDir)
+            ? c.historyArchiveDir
+            : undefined,
     };
 }
 

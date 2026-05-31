@@ -45,12 +45,19 @@ export interface ArchiveResult {
     samples: number;
 }
 
-/** pmlogger archive bases (path without `.index`), newest first. Fixed shell string. */
-async function listArchiveBases(): Promise<string[]> {
+/**
+ * pmlogger archive bases (path without `.index`), newest first. With no dir,
+ * uses the system pmlogger dir (all metrics). With `dir` (the dedicated NUT-only
+ * archive from config), reads that instead — far less to scan. The dir is passed
+ * as a positional arg (`"$1"`), never interpolated into the script, so an
+ * operator-set path can't inject shell.
+ */
+async function listArchiveBases(dir?: string): Promise<string[]> {
+    const argv = dir
+        ? ["sh", "-c", 'ls -1t -- "$1"/*.index 2>/dev/null', "sh", dir]
+        : ["sh", "-c", "ls -1t /var/log/pcp/pmlogger/$(hostname)/*.index 2>/dev/null"];
     try {
-        const out: string = await cockpit.spawn(
-            ["sh", "-c", "ls -1t /var/log/pcp/pmlogger/$(hostname)/*.index 2>/dev/null"],
-            { err: "message" });
+        const out: string = await cockpit.spawn(argv, { err: "message" });
         return out.split("\n").map(s => s.trim())
                 .filter(Boolean)
                 .map(p => p.replace(/\.index$/, ""));
@@ -96,7 +103,7 @@ function instancesIn(header: string[], metric: string): string[] {
  * one UPS over a historical window, reading across the pmlogger archives that
  * cover it. Resolves with the per-metric points plus diagnostics.
  */
-export async function loadArchive(metricNames: string[], ups: string, range: ArchiveRange): Promise<ArchiveResult> {
+export async function loadArchive(metricNames: string[], ups: string, range: ArchiveRange, archiveDir?: string): Promise<ArchiveResult> {
     const points: Record<string, HistPoint[]> = {};
     const instances: Record<string, string[]> = {};
     metricNames.forEach(n => { points[n] = []; instances[n] = [] });
@@ -117,7 +124,7 @@ export async function loadArchive(metricNames: string[], ups: string, range: Arc
         const y = Math.floor(d / 10000); const m = Math.floor(d / 100) % 100 - 1; const day = d % 100;
         return new Date(y, m, day).getTime();
     };
-    const bases = (await listArchiveBases()).filter(b => {
+    const bases = (await listArchiveBases(archiveDir)).filter(b => {
         const d = archiveDay(b);
         if (d === null)
             return true;
@@ -134,7 +141,7 @@ export async function loadArchive(metricNames: string[], ups: string, range: Arc
     // against the newest archive and only query the ones that actually work.
     // The result is stable per UPS, so memoize it — otherwise every zoom/pan/
     // range change re-spawns one probe per metric for no new information.
-    const cacheKey = ups + "|" + metricNames.join(",");
+    const cacheKey = (archiveDir || "") + "|" + ups + "|" + metricNames.join(",");
     let queryable = queryableCache.get(cacheKey) ?? null;
     if (queryable === null) {
         const probe = await Promise.all(metricNames.map(async n => {
