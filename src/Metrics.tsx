@@ -179,9 +179,13 @@ export const Metrics = ({ ups, title, archiveDir, retentionDays, locale }: { ups
         // Keep the previous charts on screen while loading; swap the data and the
         // x-axis window together when the new data lands, so the page doesn't
         // blank to a spinner on every range/zoom/nav interaction.
-        const end = zoom ? zoom.end : Date.now() - offset;
+        const intervalMs = zoom ? intervalForSpan(zoom.end - zoom.start) : range.intervalMs;
+        // For presets, snap the window edges to the sample interval (which the
+        // pmrep grid is aligned to, see lib/metrics -A). Otherwise the arbitrary-
+        // second edges clip the partial samples at each end — a 5-min view would
+        // show 4 points instead of 5 — and the edges wouldn't sit on round ticks.
+        const end = zoom ? zoom.end : Math.floor((Date.now() - offset) / intervalMs) * intervalMs;
         const start = zoom ? zoom.start : end - range.ms;
-        const intervalMs = zoom ? intervalForSpan(end - start) : range.intervalMs;
         loadArchive(SERIES.map(s => metricName(s.key)), ups, {
             startMs: start, endMs: end, intervalMs, limit: FETCH_LIMIT,
         }, archiveDir)
