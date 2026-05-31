@@ -41,6 +41,9 @@ export const Topology = ({ ups }: { ups: string }) => {
     const primary = hosts ? hosts.filter(h => h.role === "primary").length : 0;
     const secondary = hosts ? hosts.filter(h => h.role === "secondary").length : 0;
 
+    // Local host's upsmon detail (admin-only), shown as a line below the table.
+    const localInfo = hosts?.find(h => h.local && h.upsmon)?.upsmon;
+
     // "On power loss" timing line, assembled from whichever delays are published.
     const policyParts: string[] = [];
     if (policy?.shutdownDelay)
@@ -63,36 +66,50 @@ export const Topology = ({ ups }: { ups: string }) => {
                                 _("$0 host(s) run upsmon against this UPS and shut down on low battery — $1 primary, $2 secondary."),
                                 hosts.length, primary, secondary)}
                         </Content>
-                        <ul className="upside-topo">
-                            {hosts.map(h => (
-                                <li key={h.ip} className="upside-topo__host">
-                                    <div className="upside-topo__row">
-                                        <Label isCompact color={h.role === "primary" ? "blue" : "grey"}>
-                                            {h.role === "primary" ? _("Primary") : _("Secondary")}
-                                        </Label>
-                                        <span className="upside-topo__name">{h.name}</span>
-                                        {h.name !== h.ip && <span className="upside-topo__ip">{h.ip}</span>}
-                                        {h.local && <span className="upside-topo__self">{_("this host")}</span>}
-                                        {h.connections > 1 &&
-                                            <span className="upside-topo__conn">
-                                                {cockpit.format(_("×$0 connections"), h.connections)}
-                                            </span>}
-                                    </div>
-                                    {h.upsmon &&
-                                        <div className="upside-topo__detail">
-                                            {h.upsmon.shutdownCmd &&
-                                                <span>{cockpit.format(_("On shutdown runs $0"), h.upsmon.shutdownCmd)}</span>}
-                                            {h.upsmon.powerValue &&
-                                                <span>{cockpit.format(_("feeds $0 supply (min $1)"),
-                                                                      h.upsmon.powerValue, h.upsmon.minSupplies || "1")}
-                                                </span>}
-                                        </div>}
-                                </li>
-                            ))}
-                        </ul>
+
+                        <table className="pf-v6-c-table pf-m-grid-md pf-m-compact">
+                            <thead className="pf-v6-c-table__thead">
+                                <tr className="pf-v6-c-table__tr">
+                                    <th className="pf-v6-c-table__th" scope="col">{_("Role")}</th>
+                                    <th className="pf-v6-c-table__th" scope="col">{_("Host")}</th>
+                                    <th className="pf-v6-c-table__th" scope="col">{_("Address")}</th>
+                                    <th className="pf-v6-c-table__th" scope="col">{_("Connections")}</th>
+                                </tr>
+                            </thead>
+                            <tbody className="pf-v6-c-table__tbody">
+                                {hosts.map(h => (
+                                    <tr className="pf-v6-c-table__tr" key={h.ip}>
+                                        <td className="pf-v6-c-table__td" data-label={_("Role")}>
+                                            <Label isCompact color={h.role === "primary" ? "blue" : "grey"}>
+                                                {h.role === "primary" ? _("Primary") : _("Secondary")}
+                                            </Label>
+                                        </td>
+                                        <td className="pf-v6-c-table__td" data-label={_("Host")}>
+                                            <span className="upside-topo__name">{h.name}</span>
+                                            {h.local && <span className="upside-topo__self">{_("(this host)")}</span>}
+                                        </td>
+                                        <td className="pf-v6-c-table__td" data-label={_("Address")}>
+                                            <span className="upside-topo__ip">{h.ip}</span>
+                                        </td>
+                                        <td className="pf-v6-c-table__td" data-label={_("Connections")}>
+                                            {h.connections}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+
+                        {localInfo && (localInfo.shutdownCmd || localInfo.powerValue) &&
+                            <Content component="small" className="upside-topo__local">
+                                {localInfo.shutdownCmd &&
+                                    cockpit.format(_("This host runs $0 on a critical event."), localInfo.shutdownCmd)}
+                                {localInfo.powerValue &&
+                                    " " + cockpit.format(_("It feeds $0 supply (min $1)."),
+                                                         localInfo.powerValue, localInfo.minSupplies || "1")}
+                            </Content>}
 
                         {policyParts.length > 0 &&
-                            <Content component="p" className="upside-topo__policy">
+                            <Content component="small" className="upside-topo__policy">
                                 {cockpit.format(_("On a critical battery the UPS $0."), policyParts.join(", "))}
                             </Content>}
 
