@@ -17,6 +17,7 @@ import { MenuToggle } from "@patternfly/react-core/dist/esm/components/MenuToggl
 import { Page, PageSection } from "@patternfly/react-core/dist/esm/components/Page/index.js";
 import { Progress, ProgressMeasureLocation, ProgressVariant } from "@patternfly/react-core/dist/esm/components/Progress/index.js";
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
+import { Tooltip } from "@patternfly/react-core/dist/esm/components/Tooltip/index.js";
 import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/index.js";
 import { Flex, FlexItem } from "@patternfly/react-core/dist/esm/layouts/Flex/index.js";
 import { Gallery } from "@patternfly/react-core/dist/esm/layouts/Gallery/index.js";
@@ -408,6 +409,11 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
     const charge = num(vars, "battery.charge");
     const load = num(vars, "ups.load");
     const runtime = vars["battery.runtime"];
+    const onBatteryNow = ups.status.discharging ||
+        ups.status.state === "onBattery" || ups.status.state === "lowBattery";
+    const runtimeTip = onBatteryNow
+        ? _("Estimated by the UPS from the current load.")
+        : _("Reported by the UPS. On mains power many UPSes report a fixed placeholder — this figure is only accurate while running on battery.");
 
     const saveName = () => {
         const names = { ...config.names };
@@ -589,10 +595,12 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
                             <FlexItem><Gauge value={load} label={_("Load")} color={loadColor(load)} /></FlexItem>}
                         {runtime !== undefined &&
                             <FlexItem>
-                                <div className="upside-tile">
-                                    <div className="upside-tile__value">{formatRuntime(runtime)}</div>
-                                    <div className="upside-tile__label">{_("Runtime left")}</div>
-                                </div>
+                                <Tooltip content={runtimeTip}>
+                                    <div className="upside-tile" tabIndex={0}>
+                                        <div className="upside-tile__value">{formatRuntime(runtime)}</div>
+                                        <div className="upside-tile__label">{_("Runtime left")}</div>
+                                    </div>
+                                </Tooltip>
                             </FlexItem>}
                     </Flex>
                 </CardBody>
