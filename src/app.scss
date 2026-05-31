@@ -759,6 +759,16 @@ $upside-amber: #f59e0b;
     margin-block-end: 1rem;
 }
 
+// Finish actions below all setup steps (go to overview / open a UPS).
+.upside-setup__finish {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-block-start: 1rem;
+    max-inline-size: 56rem;
+}
+
 // "Can't find your UPS?" troubleshooter: checklist + lsusb dump.
 .upside-trouble {
     margin-block-start: 0.75rem;
