@@ -326,27 +326,12 @@ const Overview = ({ upses, error, descs, names, lastUpdate }: {
     descs: Record<string, string>, names: Record<string, string>,
     lastUpdate: number | null,
 }) => {
-    // Still loading and nothing has errored yet.
-    if (upses === null && error === null)
+    // Nothing to show yet — either still loading, or no UPS is configured / upsd
+    // is unreachable. In the latter case App redirects to the guided setup route
+    // (#/setup); render a spinner for that brief redirect frame rather than the
+    // wizard inline, so the wizard has a single stable home (its own URL).
+    if (!upses || upses.length === 0)
         return <Spinner aria-label={_("Loading UPS data")} />;
-
-    // No UPS to show — either NUT can't be read at all (not installed / upsd
-    // down → error set, upses still null) or it's running with nothing
-    // configured (empty list). Either way, drop the user into the guided setup,
-    // which probes the host and surfaces the right step, rather than a dead-end
-    // warning. This makes the very first visit always land somewhere actionable.
-    if (!upses || upses.length === 0) {
-        return (
-            <EmptyState headingLevel="h2" titleText={_("Let's connect a UPS")}>
-                <EmptyStateBody>
-                    {error
-                        ? _("UPSide couldn't read any UPS from NUT on this host. This guide checks each prerequisite — install, mode, device — and walks you through it.")
-                        : _("No UPS is reporting to NUT on this host yet. This guide walks you through it.")}
-                </EmptyStateBody>
-                <div className="upside-empty-setup"><Setup /></div>
-            </EmptyState>
-        );
-    }
 
     // We have data: show the gallery. A failed *latest* poll is surfaced as a
     // banner above the last-known state rather than replacing the whole view.
@@ -841,17 +826,24 @@ export const Application = () => {
     const path = location.path;
     const section = (path[0] === "about" || path[0] === "settings" || path[0] === "setup") ? path[0] : "overview";
 
-    // The guided setup wizard takes over the whole iframe — hide our own masthead
-    // (nav tabs, brand) so it reads as a focused, step-by-step installer. This
-    // mirrors exactly when Overview renders the wizard in its empty state: the
-    // explicit /setup route, or the overview with no UPS — whether that's an
-    // empty list (NUT up, nothing configured) or a failed poll (upsd down →
-    // upses stays null with an error). NOT during the initial load (upses null
-    // AND no error) — that's a brief spinner, and hiding then would flash the
-    // header off on every load even when a UPS is present.
-    const overviewWizard = section === "overview" &&
-        (upses === null || upses.length === 0) && !(upses === null && error === null);
-    const wizardActive = path[0] === "setup" || overviewWizard;
+    // The guided setup wizard lives at its own route (#/setup) so it's a stable
+    // page, not a transient empty-state that vanishes the instant a UPS appears
+    // (which yanked the user to the overview mid-step-5). On the overview with
+    // nothing to show — no UPS configured, or upsd unreachable — redirect there;
+    // the wizard navigates back only when the user chooses to finish. NOT during
+    // the initial poll (upses null, no error) — that's a brief spinner, and
+    // redirecting then would bounce every load even when a UPS is present.
+    const onRoot = !path[0];
+    const noUps = (upses !== null && upses.length === 0) || (upses === null && error !== null);
+    useEffect(() => {
+        if (onRoot && noUps)
+            cockpit.location.replace(["setup"]);
+    }, [onRoot, noUps]);
+
+    // Hide our masthead on the wizard route (and the brief redirect frame) so it
+    // reads as a focused, step-by-step installer. The brand stays; only the nav
+    // tabs + actions drop (see .upside-masthead--wizard).
+    const wizardActive = path[0] === "setup" || (onRoot && noUps);
 
     // Navigate to a top-level section and close the (mobile) menu.
     const go = (key: string) => {
@@ -874,7 +866,7 @@ export const Application = () => {
     else if (path[0] === "settings")
         view = <Settings mode={mode} modeLocked={modeLocked} onModeChange={setMode} />;
     else if (path[0] === "setup")
-        view = <Setup />;
+        view = <Setup onDone={() => cockpit.location.go([])} />;
     else if (path[0] === "about")
         view = <About />;
     else
