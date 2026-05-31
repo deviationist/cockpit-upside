@@ -130,6 +130,14 @@ $upside-amber: #f59e0b;
     margin-block-start: 1.25rem;
 }
 
+// Settings page — stack the Mode and Settings cards with clear separation
+// (the content area collapses row gaps, so space them explicitly).
+.upside-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
 // Shown in the masthead when control mode is active — sits right after the
 // GitHub link (which carries the auto margin), so both cluster at the far right.
 .upside-mode-badge {

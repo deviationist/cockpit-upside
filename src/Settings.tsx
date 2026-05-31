@@ -83,7 +83,7 @@ export const Settings = ({ mode, modeLocked, onModeChange }: {
                 </CardBody>
             </Card>
 
-            <Card className="pf-v6-u-mt-md">
+            <Card>
                 <CardTitle>{_("Settings")}</CardTitle>
                 <CardBody>
                     <Form isHorizontal>
