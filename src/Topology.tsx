@@ -41,9 +41,6 @@ export const Topology = ({ ups }: { ups: string }) => {
     const primary = hosts ? hosts.filter(h => h.role === "primary").length : 0;
     const secondary = hosts ? hosts.filter(h => h.role === "secondary").length : 0;
 
-    // Local host's upsmon detail (admin-only), shown as a line below the table.
-    const localInfo = hosts?.find(h => h.local && h.upsmon)?.upsmon;
-
     // "On power loss" timing line, assembled from whichever delays are published.
     const policyParts: string[] = [];
     if (policy?.shutdownDelay)
@@ -67,46 +64,34 @@ export const Topology = ({ ups }: { ups: string }) => {
                                 hosts.length, primary, secondary)}
                         </Content>
 
-                        <table className="pf-v6-c-table pf-m-grid-md pf-m-compact">
-                            <thead className="pf-v6-c-table__thead">
-                                <tr className="pf-v6-c-table__tr">
-                                    <th className="pf-v6-c-table__th" scope="col">{_("Role")}</th>
-                                    <th className="pf-v6-c-table__th" scope="col">{_("Host")}</th>
-                                    <th className="pf-v6-c-table__th" scope="col">{_("Address")}</th>
-                                    <th className="pf-v6-c-table__th" scope="col">{_("Connections")}</th>
-                                </tr>
-                            </thead>
-                            <tbody className="pf-v6-c-table__tbody">
-                                {hosts.map(h => (
-                                    <tr className="pf-v6-c-table__tr" key={h.ip}>
-                                        <td className="pf-v6-c-table__td" data-label={_("Role")}>
-                                            <Label isCompact color={h.role === "primary" ? "blue" : "grey"}>
-                                                {h.role === "primary" ? _("Primary") : _("Secondary")}
-                                            </Label>
-                                        </td>
-                                        <td className="pf-v6-c-table__td" data-label={_("Host")}>
-                                            <span className="upside-topo__name">{h.name}</span>
-                                            {h.local && <span className="upside-topo__self">{_("(this host)")}</span>}
-                                        </td>
-                                        <td className="pf-v6-c-table__td" data-label={_("Address")}>
-                                            <span className="upside-topo__ip">{h.ip}</span>
-                                        </td>
-                                        <td className="pf-v6-c-table__td" data-label={_("Connections")}>
-                                            {h.connections}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-
-                        {localInfo && (localInfo.shutdownCmd || localInfo.powerValue) &&
-                            <Content component="small" className="upside-topo__local">
-                                {localInfo.shutdownCmd &&
-                                    cockpit.format(_("This host runs $0 on a critical event."), localInfo.shutdownCmd)}
-                                {localInfo.powerValue &&
-                                    " " + cockpit.format(_("It feeds $0 supply (min $1)."),
-                                                         localInfo.powerValue, localInfo.minSupplies || "1")}
-                            </Content>}
+                        <div className="upside-topo__cards">
+                            {hosts.map(h => (
+                                <div key={h.ip} className="upside-topo__card">
+                                    <div className="upside-topo__card-head">
+                                        <Label isCompact color={h.role === "primary" ? "blue" : "grey"}>
+                                            {h.role === "primary" ? _("Primary") : _("Secondary")}
+                                        </Label>
+                                        {h.local && <span className="upside-topo__self">{_("this host")}</span>}
+                                    </div>
+                                    <div className="upside-topo__name">{h.name}</div>
+                                    <div className="upside-topo__ip">{h.ip}</div>
+                                    <div className="upside-topo__conn">
+                                        {h.connections === 1
+                                            ? _("1 connection")
+                                            : cockpit.format(_("$0 connections"), h.connections)}
+                                    </div>
+                                    {h.upsmon && (h.upsmon.shutdownCmd || h.upsmon.powerValue) &&
+                                        <div className="upside-topo__card-detail">
+                                            {h.upsmon.shutdownCmd &&
+                                                <div>{cockpit.format(_("On shutdown: $0"), h.upsmon.shutdownCmd)}</div>}
+                                            {h.upsmon.powerValue &&
+                                                <div>{cockpit.format(_("Feeds $0 supply (min $1)"),
+                                                                     h.upsmon.powerValue, h.upsmon.minSupplies || "1")}
+                                                </div>}
+                                        </div>}
+                                </div>
+                            ))}
+                        </div>
 
                         {policyParts.length > 0 &&
                             <Content component="small" className="upside-topo__policy">
