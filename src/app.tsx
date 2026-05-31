@@ -41,7 +41,7 @@ import { Trends } from './Trends';
 import { Mode, UpsideConfig, loadModePref, resolveMode, saveConfig, saveModePref, useConfig } from './lib/config';
 import { NutCreds, clearNutCreds, loadNutCreds, saveNutCreds } from './lib/prefs';
 import { formatElapsed, monthsBetween, parseNutDate } from './lib/derive';
-import { Ups, UpsState, UpsStatus, UpsVars, formatRuntime, listUps, num, readDescriptions, readUps, stateLabel } from './lib/nut';
+import { Ups, UpsState, UpsStatus, UpsVars, formatRuntime, listUps, num, readDescriptions, readUps, refId, stateLabel } from './lib/nut';
 
 const _ = cockpit.gettext;
 
@@ -401,6 +401,11 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
     }
 
     const { vars, status } = ups;
+    // "name" locally, "name@host" against a remote upsd — the id every NUT
+    // client call (control/auth/topology) must address. refId collapses to the
+    // bare name when local, so this is a no-op there.
+    const upsId = refId(ups.ref);
+    const remote = !!config.nutHost;
     const title = displayName(ups, descs, config.names);
     const draftName = nameDraft.trim();
     const dupUps = renaming && draftName
@@ -610,11 +615,12 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
             </Card>
 
             {mode === "control" &&
-                <Controls ups={ups.ref.name} creds={creds} vars={vars} onAuthNeeded={() => setAuthOpen(true)} />}
+                <Controls ups={upsId} creds={creds} vars={vars} onAuthNeeded={() => setAuthOpen(true)} />}
 
-            {config.history && <Trends ups={ups.ref.name} archiveDir={config.historyArchiveDir} locale={config.locale} />}
+            {config.history && !remote &&
+                <Trends ups={ups.ref.name} archiveDir={config.historyArchiveDir} locale={config.locale} />}
 
-            <Topology ups={ups.ref.name} />
+            <Topology ups={upsId} />
 
             <Gallery className="upside-gallery" hasGutter>
                 {groups.map(g => (
@@ -637,7 +643,7 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
                 remembered={remembered}
                 onClose={() => setAuthOpen(false)}
                 onApply={async (user, pass, remember) => {
-                    await validateCreds(ups.ref.name, user, pass); // throws → modal shows the error, stays open
+                    await validateCreds(upsId, user, pass); // throws → modal shows the error, stays open
                     const c = { user, pass };
                     setCreds(c);
                     setRemembered(remember);
@@ -648,24 +654,28 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
                     setAuthOpen(false);
                 }}
                 onForget={() => { setCreds(null); setRemembered(false); clearNutCreds(); setAuthOpen(false) }}
-                onCreateUser={() => { setAuthOpen(false); setWizardOpen(true) }}
+                // The wizard writes the *local* upsd.users — meaningless against a
+                // remote upsd, so don't offer it when pointed at one (create the
+                // control user on the primary instead).
+                onCreateUser={remote ? undefined : () => { setAuthOpen(false); setWizardOpen(true) }}
             />
 
-            <NutUserWizard
-                isOpen={wizardOpen}
-                ups={ups.ref.name}
-                onClose={() => setWizardOpen(false)}
-                onCreated={(user, pass, remember) => {
-                    const c = { user, pass };
-                    setCreds(c);
-                    setRemembered(remember);
-                    if (remember)
-                        saveNutCreds(c);
-                    else
-                        clearNutCreds();
-                    setWizardOpen(false);
-                }}
-            />
+            {!remote &&
+                <NutUserWizard
+                    isOpen={wizardOpen}
+                    ups={ups.ref.name}
+                    onClose={() => setWizardOpen(false)}
+                    onCreated={(user, pass, remember) => {
+                        const c = { user, pass };
+                        setCreds(c);
+                        setRemembered(remember);
+                        if (remember)
+                            saveNutCreds(c);
+                        else
+                            clearNutCreds();
+                        setWizardOpen(false);
+                    }}
+                />}
         </div>
     );
 };
@@ -754,7 +764,7 @@ export const Application = () => {
 
         const poll = async () => {
             try {
-                const refs = await listUps();
+                const refs = await listUps(config.nutHost);
                 const list = await Promise.all(refs.map(readUps));
                 if (cancelled)
                     return;
@@ -814,7 +824,7 @@ export const Application = () => {
             stop();
             document.removeEventListener("visibilitychange", sync);
         };
-    }, [config.overviewCard]);
+    }, [config.overviewCard, config.nutHost]);
 
     // Surface UPS status next to the UPSide entry in Cockpit's navigation
     // (shell shows an icon for a page's status). Opt-in via settings; cleared
