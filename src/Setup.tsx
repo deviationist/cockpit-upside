@@ -33,7 +33,7 @@ import {
 import { Mode, isValidNutHost, saveConfig, useConfig } from './lib/config';
 import { listUps, refId } from './lib/nut';
 import { validateCreds } from './lib/control';
-import { clearNutCreds, saveNutCreds } from './lib/prefs';
+import { clearNutCreds, loadNutCreds, saveNutCreds } from './lib/prefs';
 import { NutUserWizard } from './NutUserWizard';
 import { NutAuthModal } from './NutAuthModal';
 
@@ -104,6 +104,10 @@ const ControlStep = ({ n, upsId, canCreate, ready, mode, modeLocked, onEnableCon
     // Control can't be turned on from here if the host config pins monitor mode.
     const pinnedOff = modeLocked && mode === "monitor";
 
+    // Already set up — control mode on with stored credentials — so revisiting
+    // /setup shows this step Done (not just within the session that did it).
+    const complete = done || (mode === "control" && loadNutCreds() !== null);
+
     const finish = (user: string, pass: string, remember: boolean) => {
         if (remember)
             saveNutCreds({ user, pass });
@@ -114,12 +118,12 @@ const ControlStep = ({ n, upsId, canCreate, ready, mode, modeLocked, onEnableCon
         setOpen(false);
     };
 
-    const state: StepState = !ready ? "blocked" : done ? "ok" : "optional";
+    const state: StepState = !ready ? "blocked" : complete ? "ok" : "optional";
 
     return (
         <>
             <Step n={n} title={_("Control actions (optional)")} state={state}>
-                {ready && (done
+                {ready && (complete
                     ? <Alert variant="success" isInline isPlain title={_("Control enabled — run commands from the device page.")} />
                     : pinnedOff
                         ? <Content component="p">{_("Control mode is turned off in the host config (upside.json). Enable it there to set up control actions.")}</Content>
