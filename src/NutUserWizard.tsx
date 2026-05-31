@@ -23,7 +23,7 @@ import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/
 
 import cockpit from 'cockpit';
 
-import { InstantCommand, commandLabel, listSafeCommands } from './lib/control';
+import { InstantCommand, commandLabel, listSafeCommands, validateCreds } from './lib/control';
 import { DEFAULT_USER, UserGrants, createControlUser, generatePassword, isValidUserName, listControlUsers, readControlUser, reuseControlUser } from './lib/control-user';
 
 const _ = cockpit.gettext;
@@ -93,7 +93,9 @@ export const NutUserWizard = ({ isOpen, ups, onClose, onCreated }: {
         setBusy(true);
         setError(null);
         reuseControlUser(name)
-                .then(({ password }) => onCreated(name, password, remember))
+                // Confirm the stored password actually authenticates (no-op LOGIN)
+                // before enabling control — the password came from the file, not us.
+                .then(({ password }) => validateCreds(ups, name, password).then(() => onCreated(name, password, remember)))
                 .catch(e => setError(msg(e)))
                 .finally(() => setBusy(false));
     };
@@ -105,6 +107,9 @@ export const NutUserWizard = ({ isOpen, ups, onClose, onCreated }: {
         setBusy(true);
         setError(null);
         createControlUser(name, pass, chosen)
+                // Verify the new credentials authenticate (catches e.g. a failed
+                // upsd reload) before showing them as ready.
+                .then(() => validateCreds(ups, name, pass))
                 .then(() => setCreated(pass))
                 .catch(e => setError(msg(e)))
                 .finally(() => setBusy(false));
