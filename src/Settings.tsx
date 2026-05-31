@@ -27,6 +27,9 @@ export const Settings = ({ mode, modeLocked, onModeChange }: {
     mode: Mode, modeLocked: boolean, onModeChange: (m: Mode) => void,
 }) => {
     const { config, loading } = useConfig();
+    // The locale "blank = system" resolves to this — surface it so the operator
+    // knows what they're inheriting.
+    const systemLocale = (cockpit as { language?: string }).language || navigator.language || "en-US";
     const [draft, setDraft] = useState<UpsideConfig | null>(null);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -140,11 +143,13 @@ export const Settings = ({ mode, modeLocked, onModeChange }: {
                             <TextInput
                                 id="upside-locale"
                                 value={draft.locale ?? ""}
-                                placeholder={_("System default")}
+                                placeholder={cockpit.format(_("System default ($0)"), systemLocale)}
                                 onChange={(_ev, v) => update({ locale: v.trim() || undefined })}
                             />
                             <Content component="small" className="pf-v6-u-mt-xs">
-                                {_("BCP-47 tag (e.g. en-GB, en-US, nb-NO) controlling date order and 12/24-hour clock. Blank follows the system locale.")}
+                                {cockpit.format(
+                                    _("BCP-47 tag (e.g. en-GB, en-US, nb-NO) controlling date order and 12/24-hour clock. Blank follows the system locale ($0)."),
+                                    systemLocale)}
                             </Content>
                         </FormGroup>
 
