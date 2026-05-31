@@ -99,8 +99,7 @@ const ControlStep = ({ n, upsId, canCreate, ready, mode, modeLocked, onEnableCon
     n: number, upsId: string, canCreate: boolean, ready: boolean,
     mode: Mode, modeLocked: boolean, onEnableControl: () => void,
 }) => {
-    const [authOpen, setAuthOpen] = useState(false);
-    const [wizardOpen, setWizardOpen] = useState(false);
+    const [open, setOpen] = useState(false);
     const [done, setDone] = useState(false);
 
     // Control can't be turned on from here if the host config pins monitor mode
@@ -111,10 +110,9 @@ const ControlStep = ({ n, upsId, canCreate, ready, mode, modeLocked, onEnableCon
     // /setup shows this step Done (not just within the session that did it).
     const complete = done || (mode === "control" && loadNutCreds() !== null);
 
-    // Authenticating is enough to enable control: validate the entered creds
-    // (a no-op LOGIN — no admin), store them, and flip the mode pref. Creating a
-    // NUT user (the only admin-gated bit) is an optional side-path for hosts that
-    // don't have one yet.
+    // Either modal lands here on success — store the creds and turn control mode
+    // on. The wizard is admin-gated, so the create/reuse flow's privileged bits
+    // are fine; remote can only authenticate an existing user on the primary.
     const finish = (user: string, pass: string, remember: boolean) => {
         if (remember)
             saveNutCreds({ user, pass });
@@ -122,8 +120,7 @@ const ControlStep = ({ n, upsId, canCreate, ready, mode, modeLocked, onEnableCon
             clearNutCreds();
         onEnableControl();
         setDone(true);
-        setAuthOpen(false);
-        setWizardOpen(false);
+        setOpen(false);
     };
 
     const state: StepState = !ready ? "blocked" : complete ? "ok" : "optional";
@@ -138,37 +135,40 @@ const ControlStep = ({ n, upsId, canCreate, ready, mode, modeLocked, onEnableCon
                         : (
                             <>
                                 <Content component="p">
-                                    {_("Monitor mode is read-only. Authenticate a NUT user that has command rights so UPSide can run control actions — battery self-test, mute the beeper, … — and turn on control mode.")}
+                                    {canCreate
+                                        ? _("Monitor mode is read-only. Set up a NUT user with command rights — create one or reuse an existing user — so UPSide can run control actions (battery self-test, mute the beeper, …) and turn on control mode.")
+                                        : _("Monitor mode is read-only. Authenticate a NUT user that has command rights (created on the primary) so UPSide can run control actions and turn on control mode.")}
                                 </Content>
                                 <div className="upside-step__actions">
-                                    <Button variant="primary" onClick={() => setAuthOpen(true)}>{_("Set up control")}</Button>
+                                    <Button variant="primary" onClick={() => setOpen(true)}>{_("Set up control")}</Button>
                                 </div>
                                 <Content component="small" className="pf-v6-u-mt-sm">
-                                    {canCreate
-                                        ? _("Optional — skip to stay read-only. No control user yet? You can create one (needs administrator access).")
-                                        : _("Optional — skip to stay read-only. The control user must already exist on the primary.")}
+                                    {_("Optional — skip to stay read-only; you can turn this on later from Settings.")}
                                 </Content>
                             </>
                         ))}
             </Step>
 
-            <NutAuthModal
-                isOpen={authOpen}
-                authenticated={false}
-                currentUser=""
-                remembered={false}
-                onClose={() => setAuthOpen(false)}
-                onApply={async (user, pass, remember) => { await validateCreds(upsId, user, pass); finish(user, pass, remember) }}
-                onForget={() => setAuthOpen(false)}
-                onCreateUser={canCreate ? () => { setAuthOpen(false); setWizardOpen(true) } : undefined}
-            />
-            {canCreate &&
-                <NutUserWizard
-                    isOpen={wizardOpen}
-                    ups={upsId}
-                    onClose={() => setWizardOpen(false)}
-                    onCreated={finish}
-                />}
+            {canCreate
+                ? (
+                    <NutUserWizard
+                        isOpen={open}
+                        ups={upsId}
+                        onClose={() => setOpen(false)}
+                        onCreated={finish}
+                    />
+                )
+                : (
+                    <NutAuthModal
+                        isOpen={open}
+                        authenticated={false}
+                        currentUser=""
+                        remembered={false}
+                        onClose={() => setOpen(false)}
+                        onApply={async (user, pass, remember) => { await validateCreds(upsId, user, pass); finish(user, pass, remember) }}
+                        onForget={() => setOpen(false)}
+                    />
+                )}
         </>
     );
 };
