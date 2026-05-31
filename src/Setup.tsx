@@ -30,19 +30,23 @@ import {
     commands, describeDevice, detect, installUsbLib, isValidSectionName, lsusb, parseLsusb,
     parseScannerOutput, removeSection, scanUsb, startServices, usbScanDisabled,
 } from './lib/setup';
-import { isValidNutHost, saveConfig, useConfig } from './lib/config';
-import { listUps } from './lib/nut';
+import { Mode, isValidNutHost, saveConfig, useConfig } from './lib/config';
+import { listUps, refId } from './lib/nut';
+import { validateCreds } from './lib/control';
+import { clearNutCreds, saveNutCreds } from './lib/prefs';
+import { NutUserWizard } from './NutUserWizard';
+import { NutAuthModal } from './NutAuthModal';
 
 const _ = cockpit.gettext;
 
 const msg = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-type StepState = "ok" | "todo" | "blocked";
+type StepState = "ok" | "todo" | "blocked" | "optional";
 type RunFn = (key: string, fn: () => Promise<unknown>) => () => Promise<void>;
 
 const Badge = ({ s }: { s: StepState }) => (
     <span className={`upside-step__badge upside-step__badge--${s}`}>
-        {s === "ok" ? _("Done") : s === "blocked" ? _("Waiting") : _("Action needed")}
+        {s === "ok" ? _("Done") : s === "blocked" ? _("Waiting") : s === "optional" ? _("Optional") : _("Action needed")}
     </span>
 );
 
@@ -75,9 +79,83 @@ const Cmd = ({ text }: { text: string }) => {
 // A step is "blocked" (greyed, no action yet) until the steps it depends on pass.
 const st = (ok: boolean, ready: boolean): StepState => ok ? "ok" : ready ? "todo" : "blocked";
 
+/* ---- optional final step: enable control mode + its NUT auth ---- */
+const ControlStep = ({ n, upsId, canCreate, ready, mode, modeLocked, onEnableControl }: {
+    n: number, upsId: string, canCreate: boolean, ready: boolean,
+    mode: Mode, modeLocked: boolean, onEnableControl: () => void,
+}) => {
+    const [open, setOpen] = useState(false);
+    const [done, setDone] = useState(false);
+
+    // Control can't be turned on from here if the host config pins monitor mode.
+    const pinnedOff = modeLocked && mode === "monitor";
+
+    const finish = (user: string, pass: string, remember: boolean) => {
+        if (remember)
+            saveNutCreds({ user, pass });
+        else
+            clearNutCreds();
+        onEnableControl();
+        setDone(true);
+        setOpen(false);
+    };
+
+    const state: StepState = !ready ? "blocked" : done ? "ok" : "optional";
+
+    return (
+        <>
+            <Step n={n} title={_("Control actions (optional)")} state={state}>
+                {ready && (done
+                    ? <Alert variant="success" isInline isPlain title={_("Control enabled — run commands from the device page.")} />
+                    : pinnedOff
+                        ? <Content component="p">{_("Control mode is turned off in the host config (upside.json). Enable it there to set up control actions.")}</Content>
+                        : (
+                            <>
+                                <Content component="p">
+                                    {canCreate
+                                        ? _("Monitor mode is read-only. To run commands — battery self-test, mute the beeper, … — create a NUT user with command rights and turn on control mode.")
+                                        : _("Monitor mode is read-only. To run commands against the remote server, authenticate with a NUT user that has command rights (created on the primary) and turn on control mode.")}
+                                </Content>
+                                <div className="upside-step__actions">
+                                    <Button variant="primary" onClick={() => setOpen(true)}>
+                                        {canCreate ? _("Set up control") : _("Authenticate for control")}
+                                    </Button>
+                                </div>
+                                <Content component="small" className="pf-v6-u-mt-sm">
+                                    {_("Optional — skip to stay read-only; you can turn this on later from Settings.")}
+                                </Content>
+                            </>
+                        ))}
+            </Step>
+
+            {canCreate
+                ? (
+                    <NutUserWizard
+                        isOpen={open}
+                        ups={upsId}
+                        onClose={() => setOpen(false)}
+                        onCreated={finish}
+                    />
+                )
+                : (
+                    <NutAuthModal
+                        isOpen={open}
+                        authenticated={false}
+                        currentUser=""
+                        remembered={false}
+                        onClose={() => setOpen(false)}
+                        onApply={async (user, pass, remember) => { await validateCreds(upsId, user, pass); finish(user, pass, remember) }}
+                        onForget={() => setOpen(false)}
+                    />
+                )}
+        </>
+    );
+};
+
 /* ---- local scope: a UPS attached to this machine ---- */
-const LocalSetup = ({ state, busy, refresh, run, onDone }: {
+const LocalSetup = ({ state, busy, refresh, run, onDone, mode, modeLocked, onEnableControl }: {
     state: SetupState, busy: string | null, refresh: () => void, run: RunFn, onDone?: () => void,
+    mode: Mode, modeLocked: boolean, onEnableControl: () => void,
 }) => {
     const [scanResult, setScanResult] = useState<{ devices: ScannedDevice[], usbDisabled: boolean } | null>(null);
     const [usbDevices, setUsbDevices] = useState<UsbDevice[] | null>(null);
@@ -360,13 +438,24 @@ const LocalSetup = ({ state, busy, refresh, run, onDone }: {
                         </>
                     )}
             </Step>
+
+            <ControlStep
+                n={6}
+                upsId={state.upsList[0] || "ups"}
+                canCreate
+                ready={verifiedOk}
+                mode={mode}
+                modeLocked={modeLocked}
+                onEnableControl={onEnableControl}
+            />
         </>
     );
 };
 
 /* ---- remote scope: point at a upsd on another host ---- */
-const RemoteSetup = ({ state, busy, refresh, run, onDone }: {
+const RemoteSetup = ({ state, busy, refresh, run, onDone, mode, modeLocked, onEnableControl }: {
     state: SetupState, busy: string | null, refresh: () => void, run: RunFn, onDone?: () => void,
+    mode: Mode, modeLocked: boolean, onEnableControl: () => void,
 }) => {
     const { config } = useConfig();
     const [host, setHost] = useState(config.nutHost ?? "");
@@ -451,11 +540,23 @@ const RemoteSetup = ({ state, busy, refresh, run, onDone }: {
                             </>}
                     </>}
             </Step>
+
+            <ControlStep
+                n={3}
+                upsId={found && found.length ? refId({ name: found[0], host: host.trim() }) : ""}
+                canCreate={false}
+                ready={!!found?.length}
+                mode={mode}
+                modeLocked={modeLocked}
+                onEnableControl={onEnableControl}
+            />
         </>
     );
 };
 
-export const Setup = ({ onDone }: { onDone?: () => void }) => {
+export const Setup = ({ onDone, mode, modeLocked, onEnableControl }: {
+    onDone?: () => void, mode: Mode, modeLocked: boolean, onEnableControl: () => void,
+}) => {
     const [state, setState] = useState<SetupState | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState<string | null>(null);
@@ -526,8 +627,8 @@ export const Setup = ({ onDone }: { onDone?: () => void }) => {
             {error && <Alert variant="danger" isInline className="upside-setup__error" title={_("Something went wrong")}>{error}</Alert>}
 
             {scope === "local"
-                ? <LocalSetup state={state} busy={busy} refresh={refresh} run={run} onDone={onDone} />
-                : <RemoteSetup state={state} busy={busy} refresh={refresh} run={run} onDone={onDone} />}
+                ? <LocalSetup state={state} busy={busy} refresh={refresh} run={run} onDone={onDone} mode={mode} modeLocked={modeLocked} onEnableControl={onEnableControl} />
+                : <RemoteSetup state={state} busy={busy} refresh={refresh} run={run} onDone={onDone} mode={mode} modeLocked={modeLocked} onEnableControl={onEnableControl} />}
         </div>
     );
 };

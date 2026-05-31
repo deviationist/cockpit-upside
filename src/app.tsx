@@ -868,7 +868,7 @@ export const Application = () => {
     else if (path[0] === "settings")
         view = <Settings mode={mode} modeLocked={modeLocked} onModeChange={setMode} />;
     else if (path[0] === "setup")
-        view = <Setup onDone={() => cockpit.location.go([])} />;
+        view = <Setup onDone={() => cockpit.location.go([])} mode={mode} modeLocked={modeLocked} onEnableControl={() => setMode("control")} />;
     else if (path[0] === "about")
         view = <About />;
     else
