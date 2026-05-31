@@ -40,10 +40,13 @@ export function niceTicks(lo: number, hi: number, target = 5): number[] {
     return ticks;
 }
 
-// Candidate x-axis steps (ms): minute → day.
+// Candidate x-axis steps (ms): minute → quarter. Without the multi-day steps a
+// month-wide span fell through to the 1-day step and drew ~30 labels.
+const DAY = 86400_000;
 const TIME_STEPS = [
     60_000, 5 * 60_000, 10 * 60_000, 15 * 60_000, 30 * 60_000,
-    3600_000, 2 * 3600_000, 3 * 3600_000, 6 * 3600_000, 12 * 3600_000, 86400_000,
+    3600_000, 2 * 3600_000, 3 * 3600_000, 6 * 3600_000, 12 * 3600_000,
+    DAY, 2 * DAY, 7 * DAY, 14 * DAY, 28 * DAY, 56 * DAY, 91 * DAY,
 ];
 
 /** The first step whose count over [startMs,endMs] is ≤ target (≈ how many ticks). */

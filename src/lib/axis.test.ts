@@ -37,8 +37,15 @@ test("timeStep: 6h window picks an hour-ish step (≤6 ticks)", () => {
     assert.equal(6 * 3600_000 / s <= 6, true);
 });
 
-test("timeStep: 7d window picks the day step", () => {
-    assert.equal(timeStep(0, 7 * 86400_000, 6), 86400_000);
+test("timeStep: keeps the tick count under target for wide spans", () => {
+    // 7d at target 6 → 2-day step (≤6 ticks), not the 1-day step (~7 ticks).
+    assert.equal(timeStep(0, 7 * 86400_000, 6), 2 * 86400_000);
+    // 30d must not fall through to the day step (the old bug → ~30 labels).
+    const month = timeStep(0, 30 * 86400_000, 6);
+    assert.equal(30 * 86400_000 / month <= 6, true);
+    assert.equal(month >= 7 * 86400_000, true);
+    // 1 year stays bounded too.
+    assert.equal(365 * 86400_000 / timeStep(0, 365 * 86400_000, 6) <= 8, true);
 });
 
 test("timeTicks: aligned to the step boundary and within range", () => {
