@@ -26,8 +26,9 @@ import { ToggleGroup, ToggleGroupItem } from "@patternfly/react-core/dist/esm/co
 import cockpit from 'cockpit';
 
 import {
-    ScannedDevice, SetupState, applyMode, applyStanza, buildUpsStanza, commands,
-    describeDevice, detect, isValidSectionName, parseScannerOutput, scanUsb, startServices,
+    ScannedDevice, SetupState, UsbDevice, applyMode, applyStanza, buildManualUsbStanza, buildUpsStanza,
+    commands, describeDevice, detect, isValidSectionName, lsusb, parseLsusb, parseScannerOutput,
+    scanUsb, startServices, usbScanDisabled,
 } from './lib/setup';
 import { isValidNutHost, saveConfig, useConfig } from './lib/config';
 import { listUps } from './lib/nut';
@@ -78,7 +79,9 @@ const st = (ok: boolean, ready: boolean): StepState => ok ? "ok" : ready ? "todo
 const LocalSetup = ({ state, busy, refresh, run }: {
     state: SetupState, busy: string | null, refresh: () => void, run: RunFn,
 }) => {
-    const [devices, setDevices] = useState<ScannedDevice[] | null>(null);
+    const [scanResult, setScanResult] = useState<{ devices: ScannedDevice[], usbDisabled: boolean } | null>(null);
+    const [usbDevices, setUsbDevices] = useState<UsbDevice[] | null>(null);
+    const [troubleshoot, setTroubleshoot] = useState(false);
     const [section, setSection] = useState("ups");
 
     const installedOk = state.installed;
@@ -87,13 +90,22 @@ const LocalSetup = ({ state, busy, refresh, run }: {
     const serverOk = state.serverActive;
     const verifiedOk = state.upsList.length > 0;
 
+    const devices = scanResult?.devices ?? null;
+
+    // Scan, but don't throw on "nothing found" — render contextual guidance
+    // (libusb missing vs. genuinely absent) + a manual fallback instead of a
+    // bare error. nut-scanner's stderr is folded into the output (see scanUsb).
     const scan = run("scan", async () => {
         const out = await scanUsb();
-        const found = parseScannerOutput(out);
-        setDevices(found);
-        if (found.length === 0)
-            throw new Error(_("nut-scanner found no USB UPS. Is it plugged in? Serial/SNMP devices need manual configuration."));
+        setScanResult({ devices: parseScannerOutput(out), usbDisabled: usbScanDisabled(out) });
     });
+
+    // Add a UPS without nut-scanner: usbhid-ups + port=auto autodetects the
+    // device on the bus. Works even when libusb can't be loaded for scanning.
+    const addManual = run("manual", () =>
+        applyStanza(state.confDir, buildManualUsbStanza(section || "ups")));
+
+    const listUsb = run("lsusb", async () => { setUsbDevices(parseLsusb(await lsusb())) });
 
     const dupSection = !isValidSectionName(section)
         ? _("Use letters, digits, dot, dash or underscore — no spaces.")
@@ -153,8 +165,21 @@ const LocalSetup = ({ state, busy, refresh, run }: {
                     : installedOk &&
                         <>
                             <Content component="p">
-                                {_("No UPS is defined in ups.conf yet. Scan the USB bus to auto-detect one — nut-scanner produces the exact driver settings.")}
+                                {_("No UPS is defined in ups.conf yet. Scan the USB bus to auto-detect one, or add a USB UPS manually if auto-detection can't reach it.")}
                             </Content>
+
+                            <div className="upside-field">
+                                <label htmlFor="upside-section">{_("Name for this UPS (the NUT section)")}</label>
+                                <TextInput
+                                    id="upside-section"
+                                    value={section}
+                                    onChange={(_ev, v) => setSection(v)}
+                                    validated={dupSection ? "error" : "default"}
+                                    aria-label={_("UPS section name")}
+                                />
+                                {dupSection && <Content component="small" className="upside-warn">{dupSection}</Content>}
+                            </div>
+
                             <div className="upside-step__actions">
                                 <Button
                                     variant="secondary"
@@ -164,6 +189,15 @@ const LocalSetup = ({ state, busy, refresh, run }: {
                                 >
                                     {_("Scan for USB UPS")}
                                 </Button>
+                                <Button
+                                    variant="secondary"
+                                    isLoading={busy === "manual"}
+                                    isDisabled={busy !== null || !!dupSection}
+                                    onClick={addManual}
+                                    title={_("Add usbhid-ups with port=auto — works without nut-scanner")}
+                                >
+                                    {_("Add USB UPS manually")}
+                                </Button>
                             </div>
                             <Cmd text={commands.scan} />
 
@@ -172,17 +206,6 @@ const LocalSetup = ({ state, busy, refresh, run }: {
                                     <Content component="p" className="pf-v6-u-mt-md">
                                         <strong>{cockpit.format(_("Found $0 device(s):"), devices.length)}</strong>
                                     </Content>
-                                    <div className="upside-field">
-                                        <label htmlFor="upside-section">{_("Name for this UPS (the NUT section)")}</label>
-                                        <TextInput
-                                            id="upside-section"
-                                            value={section}
-                                            onChange={(_ev, v) => setSection(v)}
-                                            validated={dupSection ? "error" : "default"}
-                                            aria-label={_("UPS section name")}
-                                        />
-                                        {dupSection && <Content component="small" className="upside-warn">{dupSection}</Content>}
-                                    </div>
                                     {devices.map((d, i) => {
                                         const stanza = buildUpsStanza(d, section || "ups");
                                         return (
@@ -200,6 +223,52 @@ const LocalSetup = ({ state, busy, refresh, run }: {
                                             </div>
                                         );
                                     })}
+                                </div>}
+
+                            {/* Scan ran, found nothing: say *why* (libusb missing vs. truly absent) and point at the manual add. */}
+                            {scanResult && scanResult.devices.length === 0 &&
+                                <Alert
+                                    variant="warning"
+                                    isInline
+                                    className="pf-v6-u-mt-md"
+                                    title={scanResult.usbDisabled ? _("USB auto-detection is unavailable") : _("No USB UPS was auto-detected")}
+                                >
+                                    {scanResult.usbDisabled
+                                        ? _("nut-scanner couldn't load libusb, so it can't enumerate the USB bus — but the usbhid-ups driver still works. Add the UPS manually above, or install the libusb dev package to enable scanning:")
+                                        : _("Make sure the UPS is connected and powered on. If it's a USB model, add it manually above (usbhid-ups auto-detects it); serial/SNMP devices need manual configuration.")}
+                                    {scanResult.usbDisabled &&
+                                        <pre className="upside-cmd">{commands.installUsbLib(state.pkgManager)}</pre>}
+                                </Alert>}
+
+                            <div className="upside-cmd-wrap">
+                                <Button variant="link" isInline onClick={() => { setTroubleshoot(t => !t); if (!usbDevices) listUsb(); }}>
+                                    {troubleshoot ? _("Hide troubleshooting") : _("Can't find your UPS?")}
+                                </Button>
+                            </div>
+                            {troubleshoot &&
+                                <div className="upside-trouble">
+                                    <Content component="ul">
+                                        <Content component="li">{_("Check the UPS's data cable (USB) is connected and the UPS is powered on.")}</Content>
+                                        <Content component="li">{_("Make sure NUT's UPS drivers are installed — the nut-server package provides usbhid-ups and the rest.")}</Content>
+                                        <Content component="li">{_("The kernel should list the device below; if it's missing here, it's a cable/power/permission issue, not NUT.")}</Content>
+                                        <Content component="li">{_("Serial and SNMP devices aren't USB-scannable — configure those manually.")}</Content>
+                                    </Content>
+                                    <div className="upside-step__actions">
+                                        <Button variant="secondary" isLoading={busy === "lsusb"} isDisabled={busy !== null} onClick={listUsb}>
+                                            {_("List USB devices")}
+                                        </Button>
+                                    </div>
+                                    {usbDevices && (usbDevices.length === 0
+                                        ? <Content component="small" className="upside-warn">{_("lsusb reported no USB devices.")}</Content>
+                                        : (
+                                            <ul className="upside-usb-list">
+                                                {usbDevices.map(d => (
+                                                    <li key={d.id} className={d.likelyUps ? "upside-usb-list__hit" : undefined}>
+                                                        <code>{d.id}</code> {d.name}{d.likelyUps && <em> {_("— looks like a UPS")}</em>}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        ))}
                                 </div>}
                         </>}
             </Step>

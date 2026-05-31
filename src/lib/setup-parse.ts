@@ -127,3 +127,52 @@ export function appendStanza(confText: string | null | undefined, stanza: string
 export function isValidSectionName(name: string): boolean {
     return /^[A-Za-z0-9_.-]+$/.test(name);
 }
+
+/**
+ * nut-scanner dlopen's its bus libraries by unversioned soname at runtime; on a
+ * stock install the USB one (libusb-1.0.so) often ships only in the -dev
+ * package, so the scanner prints "Cannot load USB library …" and silently
+ * disables USB scanning — reporting *no devices* even when a UPS is plugged in.
+ * Detect that so the UI can say what's actually wrong instead of "is it plugged
+ * in?". (Captured because scanUsb merges stderr into the output.)
+ */
+export function usbScanDisabled(output: string | null | undefined): boolean {
+    return !!output && /Cannot load USB library/i.test(output);
+}
+
+/**
+ * A standard manual stanza for a USB HID UPS. `usbhid-ups` with `port = auto`
+ * auto-detects the first USB UPS on the bus — no vendor/product id needed — so
+ * this works even when nut-scanner can't enumerate (e.g. libusb missing). It's
+ * the same shape NUT setups use for the common case.
+ */
+export function buildManualUsbStanza(name: string, desc?: string): string {
+    const lines = [`[${name}]`, `\tdriver = "usbhid-ups"`, `\tport = "auto"`];
+    if (desc)
+        lines.push(`\tdesc = "${desc}"`);
+    return lines.join("\n") + "\n";
+}
+
+export interface UsbDevice {
+    /** "vvvv:pppp" vendor:product id. */
+    id: string;
+    /** Free-text description from lsusb. */
+    name: string;
+    /** Heuristic: the description reads like a UPS/power device. */
+    likelyUps: boolean;
+}
+
+/** Parse `lsusb` lines into id + description, flagging UPS-looking devices. */
+export function parseLsusb(text: string | null | undefined): UsbDevice[] {
+    if (!text)
+        return [];
+    const out: UsbDevice[] = [];
+    for (const line of text.split("\n")) {
+        const m = /^Bus\s+\d+\s+Device\s+\d+:\s+ID\s+([0-9a-fA-F]{4}:[0-9a-fA-F]{4})\s*(.*)$/.exec(line.trim());
+        if (m) {
+            const name = m[2].trim();
+            out.push({ id: m[1], name, likelyUps: /\b(ups|power|cyberpower|phoenixtec|eaton|apc|smart-?ups|battery)\b/i.test(name) });
+        }
+    }
+    return out;
+}

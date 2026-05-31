@@ -120,9 +120,22 @@ export async function detect(): Promise<SetupState> {
     };
 }
 
-/** nut-scanner USB scan (needs admin). Returns raw output for parseScannerOutput. */
+/**
+ * nut-scanner USB scan (needs admin). Returns the full output for
+ * parseScannerOutput. `2>&1 || true` so we always capture the result — crucially
+ * including nut-scanner's "Cannot load USB library" warning (see
+ * usbScanDisabled) — instead of a swallowed non-zero-exit rejection. Fixed,
+ * non-interpolated sh string.
+ */
 export async function scanUsb(): Promise<string> {
-    return cockpit.spawn(["nut-scanner", "-q", "-U"], { superuser: "require", err: "message" });
+    return cockpit.spawn(["sh", "-c", "nut-scanner -q -U 2>&1 || true"],
+                         { superuser: "require", err: "out" });
+}
+
+/** `lsusb` — the USB devices the kernel sees (no admin needed). For the
+ *  "can't find my UPS" troubleshooter: proves the device is enumerated at all. */
+export async function lsusb(): Promise<string> {
+    return cockpit.spawn(["sh", "-c", "lsusb 2>&1 || true"], { err: "out" });
 }
 
 /** Back up <path> to <path>.bak (best-effort) then write `content`. Needs admin. */
@@ -197,6 +210,17 @@ export const commands = {
     setMode: (confDir: string, mode: NutMode): string =>
         `sudo sed -i 's/^MODE=.*/MODE=${mode}/' ${confDir}/nut.conf  # (add the line if missing)`,
     scan: "sudo nut-scanner -q -U",
+    // Enables nut-scanner's USB autodetection: it dlopen's the unversioned
+    // libusb-1.0.so, which on Debian/Ubuntu ships in the -dev package. Without
+    // it the scan is disabled (the driver still works — autodetection doesn't).
+    installUsbLib: (pkg: SetupState["pkgManager"]): string => {
+        switch (pkg) {
+        case "dnf": return "sudo dnf install libusb1-devel";
+        case "zypper": return "sudo zypper install libusb-1_0-devel";
+        case "pacman": return "sudo pacman -S libusb";
+        default: return "sudo apt install libusb-1.0-0-dev";
+        }
+    },
     addStanza: (confDir: string): string => `# append the stanza above to ${confDir}/ups.conf`,
     start: `sudo systemctl restart ${DRIVER_UNIT}; sudo systemctl enable --now ${SERVER_UNIT}`,
 };
