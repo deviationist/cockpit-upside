@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2026 deviationist
  *
- * "Protecting these hosts" card — the machines currently running upsmon against
+ * "Protected hosts" card — the machines currently running upsmon against
  * this UPS (the primary + its secondaries), i.e. what shuts down with it. Shows
  * each host's role/name/IP/connection count, the local host's upsmon detail
  * (role + shutdown command, admin-only), and the UPS's shutdown timing. Read-only.
@@ -50,7 +50,7 @@ export const Topology = ({ ups }: { ups: string }) => {
 
     return (
         <Card>
-            <CardTitle>{_("Protecting these hosts")}</CardTitle>
+            <CardTitle>{_("Protected hosts")}</CardTitle>
             <CardBody>
                 {error && <Content component="p" className="upside-warn">{error}</Content>}
                 {hosts === null && !error && <Spinner size="md" aria-label={_("Loading hosts")} />}
@@ -75,11 +75,10 @@ export const Topology = ({ ups }: { ups: string }) => {
                                     </div>
                                     <div className="upside-topo__name">{h.name}</div>
                                     <div className="upside-topo__ip">{h.ip}</div>
-                                    <div className="upside-topo__conn">
-                                        {h.connections === 1
-                                            ? _("1 connection")
-                                            : cockpit.format(_("$0 connections"), h.connections)}
-                                    </div>
+                                    {h.connections > 1 &&
+                                        <div className="upside-topo__conn" title={_("More than one active upsmon session from this host")}>
+                                            {cockpit.format(_("$0 connections"), h.connections)}
+                                        </div>}
                                     {h.upsmon && (h.upsmon.shutdownCmd || h.upsmon.powerValue) &&
                                         <div className="upside-topo__card-detail">
                                             {h.upsmon.shutdownCmd &&
