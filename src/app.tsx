@@ -612,9 +612,9 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
             {mode === "control" &&
                 <Controls ups={ups.ref.name} creds={creds} vars={vars} onAuthNeeded={() => setAuthOpen(true)} />}
 
-            <Topology ups={ups.ref.name} />
-
             {config.history && <Trends ups={ups.ref.name} archiveDir={config.historyArchiveDir} />}
+
+            <Topology ups={ups.ref.name} />
 
             <Gallery className="upside-gallery" hasGutter>
                 {groups.map(g => (

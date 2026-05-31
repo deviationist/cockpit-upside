@@ -51,7 +51,6 @@ export const Chart = ({ points, label, color, unit = "", min, max, height = 88, 
                 className="upside-chart__svg"
                 viewBox={`0 0 ${W} ${height}`}
                 preserveAspectRatio="none"
-                height={height}
                 role="img"
                 aria-label={label}
             >
@@ -61,6 +60,14 @@ export const Chart = ({ points, label, color, unit = "", min, max, height = 88, 
         );
     }
 
+    // Time labels under the chart (start / middle / end). Trends spans hours so
+    // HH:MM is enough; falls back to a date if the span happens to exceed a day.
+    const spanDay = points.length >= 2 && (points[points.length - 1].t - points[0].t) > 86400_000;
+    const fmt = (t: number) => new Date(t).toLocaleString([],
+                                                          spanDay
+                                                              ? { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }
+                                                              : { hour: "2-digit", minute: "2-digit" });
+
     return (
         <figure className="upside-chart">
             <figcaption className="upside-chart__head">
@@ -69,6 +76,12 @@ export const Chart = ({ points, label, color, unit = "", min, max, height = 88, 
                     <span className="upside-chart__current">{Math.round(current * 10) / 10}{unit}</span>}
             </figcaption>
             {body}
+            {points.length >= 2 &&
+                <div className="upside-chart__xaxis" aria-hidden="true">
+                    <span>{fmt(points[0].t)}</span>
+                    <span>{fmt(points[Math.floor((points.length - 1) / 2)].t)}</span>
+                    <span>{fmt(points[points.length - 1].t)}</span>
+                </div>}
         </figure>
     );
 };
