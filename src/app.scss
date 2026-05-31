@@ -521,13 +521,12 @@ $upside-amber: #f59e0b;
 // Inline rename pencil beside the UPS name — compact (no vertical padding) so
 // it doesn't inflate the breadcrumb row, subtle until hovered.
 .upside-rename-btn {
-    --pf-v6-c-button--PaddingBlockStart: 2px;
-    --pf-v6-c-button--PaddingBlockEnd: 6px;
+    --pf-v6-c-button--PaddingBlockStart: 3px;
+    --pf-v6-c-button--PaddingBlockEnd: 5px;
     --pf-v6-c-button--PaddingInlineStart: 0.375rem;
     --pf-v6-c-button--PaddingInlineEnd: 0.375rem;
-    // Cancel the 4px block padding so it doesn't push the breadcrumb down
-    // (keeps it aligned with the metrics page).
-    margin-block: -0.25rem;
+    // The button is a flex sibling of the breadcrumb (alignItemsCenter), so let
+    // the flex centre it on the same level — no margin hack needed.
     color: var(--pf-t--global--icon--color--subtle, #6a6e73);
     line-height: 1;
 
