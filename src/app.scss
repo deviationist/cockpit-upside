@@ -29,12 +29,12 @@ $upside-amber: #f59e0b;
     border-block-end: 3px solid $upside-amber;
 }
 
-// During the guided setup wizard, slim the masthead down to just the brand
-// (logo + wordmark) — keep it so the user knows which wizard they're in — and
-// drop the section nav + right-hand actions for a focused installer feel.
+// During the first-run installer, drop only the section nav / menu — the brand
+// (so the user knows which wizard) and the right-hand actions (GitHub link)
+// stay. Once a UPS exists, /setup shows the full masthead again.
 .upside-masthead--wizard {
     .upside-masthead__nav,
-    .upside-masthead__right,
+    .upside-masthead__burger,
     .upside-masthead__menu {
         display: none;
     }

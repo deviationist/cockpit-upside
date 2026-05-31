@@ -840,10 +840,12 @@ export const Application = () => {
             cockpit.location.replace(["setup"]);
     }, [onRoot, noUps]);
 
-    // Hide our masthead on the wizard route (and the brief redirect frame) so it
-    // reads as a focused, step-by-step installer. The brand stays; only the nav
-    // tabs + actions drop (see .upside-masthead--wizard).
-    const wizardActive = path[0] === "setup" || (onRoot && noUps);
+    // First-run installer chrome: strip the masthead's nav/menu (brand + GitHub
+    // stay) so the very first setup reads as a focused installer. Only while no
+    // UPS exists yet — on the wizard route or the brief redirect frame. Once the
+    // first UPS is set up, /setup shows the normal header (nav returns), so the
+    // user can navigate away or re-run setup like any other page.
+    const installerChrome = noUps && (path[0] === "setup" || onRoot);
 
     // Navigate to a top-level section and close the (mobile) menu.
     const go = (key: string) => {
@@ -874,7 +876,7 @@ export const Application = () => {
 
     return (
         <Page className="pf-m-no-sidebar">
-            <header className={"upside-masthead" + (wizardActive ? " upside-masthead--wizard" : "")}>
+            <header className={"upside-masthead" + (installerChrome ? " upside-masthead--wizard" : "")}>
                 <div className="upside-masthead__brand">
                     <Logo className="upside-logo" />
                     <div className="upside-masthead__titles">
@@ -933,7 +935,7 @@ export const Application = () => {
                         ))}
                     </nav>}
             </header>
-            <PageSection hasBodyWrapper={false} className={"upside-content" + (wizardActive ? " upside-content--wizard" : "")}>
+            <PageSection hasBodyWrapper={false} className={"upside-content" + (installerChrome ? " upside-content--wizard" : "")}>
                 {view}
             </PageSection>
         </Page>
