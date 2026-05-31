@@ -33,6 +33,7 @@ import {
 import { Mode, isValidNutHost, saveConfig, useConfig } from './lib/config';
 import { listUps, refId } from './lib/nut';
 import { validateCreds } from './lib/control';
+import { useAdmin } from './lib/admin';
 import { clearNutCreds, loadNutCreds, saveNutCreds } from './lib/prefs';
 import { NutUserWizard } from './NutUserWizard';
 import { NutAuthModal } from './NutAuthModal';
@@ -221,11 +222,6 @@ const LocalSetup = ({ state, busy, refresh, run, onDone, mode, modeLocked, onEna
 
     return (
         <>
-            {state.needAdmin &&
-                <Alert variant="info" isInline title={_("Administrator access needed")}>
-                    {_("NUT configuration exists but couldn't be read. Applying a step will prompt for admin access.")}
-                </Alert>}
-
             {/* 1 — installed */}
             <Step n={1} title={_("NUT installed")} state={st(installedOk, true)}>
                 {!installedOk &&
@@ -563,6 +559,7 @@ export const Setup = ({ onDone, mode, modeLocked, onEnableControl }: {
     // "Where is the UPS?" — local (attached here) or remote (another host's upsd).
     // null until config loads, then seeded from whether a remote source is set.
     const [scope, setScope] = useState<"local" | "remote" | null>(null);
+    const admin = useAdmin();
 
     const { config, loading: configLoading } = useConfig();
 
@@ -623,6 +620,16 @@ export const Setup = ({ onDone, mode, modeLocked, onEnableControl }: {
                     />
                 </ToggleGroup>
             </div>
+
+            {admin === false &&
+                <Alert
+                    variant="warning"
+                    isInline
+                    className="upside-setup__error"
+                    title={_("Administrative access needed")}
+                >
+                    {_("Most of these steps change system files and services, so they need administrative access. Turn it on with the access button at the top of the page (it may read \"Limited access\"), enter your password, then come back here — this notice clears itself once it's on. Each step also shows the equivalent command if you'd rather run it yourself.")}
+                </Alert>}
 
             {error && <Alert variant="danger" isInline className="upside-setup__error" title={_("Something went wrong")}>{error}</Alert>}
 
