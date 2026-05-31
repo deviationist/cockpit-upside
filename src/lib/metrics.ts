@@ -59,12 +59,6 @@ async function listArchiveBases(): Promise<string[]> {
     }
 }
 
-/** YYYYMMDD integer for an epoch-ms instant (local time), for cheap archive filtering. */
-function dayKey(ms: number): number {
-    const d = new Date(ms);
-    return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
-}
-
 /** The YYYYMMDD a pmlogger archive name starts with (e.g. "20260530.00.10" → 20260530). */
 function archiveDay(base: string): number | null {
     const name = base.slice(base.lastIndexOf("/") + 1);
@@ -110,13 +104,26 @@ export async function loadArchive(metricNames: string[], ups: string, range: Arc
 
     const intervalSec = Math.max(60, Math.round(range.intervalMs / 1000));
     const tArg = `${intervalSec}s`;
-    // One extra day of margin so a sample just after a rotation boundary isn't missed.
-    const startDay = dayKey(range.startMs - 86400_000);
-    const endDay = dayKey(range.endMs);
 
+    // Read only the archives whose day actually overlaps the window. pmlogger
+    // rotates daily (~just after midnight), so treat an archive named YYYYMMDD as
+    // covering [local-midnight(D), +1 day] plus a 1h margin for the rotation
+    // offset and any boundary sample. This avoids fully reading (and
+    // interpolating) day-archives that contribute nothing — the old blanket
+    // "-1 day" filter pulled in 2 useless archives for a 6h view, and reading
+    // those whole archives dominated load time. Unparseable names are kept.
+    const ROT_MARGIN = 3600_000;
+    const dayStartMs = (d: number): number => {
+        const y = Math.floor(d / 10000); const m = Math.floor(d / 100) % 100 - 1; const day = d % 100;
+        return new Date(y, m, day).getTime();
+    };
     const bases = (await listArchiveBases()).filter(b => {
         const d = archiveDay(b);
-        return d === null || (d >= startDay && d <= endDay);
+        if (d === null)
+            return true;
+        const aStart = dayStartMs(d);
+        const aEnd = aStart + 86400_000 + ROT_MARGIN;
+        return aStart <= range.endMs && aEnd >= range.startMs;
     });
     if (bases.length === 0)
         return { points, instances, samples };
