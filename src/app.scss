@@ -29,6 +29,12 @@ $upside-amber: #f59e0b;
     border-block-end: 3px solid $upside-amber;
 }
 
+// The guided setup wizard takes over the iframe — hide our own masthead so the
+// flow reads as a focused, full-bleed installer (Cockpit's own shell stays).
+.upside-masthead--hidden {
+    display: none;
+}
+
 // Cockpit's dark theme has a dark page background too, so the navy masthead
 // recedes. Lift it (lighter navy + a faint top-edge highlight) so it reads as
 // a distinct bar against the dark content below.
@@ -468,6 +474,12 @@ $upside-amber: #f59e0b;
     padding-block-start: 20px;
     padding-block-end: 16px;
     padding-inline: 20px;
+}
+
+// With the masthead hidden, the wizard owns the iframe: add headroom at the top
+// so the "Let's connect a UPS" empty state isn't jammed against the edge.
+.pf-v6-c-page__main-section.upside-content--wizard {
+    padding-block-start: 2.5rem;
 }
 
 // Detail page: stack the header, gauges, group cards and the full table.

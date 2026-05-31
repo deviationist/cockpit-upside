@@ -841,6 +841,18 @@ export const Application = () => {
     const path = location.path;
     const section = (path[0] === "about" || path[0] === "settings" || path[0] === "setup") ? path[0] : "overview";
 
+    // The guided setup wizard takes over the whole iframe — hide our own masthead
+    // (nav tabs, brand) so it reads as a focused, step-by-step installer. This
+    // mirrors exactly when Overview renders the wizard in its empty state: the
+    // explicit /setup route, or the overview with no UPS — whether that's an
+    // empty list (NUT up, nothing configured) or a failed poll (upsd down →
+    // upses stays null with an error). NOT during the initial load (upses null
+    // AND no error) — that's a brief spinner, and hiding then would flash the
+    // header off on every load even when a UPS is present.
+    const overviewWizard = section === "overview" &&
+        (upses === null || upses.length === 0) && !(upses === null && error === null);
+    const wizardActive = path[0] === "setup" || overviewWizard;
+
     // Navigate to a top-level section and close the (mobile) menu.
     const go = (key: string) => {
         cockpit.location.go(key === "overview" ? [] : [key]);
@@ -870,7 +882,7 @@ export const Application = () => {
 
     return (
         <Page className="pf-m-no-sidebar">
-            <header className="upside-masthead">
+            <header className={"upside-masthead" + (wizardActive ? " upside-masthead--hidden" : "")}>
                 <div className="upside-masthead__brand">
                     <Logo className="upside-logo" />
                     <div className="upside-masthead__titles">
@@ -929,7 +941,7 @@ export const Application = () => {
                         ))}
                     </nav>}
             </header>
-            <PageSection hasBodyWrapper={false} className="upside-content">
+            <PageSection hasBodyWrapper={false} className={"upside-content" + (wizardActive ? " upside-content--wizard" : "")}>
                 {view}
             </PageSection>
         </Page>
