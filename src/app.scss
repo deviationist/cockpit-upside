@@ -482,6 +482,7 @@ $upside-amber: #f59e0b;
 // Big single-value tile (e.g. runtime-left) sitting beside the gauges.
 .upside-tile {
     text-align: center;
+    cursor: help;
 }
 
 .upside-tile__value {
