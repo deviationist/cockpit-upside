@@ -57,6 +57,14 @@ const RANGES: Range[] = [
     { id: "6h", label: _("6 hours"), ms: 6 * 3600_000, intervalMs: 60_000 },
     { id: "24h", label: _("24 hours"), ms: 24 * 3600_000, intervalMs: 300_000 },
     { id: "7d", label: _("7 days"), ms: 7 * 24 * 3600_000, intervalMs: 1800_000 },
+    // Longer windows: interval coarsens so each stays ~700-740 points. Only shown
+    // when the configured retention actually keeps that much history (see
+    // visibleRanges); each extra day is another archive to read, so these get
+    // progressively slower.
+    { id: "30d", label: _("1 month"), ms: 30 * 86400_000, intervalMs: 3600_000 },
+    { id: "90d", label: _("3 months"), ms: 90 * 86400_000, intervalMs: 3 * 3600_000 },
+    { id: "180d", label: _("6 months"), ms: 180 * 86400_000, intervalMs: 6 * 3600_000 },
+    { id: "365d", label: _("1 year"), ms: 365 * 86400_000, intervalMs: 12 * 3600_000 },
 ];
 
 // Sample interval for an arbitrary (drag-zoomed) span; keeps point counts bounded.
@@ -72,7 +80,7 @@ function intervalForSpan(ms: number): number {
 
 const FETCH_LIMIT = 100000; // pmrep is bounded by the window; this is just the API field
 
-export const Metrics = ({ ups, title, archiveDir }: { ups: string, title?: string, archiveDir?: string }) => {
+export const Metrics = ({ ups, title, archiveDir, retentionDays }: { ups: string, title?: string, archiveDir?: string, retentionDays?: number }) => {
     const [rangeId, setRangeId] = useState("6h");
     // How far back the window is shifted from "now", in ms (0 = latest).
     const [offset, setOffset] = useState(0);
@@ -85,6 +93,11 @@ export const Metrics = ({ ups, title, archiveDir }: { ups: string, title?: strin
     const [loading, setLoading] = useState(true);
 
     const range = RANGES.find(r => r.id === rangeId) || RANGES[3];
+
+    // Only offer windows that fit within the configured retention — no point
+    // showing "6 months" if we only keep 90 days of archives (default 90d).
+    const retentionMs = (retentionDays ?? 90) * 86400_000;
+    const visibleRanges = RANGES.filter(r => r.ms <= retentionMs);
 
     const pickRange = (id: string) => { setRangeId(id); setOffset(0); setZoom(null); setTfOpen(false) };
     const onZoom = (start: number, end: number) => {
@@ -112,12 +125,12 @@ export const Metrics = ({ ups, title, archiveDir }: { ups: string, title?: strin
 
     // Zoom in/out walk the preset timeframes (5 min ↔ 15 min ↔ 1h ↔ …). Stepping
     // drops any drag-zoom and keeps the offset so the view stays put in time.
-    const rangeIdx = RANGES.findIndex(r => r.id === rangeId);
+    const rangeIdx = visibleRanges.findIndex(r => r.id === rangeId);
     const stepRange = (delta: number) => {
         const ni = rangeIdx + delta;
-        if (ni < 0 || ni >= RANGES.length)
+        if (ni < 0 || ni >= visibleRanges.length)
             return;
-        setRangeId(RANGES[ni].id);
+        setRangeId(visibleRanges[ni].id);
         setZoom(null);
     };
 
@@ -172,7 +185,7 @@ export const Metrics = ({ ups, title, archiveDir }: { ups: string, title?: strin
                         )}
                         >
                             <DropdownList>
-                                {RANGES.map(r => (
+                                {visibleRanges.map(r => (
                                     <DropdownItem key={r.id} isSelected={!zoom && r.id === rangeId} onClick={() => pickRange(r.id)}>
                                         {r.label}
                                     </DropdownItem>
@@ -182,7 +195,7 @@ export const Metrics = ({ ups, title, archiveDir }: { ups: string, title?: strin
                         {zoom &&
                         <Button variant="link" onClick={() => setZoom(null)}>{_("Reset zoom")}</Button>}
                         <Button variant="secondary" aria-label={_("Zoom in")} icon={<SearchPlusIcon />} isDisabled={rangeIdx <= 0} onClick={() => stepRange(-1)} />
-                        <Button variant="secondary" aria-label={_("Zoom out")} icon={<SearchMinusIcon />} isDisabled={rangeIdx >= RANGES.length - 1} onClick={() => stepRange(1)} />
+                        <Button variant="secondary" aria-label={_("Zoom out")} icon={<SearchMinusIcon />} isDisabled={rangeIdx >= visibleRanges.length - 1} onClick={() => stepRange(1)} />
                         <Button variant="secondary" aria-label={_("Earlier")} icon={<AngleLeftIcon />} onClick={shiftBack} />
                         <Button variant="secondary" aria-label={_("Later")} icon={<AngleRightIcon />} isDisabled={!canForward} onClick={shiftForward} />
                     </div>
