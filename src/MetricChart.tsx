@@ -73,7 +73,10 @@ export const MetricChart = ({ points, unit, color, min, max, startMs, endMs, hei
     const baseY = (M.top + innerH).toFixed(1);
     const area = enough ? `${line} L${sx(points[points.length - 1].t).toFixed(1)} ${baseY} L${sx(points[0].t).toFixed(1)} ${baseY} Z` : "";
 
-    const xTicks = timeTicks(startMs, endMs, 6);
+    // Tick count scales with width (~one label per 90px) so labels don't crowd
+    // on small screens or for wide spans. Clamped to a sane 2..8.
+    const xTarget = Math.max(2, Math.min(8, Math.round(innerW / 90)));
+    const xTicks = timeTicks(startMs, endMs, xTarget);
 
     // The capture rect starts at x=M.left inside the SVG; add it back so the
     // pointer x is in SVG coordinates, matching sx().
