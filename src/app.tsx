@@ -882,7 +882,7 @@ export const Application = () => {
 
     return (
         <Page className="pf-m-no-sidebar">
-            <header className={"upside-masthead" + (wizardActive ? " upside-masthead--hidden" : "")}>
+            <header className={"upside-masthead" + (wizardActive ? " upside-masthead--wizard" : "")}>
                 <div className="upside-masthead__brand">
                     <Logo className="upside-logo" />
                     <div className="upside-masthead__titles">
