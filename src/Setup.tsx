@@ -287,7 +287,7 @@ const LocalSetup = ({ state, busy, refresh, run, onDone, mode, modeLocked, onEna
                     : installedOk &&
                         <>
                             <Content component="p">
-                                {_("No UPS is defined in ups.conf yet. Scan the USB bus to auto-detect one, or add a USB UPS manually if auto-detection can't reach it.")}
+                                {_("No UPS is defined in ups.conf yet. Scan the USB bus to auto-detect one, or — for a standard USB HID UPS — add it manually if the scan can't reach it.")}
                             </Content>
 
                             <div className="upside-field">
@@ -310,15 +310,6 @@ const LocalSetup = ({ state, busy, refresh, run, onDone, mode, modeLocked, onEna
                                     onClick={scan}
                                 >
                                     {_("Scan for USB UPS")}
-                                </Button>
-                                <Button
-                                    variant="secondary"
-                                    isLoading={busy === "manual"}
-                                    isDisabled={busy !== null || !!dupSection}
-                                    onClick={addManual}
-                                    title={_("Add usbhid-ups with port=auto — works without nut-scanner")}
-                                >
-                                    {_("Add USB UPS manually")}
                                 </Button>
                             </div>
                             <Cmd text={commands.scan} />
@@ -373,6 +364,23 @@ const LocalSetup = ({ state, busy, refresh, run, onDone, mode, modeLocked, onEna
                                             <Cmd text={commands.installUsbLib(state.pkgManager)} />
                                         </>}
                                 </Alert>}
+
+                            {/* Manual fallback — preview the exact (generic, HID) config before writing it. */}
+                            <div className="upside-scan__dev">
+                                <Content component="p"><strong>{_("Add a USB HID UPS manually")}</strong></Content>
+                                <Content component="small">
+                                    {_("For a standard USB HID UPS (most mainstream brands — APC, CyberPower, Eaton, PowerWalker, …). This generic entry lets the usbhid-ups driver auto-detect the first USB HID UPS on the bus, no scan needed. Budget/non-HID USB models use a different driver — scan for those instead.")}
+                                </Content>
+                                <pre className="upside-cmd">{buildManualUsbStanza(section || "ups")}</pre>
+                                <Button
+                                    variant="secondary"
+                                    isLoading={busy === "manual"}
+                                    isDisabled={busy !== null || !!dupSection}
+                                    onClick={addManual}
+                                >
+                                    {cockpit.format(_("Add \"$0\" to ups.conf"), section || "ups")}
+                                </Button>
+                            </div>
 
                             <div className="upside-cmd-wrap">
                                 <Button variant="link" isInline onClick={() => { setTroubleshoot(t => !t); if (!usbDevices) listUsb(); }}>
