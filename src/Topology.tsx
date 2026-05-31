@@ -5,8 +5,9 @@
  *
  * "Protecting these hosts" card — the machines currently running upsmon against
  * this UPS (the primary + its secondaries), i.e. what shuts down with it. Shows
- * each host's role, resolved name, IP and connection count. Read-only; shown on
- * the detail page. Data from lib/topology.ts (`upsc -c`).
+ * each host's role/name/IP/connection count, the local host's upsmon detail
+ * (role + shutdown command, admin-only), and the UPS's shutdown timing. Read-only.
+ * Data from lib/topology.ts.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -17,26 +18,35 @@ import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/inde
 
 import cockpit from 'cockpit';
 
-import { ProtectedHost, listProtectedHosts } from './lib/topology';
+import { Topology as TopologyData, loadTopology } from './lib/topology';
 
 const _ = cockpit.gettext;
 
 export const Topology = ({ ups }: { ups: string }) => {
-    const [hosts, setHosts] = useState<ProtectedHost[] | null>(null);
+    const [data, setData] = useState<TopologyData | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         let cancelled = false;
-        setHosts(null);
+        setData(null);
         setError(null);
-        listProtectedHosts(ups)
-                .then(h => { if (!cancelled) setHosts(h); })
+        loadTopology(ups)
+                .then(d => { if (!cancelled) setData(d); })
                 .catch((e: { message?: string }) => { if (!cancelled) setError(e?.message || String(e)); });
         return () => { cancelled = true };
     }, [ups]);
 
+    const hosts = data?.hosts ?? null;
+    const policy = data?.policy;
     const primary = hosts ? hosts.filter(h => h.role === "primary").length : 0;
     const secondary = hosts ? hosts.filter(h => h.role === "secondary").length : 0;
+
+    // "On power loss" timing line, assembled from whichever delays are published.
+    const policyParts: string[] = [];
+    if (policy?.shutdownDelay)
+        policyParts.push(cockpit.format(_("waits $0 s before cutting power"), policy.shutdownDelay));
+    if (policy?.startDelay)
+        policyParts.push(cockpit.format(_("$0 s before restoring it"), policy.startDelay));
 
     return (
         <Card>
@@ -56,21 +66,38 @@ export const Topology = ({ ups }: { ups: string }) => {
                         <ul className="upside-topo">
                             {hosts.map(h => (
                                 <li key={h.ip} className="upside-topo__host">
-                                    <Label isCompact color={h.role === "primary" ? "blue" : "grey"}>
-                                        {h.role === "primary" ? _("Primary") : _("Secondary")}
-                                    </Label>
-                                    <span className="upside-topo__name">{h.name}</span>
-                                    {h.name !== h.ip && <span className="upside-topo__ip">{h.ip}</span>}
-                                    {h.local && <span className="upside-topo__self">{_("this host")}</span>}
-                                    {h.connections > 1 &&
-                                        <span className="upside-topo__conn">
-                                            {cockpit.format(_("×$0 connections"), h.connections)}
-                                        </span>}
+                                    <div className="upside-topo__row">
+                                        <Label isCompact color={h.role === "primary" ? "blue" : "grey"}>
+                                            {h.role === "primary" ? _("Primary") : _("Secondary")}
+                                        </Label>
+                                        <span className="upside-topo__name">{h.name}</span>
+                                        {h.name !== h.ip && <span className="upside-topo__ip">{h.ip}</span>}
+                                        {h.local && <span className="upside-topo__self">{_("this host")}</span>}
+                                        {h.connections > 1 &&
+                                            <span className="upside-topo__conn">
+                                                {cockpit.format(_("×$0 connections"), h.connections)}
+                                            </span>}
+                                    </div>
+                                    {h.upsmon &&
+                                        <div className="upside-topo__detail">
+                                            {h.upsmon.shutdownCmd &&
+                                                <span>{cockpit.format(_("On shutdown runs $0"), h.upsmon.shutdownCmd)}</span>}
+                                            {h.upsmon.powerValue &&
+                                                <span>{cockpit.format(_("feeds $0 supply (min $1)"),
+                                                                      h.upsmon.powerValue, h.upsmon.minSupplies || "1")}
+                                                </span>}
+                                        </div>}
                                 </li>
                             ))}
                         </ul>
+
+                        {policyParts.length > 0 &&
+                            <Content component="p" className="upside-topo__policy">
+                                {cockpit.format(_("On a critical battery the UPS $0."), policyParts.join(", "))}
+                            </Content>}
+
                         <Content component="small" className="upside-topo__note">
-                            {_("The primary runs upsd for this UPS and coordinates the shutdown; secondaries monitor it over the network and power down when it signals low battery. Only currently-connected clients are shown.")}
+                            {_("The primary runs upsd for this UPS and coordinates the shutdown; secondaries monitor it over the network and power down when it signals low battery. Per-host shutdown detail is shown for this host only (read from its upsmon.conf, admin-only).")}
                         </Content>
                     </>}
             </CardBody>
