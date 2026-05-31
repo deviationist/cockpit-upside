@@ -76,8 +76,8 @@ const Cmd = ({ text }: { text: string }) => {
 const st = (ok: boolean, ready: boolean): StepState => ok ? "ok" : ready ? "todo" : "blocked";
 
 /* ---- local scope: a UPS attached to this machine ---- */
-const LocalSetup = ({ state, busy, refresh, run }: {
-    state: SetupState, busy: string | null, refresh: () => void, run: RunFn,
+const LocalSetup = ({ state, busy, refresh, run, onDone }: {
+    state: SetupState, busy: string | null, refresh: () => void, run: RunFn, onDone?: () => void,
 }) => {
     const [scanResult, setScanResult] = useState<{ devices: ScannedDevice[], usbDisabled: boolean } | null>(null);
     const [usbDevices, setUsbDevices] = useState<UsbDevice[] | null>(null);
@@ -341,6 +341,8 @@ const LocalSetup = ({ state, busy, refresh, run }: {
                         <>
                             <Alert variant="success" isInline isPlain title={_("All set — your UPS is connected.")} />
                             <div className="upside-step__actions">
+                                {onDone &&
+                                    <Button variant="primary" onClick={onDone}>{_("Go to the overview")}</Button>}
                                 {state.upsList.map(name => (
                                     <Button key={name} variant="link" isInline onClick={() => cockpit.location.go(["ups", name])}>
                                         {cockpit.format(_("Open $0"), name)}
@@ -363,8 +365,8 @@ const LocalSetup = ({ state, busy, refresh, run }: {
 };
 
 /* ---- remote scope: point at a upsd on another host ---- */
-const RemoteSetup = ({ state, busy, refresh, run }: {
-    state: SetupState, busy: string | null, refresh: () => void, run: RunFn,
+const RemoteSetup = ({ state, busy, refresh, run, onDone }: {
+    state: SetupState, busy: string | null, refresh: () => void, run: RunFn, onDone?: () => void,
 }) => {
     const { config } = useConfig();
     const [host, setHost] = useState(config.nutHost ?? "");
@@ -435,9 +437,11 @@ const RemoteSetup = ({ state, busy, refresh, run }: {
                             <>
                                 <Alert
                                     variant="success" isInline isPlain className="pf-v6-u-mt-md"
-                                    title={cockpit.format(_("Connected — found $0 UPS. Opening the live view…"), found.length)}
+                                    title={cockpit.format(_("Connected — found $0 UPS."), found.length)}
                                 />
                                 <div className="upside-step__actions">
+                                    {onDone &&
+                                        <Button variant="primary" onClick={onDone}>{_("Go to the overview")}</Button>}
                                     {found.map(name => (
                                         <Button key={name} variant="link" isInline onClick={() => cockpit.location.go(["ups", name])}>
                                             {cockpit.format(_("Open $0"), name)}
@@ -451,7 +455,7 @@ const RemoteSetup = ({ state, busy, refresh, run }: {
     );
 };
 
-export const Setup = () => {
+export const Setup = ({ onDone }: { onDone?: () => void }) => {
     const [state, setState] = useState<SetupState | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState<string | null>(null);
@@ -522,8 +526,8 @@ export const Setup = () => {
             {error && <Alert variant="danger" isInline className="upside-setup__error" title={_("Something went wrong")}>{error}</Alert>}
 
             {scope === "local"
-                ? <LocalSetup state={state} busy={busy} refresh={refresh} run={run} />
-                : <RemoteSetup state={state} busy={busy} refresh={refresh} run={run} />}
+                ? <LocalSetup state={state} busy={busy} refresh={refresh} run={run} onDone={onDone} />
+                : <RemoteSetup state={state} busy={busy} refresh={refresh} run={run} onDone={onDone} />}
         </div>
     );
 };
