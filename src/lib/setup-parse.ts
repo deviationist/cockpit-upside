@@ -123,6 +123,32 @@ export function appendStanza(confText: string | null | undefined, stanza: string
     return (body ? body + "\n\n" : "") + stanza.replace(/\n*$/, "") + "\n";
 }
 
+/**
+ * Remove the `[name]` stanza (its header + the indented body that follows, up to
+ * the next section or EOF) from ups.conf text, preserving the rest. Lets the
+ * setup wizard "go back" on the device step by undoing a configured UPS. Header
+ * lines before any section (comments, globals) are kept; runs of blank lines are
+ * collapsed so removal doesn't leave a gap.
+ */
+export function removeStanza(confText: string | null | undefined, name: string): string {
+    if (!confText)
+        return "";
+    const out: string[] = [];
+    let skipping = false;
+    for (const line of confText.split("\n")) {
+        const sec = /^\s*\[(.+?)\]\s*$/.exec(line);
+        if (sec) {
+            skipping = sec[1] === name;
+            if (skipping)
+                continue; // drop the matched header
+        }
+        if (!skipping)
+            out.push(line);
+    }
+    return out.join("\n").replace(/\n{3,}/g, "\n\n")
+            .replace(/\n*$/, "") + "\n";
+}
+
 /** A NUT section name must be non-empty and free of whitespace/brackets. */
 export function isValidSectionName(name: string): boolean {
     return /^[A-Za-z0-9_.-]+$/.test(name);

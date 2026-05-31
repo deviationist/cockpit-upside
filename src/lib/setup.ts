@@ -17,7 +17,7 @@
 
 import cockpit from 'cockpit';
 
-import { NutMode, appendStanza, parseConfSections, parseMode, setModeText } from './setup-parse';
+import { NutMode, appendStanza, parseConfSections, parseMode, removeStanza, setModeText } from './setup-parse';
 
 export * from './setup-parse';
 
@@ -170,6 +170,16 @@ export async function applyStanza(confDir: string, stanza: string): Promise<stri
     const path = `${confDir}/ups.conf`;
     const current = await readTry(path);
     const next = appendStanza(current, stanza);
+    await writeWithBackup(path, next, current);
+    return next;
+}
+
+/** Remove a UPS section from ups.conf (backed up first). Returns the new text.
+ *  Lets the wizard's device step be undone — the user's way "back". */
+export async function removeSection(confDir: string, name: string): Promise<string> {
+    const path = `${confDir}/ups.conf`;
+    const current = await readTry(path);
+    const next = removeStanza(current, name);
     await writeWithBackup(path, next, current);
     return next;
 }
