@@ -147,7 +147,7 @@ export async function loadArchive(metricNames: string[], ups: string, range: Arc
         const probe = await Promise.all(metricNames.map(async n => {
             try {
                 const out: string = await cockpit.spawn(
-                    ["pmrep", "-z", "-a", bases[0], "-t", tArg, "-s", "1", "-o", "csv", "-f", "%s", n],
+                    ["pmrep", "-z", "-a", bases[0], "-t", tArg, "-A", tArg, "-s", "1", "-o", "csv", "-f", "%s", n],
                     { err: "message" });
                 return out.split("\n").some(l => l.startsWith("Time")) ? n : null;
             } catch {
@@ -166,10 +166,16 @@ export async function loadArchive(metricNames: string[], ups: string, range: Arc
     // while each daily archive only covers its day — so any cross-boundary
     // request would fail. Archives are already day-sized, so reading a whole one
     // is bounded; we filter to the exact window in JS below.
+    //
+    // -A aligns the sample grid to natural time boundaries (the interval), so
+    // samples land on round :00 minutes/hours instead of the archive's arbitrary
+    // start second. Without it the points sit at a fixed sub-minute offset from
+    // the chart's round-number axis ticks, and the hover crosshair (snaps to the
+    // nearest sample) appears ~a tick off the time it lines up with.
     const dumps = await Promise.all(bases.map(async base => {
         try {
             return await cockpit.spawn(
-                ["pmrep", "-z", "-a", base, "-t", tArg, "-o", "csv", "-f", "%s", ...queryable],
+                ["pmrep", "-z", "-a", base, "-t", tArg, "-A", tArg, "-o", "csv", "-f", "%s", ...queryable],
                 { err: "message" }) as string;
         } catch {
             return "";
