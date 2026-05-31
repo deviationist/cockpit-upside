@@ -81,7 +81,7 @@ function intervalForSpan(ms: number): number {
 
 const FETCH_LIMIT = 100000; // pmrep is bounded by the window; this is just the API field
 
-export const Metrics = ({ ups, title, archiveDir, retentionDays }: { ups: string, title?: string, archiveDir?: string, retentionDays?: number }) => {
+export const Metrics = ({ ups, title, archiveDir, retentionDays, locale }: { ups: string, title?: string, archiveDir?: string, retentionDays?: number, locale?: string }) => {
     const [rangeId, setRangeId] = useState("6h");
     // How far back the window is shifted from "now", in ms (0 = latest).
     const [offset, setOffset] = useState(0);
@@ -265,6 +265,7 @@ export const Metrics = ({ ups, title, archiveDir, retentionDays }: { ups: string
                                     endMs={win.end}
                                     height={180}
                                     onZoom={onZoom}
+                                    locale={locale}
                                 />
                             </CardBody>
                         </Card>

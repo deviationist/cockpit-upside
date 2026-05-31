@@ -612,7 +612,7 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
             {mode === "control" &&
                 <Controls ups={ups.ref.name} creds={creds} vars={vars} onAuthNeeded={() => setAuthOpen(true)} />}
 
-            {config.history && <Trends ups={ups.ref.name} archiveDir={config.historyArchiveDir} />}
+            {config.history && <Trends ups={ups.ref.name} archiveDir={config.historyArchiveDir} locale={config.locale} />}
 
             <Topology ups={ups.ref.name} />
 
@@ -846,7 +846,7 @@ export const Application = () => {
         const u = upses?.find(x => x.ref.name === path[1]);
         const title = config.names[path[1]] || descs[path[1]] ||
             (u ? displayName(u, descs, config.names) : path[1]);
-        view = <Metrics ups={path[1]} title={title} archiveDir={config.historyArchiveDir} retentionDays={config.historyRetentionDays} />;
+        view = <Metrics ups={path[1]} title={title} archiveDir={config.historyArchiveDir} retentionDays={config.historyRetentionDays} locale={config.locale} />;
     } else if (path[0] === "ups" && path[1])
         view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} config={config} descs={descs} lastUpdate={lastUpdate} mode={mode} />;
     else if (path[0] === "settings")

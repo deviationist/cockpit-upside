@@ -39,6 +39,12 @@ export interface UpsideConfig {
     /** Custom display names per UPS, keyed by NUT name (overrides desc/model). */
     names: Record<string, string>;
     /**
+     * Locale (BCP-47, e.g. "en-GB", "nb-NO") for formatting dates/times across
+     * the app — this is what determines 12- vs 24-hour, date order, month names.
+     * Empty/unset follows the Cockpit/browser locale.
+     */
+    locale?: string;
+    /**
      * Optional path to a dedicated PCP archive directory holding ONLY the NUT
      * metrics (a small "pmlogger farm" instance). When set, the metrics page
      * reads history from here instead of the full system pmlogger dir — orders
@@ -114,6 +120,18 @@ function localeCurrency(): string {
     }
 }
 
+/** A BCP-47 locale tag if Intl can parse it (and it's non-empty), else undefined. */
+function validLocale(v: unknown): string | undefined {
+    if (typeof v !== "string" || !v.trim())
+        return undefined;
+    try {
+        // Constructor throws on a non-parseable tag; a valid one has a language subtag.
+        return new Intl.Locale(v).language ? v : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
 /** Defaults: currency follows the Cockpit locale; the rest are fixed. */
 export function defaultConfig(): UpsideConfig {
     return {
@@ -176,6 +194,7 @@ function sanitize(content: Partial<UpsideConfig> | null): UpsideConfig {
         historyRetentionDays: typeof c.historyRetentionDays === "number" && Number.isFinite(c.historyRetentionDays)
             ? Math.min(3650, Math.max(1, Math.round(c.historyRetentionDays)))
             : d.historyRetentionDays,
+        locale: validLocale(c.locale),
     };
 }
 

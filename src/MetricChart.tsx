@@ -27,6 +27,7 @@ interface MetricChartProps {
     height?: number;
     emptyLabel?: string;
     onZoom?: (startMs: number, endMs: number) => void; // drag-select to zoom
+    locale?: string; // BCP-47 tag for date/time formatting (undefined = system)
 }
 
 const M = { left: 46, right: 12, top: 16, bottom: 22 };
@@ -49,7 +50,7 @@ function useWidth(): [React.RefObject<HTMLDivElement | null>, number] {
     return [ref, w];
 }
 
-export const MetricChart = ({ points, unit, color, min, max, startMs, endMs, height = 150, emptyLabel = "No data", onZoom }: MetricChartProps) => {
+export const MetricChart = ({ points, unit, color, min, max, startMs, endMs, height = 150, emptyLabel = "No data", onZoom, locale }: MetricChartProps) => {
     const [ref, width] = useWidth();
     const [hover, setHover] = useState<number | null>(null);
     const [drag, setDrag] = useState<{ x0: number, x1: number } | null>(null);
@@ -136,7 +137,7 @@ export const MetricChart = ({ points, unit, color, min, max, startMs, endMs, hei
 
                         {/* x time labels */}
                         {xTicks.map(t => (
-                            <text key={t} className="upside-mchart__xlabel" x={sx(t)} y={height - 6}>{formatTimeTick(t, span)}</text>
+                            <text key={t} className="upside-mchart__xlabel" x={sx(t)} y={height - 6}>{formatTimeTick(t, span, locale)}</text>
                         ))}
 
                         <path d={area} fill={color} fillOpacity="0.15" stroke="none" />
@@ -171,7 +172,7 @@ export const MetricChart = ({ points, unit, color, min, max, startMs, endMs, hei
                     style={{ left: `${sx(hp.t)}px` }}
                 >
                     <strong>{formatValueTick(hp.v)}{unit}</strong>
-                    <span>{formatTimeTick(hp.t, Math.min(span, 86400_000))}</span>
+                    <span>{formatTimeTick(hp.t, Math.min(span, 86400_000), locale)}</span>
                 </div>}
         </div>
     );

@@ -21,11 +21,12 @@ interface ChartProps {
     max?: number; // fixed domain max (e.g. 100 for a percentage)
     height?: number; // px
     emptyLabel?: string; // shown when there aren't enough points yet
+    locale?: string; // BCP-47 tag for date/time formatting (undefined = system)
 }
 
 const W = 100; // viewBox width units; the SVG scales to the container width
 
-export const Chart = ({ points, label, color, unit = "", min, max, height = 88, emptyLabel = "No data" }: ChartProps) => {
+export const Chart = ({ points, label, color, unit = "", min, max, height = 88, emptyLabel = "No data", locale }: ChartProps) => {
     const current = points.length ? points[points.length - 1].v : undefined;
 
     let body;
@@ -63,7 +64,7 @@ export const Chart = ({ points, label, color, unit = "", min, max, height = 88, 
     // Time labels under the chart (start / middle / end). Trends spans hours so
     // HH:MM is enough; falls back to a date if the span happens to exceed a day.
     const spanDay = points.length >= 2 && (points[points.length - 1].t - points[0].t) > 86400_000;
-    const fmt = (t: number) => new Date(t).toLocaleString([],
+    const fmt = (t: number) => new Date(t).toLocaleString(locale,
                                                           spanDay
                                                               ? { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }
                                                               : { hour: "2-digit", minute: "2-digit" });
