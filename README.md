@@ -12,10 +12,11 @@ managed by NUT — battery charge and runtime, line/load status, input/output
 voltage, and the other variables exposed by `upsd` — directly in the Cockpit
 web console.
 
-> **Status:** early scaffold. Built on the official
+> **Status:** built on the official
 > [cockpit-project/starter-kit](https://github.com/cockpit-project/starter-kit)
- (React + PatternFly + esbuild). Monitoring is complete; control is at
-> tier A.
+> (React + PatternFly + esbuild). Monitoring is complete; control spans instant
+> commands (`upscmd`), writable variables (`upsrw`), and clean shutdown on low
+> battery (`upsmon`).
 
 ## How it works
 
@@ -147,6 +148,13 @@ npm run stylelint
   at once**; read-only in monitor mode, editing is control-mode + authenticated.
   Setting a variable needs NUT's `actions = SET` grant — UPSide adds it to the
   control user on demand if missing.
+- **Clean shutdown on low battery** (`upsmon`) — the setup wizard's **Shutdown**
+  step (and a per-UPS **Shutdown** settings view) configure `upsmon` to power the
+  host down before the battery dies: it writes `upsmon.conf` + the least-privilege
+  monitor login and arms `nut-monitor` behind an explicit acknowledgment. An
+  opt-in **killpower** toggle cuts the UPS outlet after shutdown so the host
+  auto-reboots when mains returns — *if* its BIOS is set to power on after AC loss
+  (firmware UPSide can't change, so it's surfaced as guidance).
 - **Guided setup wizard** — a PatternFly wizard on its own route
   (`#/setup-wizard`); until a UPS is configured the whole app **locks to it** (no
   menu, no other pages). Step 1 picks this machine's **role** — *standalone* (UPS
