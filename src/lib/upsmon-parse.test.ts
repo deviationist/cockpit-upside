@@ -11,7 +11,8 @@ import { test } from 'node:test';
 
 import {
     buildUpsmonConf, hasPowerDownFlag, isValidMinSupplies, isValidShutdownCmd,
-    parseUpsmonConf, setMinSupplies, setMonitorLine, setPowerDownFlag, setShutdownCmd,
+    parseNotify, parseUpsmonConf, setMinSupplies, setMonitorLine, setNotifyCmd,
+    setNotifyFlagExec, setPowerDownFlag, setShutdownCmd,
 } from './upsmon-parse.ts';
 
 test("parseUpsmonConf: reads MONITOR/SHUTDOWNCMD/MINSUPPLIES, skips creds", () => {
@@ -83,6 +84,34 @@ test("buildUpsmonConf: applies all managed fields over existing, preserves the r
     const fresh = buildUpsmonConf(null, { system: "u", user: "m", password: "p", type: "secondary", shutdownCmd: "systemctl poweroff" });
     assert.match(fresh, /^MONITOR u 1 m p secondary$/m);
     assert.equal(hasPowerDownFlag(fresh), false);
+});
+
+test("setNotifyCmd / setNotifyFlagExec: enable adds EXEC, disable reverts, idempotent", () => {
+    let t = "MONITOR ups 1 u p primary\n";
+    t = setNotifyCmd(t, "/etc/nut/upside-notify");
+    assert.match(t, /^NOTIFYCMD "\/etc\/nut\/upside-notify"$/m);
+    t = setNotifyFlagExec(t, "ONBATT", true);
+    assert.match(t, /^NOTIFYFLAG ONBATT SYSLOG\+WALL\+EXEC$/m);
+    // Re-enabling doesn't duplicate.
+    t = setNotifyFlagExec(t, "ONBATT", true);
+    assert.equal((t.match(/^NOTIFYFLAG ONBATT/gm) || []).length, 1);
+    // Disabling drops the line entirely (reverts to NUT default).
+    t = setNotifyFlagExec(t, "ONBATT", false);
+    assert.doesNotMatch(t, /NOTIFYFLAG ONBATT/);
+    // Disabling an absent event is a no-op.
+    assert.doesNotMatch(setNotifyFlagExec(t, "LOWBATT", false), /NOTIFYFLAG LOWBATT/);
+});
+
+test("parseNotify: reads NOTIFYCMD + only EXEC-flagged events", () => {
+    const conf = `NOTIFYCMD "/etc/nut/upside-notify"
+NOTIFYFLAG ONBATT SYSLOG+WALL+EXEC
+NOTIFYFLAG LOWBATT SYSLOG+WALL+EXEC
+NOTIFYFLAG ONLINE SYSLOG+WALL
+# NOTIFYFLAG FSD SYSLOG+EXEC`;
+    const n = parseNotify(conf);
+    assert.equal(n.cmd, "/etc/nut/upside-notify");
+    assert.deepEqual(n.events.sort(), ["LOWBATT", "ONBATT"]); // ONLINE has no EXEC, FSD is commented
+    assert.deepEqual(parseNotify("").events, []);
 });
 
 test("validators", () => {

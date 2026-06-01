@@ -18,7 +18,7 @@
 import cockpit from 'cockpit';
 
 import { NutMode, addListen, appendStanza, parseConfSections, parseListen, parseMode, removeStanza, setModeText } from './setup-parse';
-import { UpsmonFields, buildUpsmonConf, setMinSupplies, setPowerDownFlag, setShutdownCmd } from './upsmon-parse';
+import { NOTIFY_EVENTS, UpsmonFields, buildUpsmonConf, setMinSupplies, setNotifyCmd, setNotifyFlagExec, setPowerDownFlag, setShutdownCmd } from './upsmon-parse';
 
 export * from './setup-parse';
 
@@ -387,6 +387,20 @@ export async function applyUpsmonPolicy(
         next = setMinSupplies(next, p.minSupplies);
     if (p.powerDownFlag !== undefined)
         next = setPowerDownFlag(next, p.powerDownFlag);
+    return writeUpsmonFile(confDir, next);
+}
+
+/**
+ * Set the notification directives (NOTIFYCMD + per-event NOTIFYFLAG EXEC) over
+ * the existing upsmon.conf, leaving the MONITOR line and shutdown policy intact.
+ * `events` is the set to notify on; every other known event has its EXEC flag
+ * cleared (reverts to NUT's default). Same secure write + reload as applyUpsmon.
+ */
+export async function applyUpsmonNotify(confDir: string, opts: { notifyCmd: string, events: string[] }): Promise<string> {
+    let next = (await readTry(`${confDir}/upsmon.conf`)) ?? "";
+    next = setNotifyCmd(next, opts.notifyCmd);
+    for (const e of NOTIFY_EVENTS)
+        next = setNotifyFlagExec(next, e, opts.events.includes(e));
     return writeUpsmonFile(confDir, next);
 }
 
