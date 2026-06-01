@@ -234,6 +234,21 @@ $upside-amber: #f59e0b;
     cursor: default;
 }
 
+// Small, muted version tag next to the mode pill.
+.upside-version {
+    align-self: center;
+    color: rgb(248 250 252 / 55%);
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+}
+
+.upside-about__version {
+    display: block;
+    margin-block: 0.25rem 0.75rem;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
 // Tab navigation living inside the branded bar.
 .upside-masthead__nav {
     display: flex;
