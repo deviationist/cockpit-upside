@@ -103,8 +103,12 @@ export const Config = ({ ups, title, mode }: { ups: string, title?: string, mode
             }
         }
         if (fails.length === 0) {
+            // The SET is accepted, but the driver re-reports the value only after
+            // a poll cycle — an immediate re-read returns the OLD value. So adopt
+            // what we applied as the new baseline (field shows the new value,
+            // nothing left dirty); revisiting the page re-reads from the device.
+            setVars(prev => prev ? prev.map(v => ({ ...v, value: draft[v.name] ?? v.value })) : prev);
             setFeedback({ ok: true, msg: cockpit.format(_("Applied $0 change(s)."), n) });
-            await load(); // success → refresh + reset the draft
         } else {
             // upsd refuses a SET when the user lacks `actions = SET` — offer to fix
             // that rather than just reporting it. Keep the draft so it can retry.
