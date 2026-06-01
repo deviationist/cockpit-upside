@@ -19,7 +19,7 @@ import { useConfig } from './lib/config';
 
 const _ = cockpit.gettext;
 
-export type UpsSub = "metrics" | "config" | "shutdown" | "variables";
+export type UpsSub = "metrics" | "config" | "shutdown" | "notifications" | "variables";
 
 export const UpsMenu = ({ ups, current }: { ups: string, current?: UpsSub }) => {
     const { config } = useConfig();
@@ -30,6 +30,7 @@ export const UpsMenu = ({ ups, current }: { ups: string, current?: UpsSub }) => 
         ...(remote ? [] : [{ key: "metrics" as UpsSub, label: _("Metrics") }]),
         { key: "config", label: _("Configuration") },
         { key: "shutdown", label: _("Shutdown") },
+        { key: "notifications", label: _("Notifications") },
         { key: "variables", label: _("All variables") },
     ];
 

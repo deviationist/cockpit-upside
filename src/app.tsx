@@ -33,6 +33,7 @@ import { Gauge } from './Gauge';
 import { Logo } from './Logo';
 import { Config } from './Config';
 import { Metrics } from './Metrics';
+import { Notifications } from './Notifications';
 import { NutAuthModal } from './NutAuthModal';
 import { NutUserWizard } from './NutUserWizard';
 import { Settings } from './Settings';
@@ -926,6 +927,11 @@ export const Application = () => {
         const title = config.names[path[1]] || descs[path[1]] ||
             (u ? displayName(u, descs, config.names) : path[1]);
         view = <Shutdown ups={path[1]} title={title} />;
+    } else if (path[0] === "ups" && path[1] && path[2] === "notifications") {
+        const u = upses?.find(x => x.ref.name === path[1]);
+        const title = config.names[path[1]] || descs[path[1]] ||
+            (u ? displayName(u, descs, config.names) : path[1]);
+        view = <Notifications ups={path[1]} title={title} />;
     } else if (path[0] === "ups" && path[1])
         view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} config={config} descs={descs} lastUpdate={lastUpdate} mode={mode} />;
     else if (path[0] === "settings")
