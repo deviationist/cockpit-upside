@@ -57,7 +57,14 @@ homelab. Bigger config surface; touches credentials + shutdown timing.
       `upsc -c <ups>` (read-only).
 - [x] Remote `upsd` support (`name@host`) — monitor/control a UPS on another host.
 - [x] History across multiple `pmlogger` archive volumes.
-- [ ] One-click "enable history" that installs the PCP scraper automatically.
+- [x] One-click "enable history" that installs the PCP scraper automatically.
+      The **History collection** card in Settings (and a pointer from the Trends
+      empty state) detects whether PCP is recording the NUT metrics and, when
+      it isn't, installs the OpenMetrics scraper + a pmlogger log rule on one
+      admin-gated click. Strictly additive/idempotent — writes only what's
+      missing and restarts pmcd/pmlogger only when something changed, so it
+      never disturbs existing archives. PCP/PMDA prerequisites are guidance
+      (not auto-installed). Lib: `lib/history-setup.ts` + `-parse.ts`.
 - [ ] **Setup: serial / SNMP buses** — today the wizard auto-detects USB
       (`nut-scanner -U`) + manual USB-HID; a network/SNMP UPS (`snmp-ups`, host +
       community) or serial UPS still needs a hand-written `ups.conf` stanza.

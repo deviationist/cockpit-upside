@@ -20,6 +20,7 @@ import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/
 import cockpit from 'cockpit';
 
 import { Mode, UpsideConfig, saveConfig, useConfig } from './lib/config';
+import { HistorySetup } from './HistorySetup';
 
 const _ = cockpit.gettext;
 
@@ -191,6 +192,10 @@ export const Settings = ({ mode, modeLocked, onModeChange }: {
                     </Alert>}
                 </CardBody>
             </Card>
+
+            {/* History ingestion is local to this host, so it's only meaningful
+                when reading the local upsd — same condition that shows Trends. */}
+            {!draft.nutHost && <HistorySetup />}
         </div>
     );
 };

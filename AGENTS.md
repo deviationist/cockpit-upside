@@ -222,7 +222,7 @@ src/index.html      Cockpit page shell
 src/index.tsx       React entrypoint
 src/app.tsx         top-level component (shell, routing, polling, Overview/Detail)
 src/Setup.tsx       NUT-MODE setup wizard (PatternFly Wizard, role-branched; admin-gated; own #/setup-wizard route; App locks to it until configured)
-src/Settings.tsx    file-backed settings form
+src/Settings.tsx    file-backed settings form; HistorySetup.tsx (one-click PCP history enablement card)
 src/Controls.tsx    control-mode action card (risk-tiered + danger zone); NutAuthModal.tsx (auth), NutUserWizard.tsx (create/reuse user)
 src/Config.tsx      per-UPS writable-variable editor (upsrw; own #/ups/<name>/config route)
 src/Trends.tsx      PCP sparklines; src/Metrics.tsx full charts; Gauge/Chart/MetricChart (SVG); src/lib/axis.ts (ticks)
@@ -231,6 +231,7 @@ src/lib/setup*.ts   setup probes/apply incl. MODE/LISTEN/firewall (setup.ts) + p
 src/lib/control*.ts control commands/tiers/validate (control.ts, control-parse.ts) + control-user create/reuse/grants (control-user.ts)
 src/lib/rwvars*.ts  read-write variables: upsrw list/set (rwvars.ts) + pure parse/validate (rwvars-parse.ts)
 src/lib/admin.ts    useAdmin (cockpit.permission) + requestAdmin (opens the shell escalation dialog)
+src/lib/history-setup*.ts  one-click PCP history: detect/enable (history-setup.ts, additive+idempotent) + scraper/pmlogger-rule pure parts (history-setup-parse.ts)
 src/lib/{config,derive,metrics,prefs}.ts   config (+ nutHost/mode), derived values, PCP reader (metrics.ts), localStorage prefs
 src/app.scss        app styles
 src/manifest.json   Cockpit manifest (sidebar label, required cockpit version)
