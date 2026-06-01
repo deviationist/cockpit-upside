@@ -18,7 +18,7 @@
 
 import cockpit from 'cockpit';
 
-import { appendStanza, parseConfSections } from './setup-parse';
+import { appendStanza, parseConfSections, removeStanza } from './setup-parse';
 import { UserGrants, addSetAction, addUpsmonRole, buildMonitorBlock, buildUserBlock, parseUserBlock, setUpsmonRole } from './control-user-parse';
 import type { UpsmonType } from './upsmon-parse';
 
@@ -127,17 +127,19 @@ export async function createSecondaryUser(name: string, password: string): Promi
 }
 
 /**
- * Create a monitor (upsmon) user: a password + `upsmon <role>`, nothing else.
- * This is the least-privilege identity upsmon's MONITOR line logs in as on a
- * UPS-owning host (role `primary`) — separate from any control user. Same
- * privileged write path; throws if the name already exists.
+ * Set the monitor (upsmon) user to a password + `upsmon <role>`, nothing else —
+ * the least-privilege identity upsmon's MONITOR line logs in as on a UPS-owning
+ * host (role `primary`), separate from any control user. Upsert semantics:
+ * replaces an existing same-named block (so re-running the Shutdown step rotates
+ * the password rather than dead-ending on "already exists"), else appends. Its
+ * password is purely internal — UPSide writes it to both upsd.users and
+ * upsmon.conf and the operator never needs to see it.
  */
-export async function createMonitorUser(name: string, password: string, role: UpsmonType): Promise<{ path: string }> {
+export async function setMonitorUser(name: string, password: string, role: UpsmonType): Promise<{ path: string }> {
     const path = await findUsersFile();
     const current = await read(path, "require");
-    if (current && parseConfSections(current).includes(name))
-        throw new Error(cockpit.format(_("A NUT user named \"$0\" already exists in upsd.users."), name));
-    await writeUsersFile(path, appendStanza(current, buildMonitorBlock(name, password, role)), current);
+    const without = current ? removeStanza(current, name) : "";
+    await writeUsersFile(path, appendStanza(without, buildMonitorBlock(name, password, role)), current);
     return { path };
 }
 

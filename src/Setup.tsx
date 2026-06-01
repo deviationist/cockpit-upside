@@ -16,21 +16,23 @@
  * helpers in lib/setup.ts (backup → write → admin prompt), gating the Wizard's
  * Next until the prerequisite is met.
  *
- * SCOPE: connectivity only. netserver wires LISTEN + a secondary login user +
- * firewall *guidance*; netclient points UPSide at the remote upsd. Configuring
- * upsmon shutdown sequencing (when/how a box powers off) stays the operator's
- * job — we say so on the relevant steps. This is NUT's MODE, orthogonal to
- * UPSide's own monitor/control mode (the optional final step).
+ * SCOPE: connectivity + clean shutdown. netserver wires LISTEN + a secondary
+ * login user + firewall *guidance*; netclient points UPSide at the remote upsd;
+ * and the Shutdown step (all roles) configures upsmon to power the host down on
+ * low battery (host shutdown always; killpower opt-in for auto-recovery). This
+ * is NUT's MODE, orthogonal to UPSide's own monitor/control mode (the final step).
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert } from "@patternfly/react-core/dist/esm/components/Alert/index.js";
 import { Button } from "@patternfly/react-core/dist/esm/components/Button/index.js";
+import { Checkbox } from "@patternfly/react-core/dist/esm/components/Checkbox/index.js";
 import { ClipboardCopy } from "@patternfly/react-core/dist/esm/components/ClipboardCopy/index.js";
 import { Content } from "@patternfly/react-core/dist/esm/components/Content/index.js";
 import { FormSelect, FormSelectOption } from "@patternfly/react-core/dist/esm/components/FormSelect/index.js";
 import { Radio } from "@patternfly/react-core/dist/esm/components/Radio/index.js";
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
+import { Switch } from "@patternfly/react-core/dist/esm/components/Switch/index.js";
 import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/index.js";
 import { Wizard, WizardStep } from "@patternfly/react-core/dist/esm/components/Wizard/index.js";
 
@@ -43,13 +45,15 @@ import {
     isValidCidr, isValidHost, isValidSectionName, isValidSerialPort, listSerialPorts, listenAddresses,
     lsusb, parseLsusb, parseScannerOutput, primaryAddress, removeSection, scanSnmp, scanUsb,
     snmpScanDisabled, startServices, suggestCidr, usbScanDisabled,
+    applyUpsmon, startMonitor,
 } from './lib/setup';
+import { DEFAULT_POWERDOWN_FLAG, DEFAULT_SHUTDOWNCMD, UpsmonType, isValidShutdownCmd } from './lib/upsmon-parse';
 import { Mode, isValidNutHost, saveConfig, useConfig } from './lib/config';
 import { listUps, refId } from './lib/nut';
 import { validateCreds } from './lib/control';
 import { requestAdmin, useAdmin } from './lib/admin';
 import { clearNutCreds, loadNutCreds, saveNutCreds } from './lib/prefs';
-import { createSecondaryUser, generatePassword } from './lib/control-user';
+import { createSecondaryUser, generatePassword, isValidUserName, setMonitorUser } from './lib/control-user';
 import { NutUserWizard } from './NutUserWizard';
 import { NutAuthModal } from './NutAuthModal';
 
@@ -95,7 +99,7 @@ const RoleStep = ({ role, setRole }: { role: Role | null, setRole: (r: Role) => 
         <Radio
             id="role-netclient" name="role"
             label={_("Watch a UPS on another machine")}
-            description={_("No UPS is attached here — read and control one served by another host (a primary). To power THIS box down on an outage, configure upsmon separately.")}
+            description={_("No UPS is attached here — read and control one served by another host (a primary). The Shutdown step can also power this box down on an outage.")}
             isChecked={role === "netclient"} onChange={() => setRole("netclient")}
         />
     </div>
@@ -732,7 +736,7 @@ const ConnectStep = ({ busy, run, onConnected }: {
             {found && found.length > 0 &&
                 <Alert variant="success" isInline isPlain className="pf-v6-u-mt-md" title={cockpit.format(_("Connected — found $0 UPS."), found.length)} />}
             <Content component="small" className="upside-setup__hint pf-v6-u-mt-md">
-                {_("This sets up monitoring/control only. To power THIS machine down when the primary signals low battery, configure upsmon on this host (NUT's netclient mode) — UPSide doesn't manage shutdown.")}
+                {_("This sets up monitoring/control. To also power THIS machine down when the primary signals low battery, use the Shutdown step next (it configures upsmon as a secondary).")}
             </Content>
         </>
     );
@@ -793,6 +797,130 @@ const ControlStep = ({ upsId, canCreate, mode, modeLocked, onEnableControl }: {
                         onForget={() => setOpen(false)}
                     />
                 )}
+        </>
+    );
+};
+
+/** The least-privilege monitor user UPSide creates on a UPS-owning host. */
+const MONITOR_USER = "upside-monitor";
+
+/* ---- Shutdown step: configure upsmon to power down on low battery (all roles) ---- */
+const ShutdownStep = ({ role, state, busy, run, system }: {
+    role: Role, state: SetupState, busy: string | null, run: RunFn, system: string,
+}) => {
+    const [shutdownCmd, setShutdownCmd] = useState(DEFAULT_SHUTDOWNCMD);
+    const [minSupplies, setMinSupplies] = useState(1);
+    const [killpower, setKillpower] = useState(false);
+    const [ack, setAck] = useState(false);
+    const [secUser, setSecUser] = useState("");
+    const [secPass, setSecPass] = useState("");
+
+    // A UPS-owning host runs upsmon as primary; a client watches the remote as secondary.
+    const type: UpsmonType = role === "netclient" ? "secondary" : "primary";
+    const cmdOk = isValidShutdownCmd(shutdownCmd);
+    const credsOk = type === "primary" || (isValidUserName(secUser) && secPass.length > 0);
+    const canArm = cmdOk && credsOk && ack && !!system && busy === null;
+
+    const arm = run("arm-shutdown", async () => {
+        let user = secUser;
+        let password = secPass;
+        if (type === "primary") {
+            // Internal monitor user — UPSide writes its password to both
+            // upsd.users and upsmon.conf; the operator never types it.
+            user = MONITOR_USER;
+            password = generatePassword();
+            await setMonitorUser(user, password, "primary");
+        }
+        await applyUpsmon(state.confDir, {
+            system,
+            user,
+            password,
+            type,
+            shutdownCmd,
+            minSupplies,
+            powerDownFlag: killpower ? DEFAULT_POWERDOWN_FLAG : null,
+        });
+        await startMonitor();
+    });
+
+    if (state.monitorActive) {
+        return (
+            <Alert
+                variant="success" isInline isPlain
+                title={_("Shutdown protection is armed — this host powers off on low battery. Change it under Shutdown settings.")}
+            />
+        );
+    }
+
+    return (
+        <>
+            <Content component="p">
+                {type === "primary"
+                    ? _("When the UPS battery runs low, NUT runs a command to power this host down cleanly — protecting it (and any attached storage) from an abrupt cut. UPSide writes the upsmon config and the login it needs.")
+                    : _("When the primary signals low battery, this host powers itself down cleanly. Enter the secondary login created on the primary (shown by its \"Serve to the network\" step).")}
+            </Content>
+
+            {!system &&
+                <Alert variant="warning" isInline className="pf-v6-u-mt-sm" title={_("Finish the earlier steps first")}>
+                    {_("A UPS must be configured (or, for a client, connected) before shutdown can be wired up.")}
+                </Alert>}
+
+            <div className="upside-field">
+                <label htmlFor="sd-cmd">{_("Shutdown command")}</label>
+                <TextInput
+                    id="sd-cmd" value={shutdownCmd} onChange={(_ev, v) => setShutdownCmd(v)}
+                    validated={shutdownCmd && !cmdOk ? "error" : "default"} aria-label={_("Shutdown command")}
+                />
+                <Content component="small" className="pf-v6-u-mt-xs">{_("Run when the battery is critical. The default powers off cleanly.")}</Content>
+            </div>
+
+            <div className="upside-field">
+                <label htmlFor="sd-min">{_("Minimum supplies")}</label>
+                <TextInput
+                    id="sd-min" type="number" min={1} value={String(minSupplies)}
+                    onChange={(_ev, v) => setMinSupplies(Math.max(1, Math.round(Number(v) || 1)))}
+                    aria-label={_("Minimum supplies")}
+                />
+                <Content component="small" className="pf-v6-u-mt-xs">{_("How many power supplies must stay fed to keep running (1 for a normal machine).")}</Content>
+            </div>
+
+            {type === "secondary" &&
+                <>
+                    <div className="upside-field">
+                        <label htmlFor="sd-user">{_("Secondary login (user)")}</label>
+                        <TextInput id="sd-user" value={secUser} onChange={(_ev, v) => setSecUser(v.trim())} aria-label={_("Monitor user")} />
+                    </div>
+                    <div className="upside-field">
+                        <label htmlFor="sd-pass">{_("Password")}</label>
+                        <TextInput id="sd-pass" type="password" value={secPass} onChange={(_ev, v) => setSecPass(v)} aria-label={_("Monitor password")} />
+                    </div>
+                </>}
+
+            <div className="upside-field">
+                <Switch
+                    id="sd-killpower" isChecked={killpower} onChange={(_ev, v) => setKillpower(v)}
+                    label={_("Power-cycle the UPS after shutdown so this host auto-reboots when mains returns (killpower)")}
+                />
+                {killpower &&
+                    <Content component="small" className="upside-warn pf-v6-u-mt-xs">
+                        {_("Cuts the UPS outlet after shutdown, so this host loses power and boots again when mains returns — but only if its BIOS is set to \"power on after AC loss\" (a firmware setting UPSide can't change). Leave off if unsure.")}
+                    </Content>}
+            </div>
+
+            <Checkbox
+                id="sd-ack" className="pf-v6-u-mt-md"
+                isChecked={ack} onChange={(_ev, v) => setAck(v)}
+                label={_("I understand this will power off THIS host when the UPS battery runs low.")}
+            />
+            <div className="upside-step__actions">
+                <Button variant="danger" isLoading={busy === "arm-shutdown"} isDisabled={!canArm} onClick={arm}>
+                    {_("Enable shutdown protection")}
+                </Button>
+            </div>
+            <Content component="small" className="pf-v6-u-mt-sm">
+                {_("Optional — Finish to skip; you can set this up later from Shutdown settings.")}
+            </Content>
+            <Cmd text={commands.enableMonitor} />
         </>
     );
 };
@@ -865,6 +993,10 @@ export const Setup = ({ onDone, mode, modeLocked, onEnableControl }: {
     const controlUpsId = role === "netclient"
         ? (remoteUps[0] && config.nutHost ? refId({ name: remoteUps[0], host: config.nutHost }) : "")
         : (state.upsList[0] || "ups");
+    // upsmon MONITOR system: "<ups>@<host>" for a client, bare "<ups>" locally.
+    const monitorSystem = role === "netclient"
+        ? (remoteUps[0] && config.nutHost ? `${remoteUps[0]}@${config.nutHost}` : "")
+        : (state.upsList[0] || state.sections[0] || "");
 
     return (
         <div className="upside-setup upside-wizard">
@@ -901,6 +1033,10 @@ export const Setup = ({ onDone, mode, modeLocked, onEnableControl }: {
 
                 <WizardStep name={_("Connect to a primary")} id="connect" isHidden={role !== "netclient"} footer={{ isNextDisabled: !connectedOk }}>
                     <ConnectStep busy={busy} run={run} onConnected={setRemoteUps} />
+                </WizardStep>
+
+                <WizardStep name={_("Shutdown")} id="shutdown">
+                    <ShutdownStep role={role} state={state} busy={busy} run={run} system={monitorSystem} />
                 </WizardStep>
 
                 <WizardStep name={_("Control actions")} id="control" footer={{ nextButtonText: _("Finish") }}>

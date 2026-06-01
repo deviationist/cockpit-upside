@@ -18,7 +18,7 @@
 import cockpit from 'cockpit';
 
 import { NutMode, addListen, appendStanza, parseConfSections, parseListen, parseMode, removeStanza, setModeText } from './setup-parse';
-import { UpsmonFields, buildUpsmonConf } from './upsmon-parse';
+import { UpsmonFields, buildUpsmonConf, setMinSupplies, setPowerDownFlag, setShutdownCmd } from './upsmon-parse';
 
 export * from './setup-parse';
 
@@ -333,18 +333,16 @@ export async function readUpsmon(confDir: string): Promise<string | null> {
 }
 
 /**
- * Write upsmon.conf with UPSide's managed directives applied over the current
- * file (MONITOR + SHUTDOWNCMD + MINSUPPLIES + optional POWERDOWNFLAG), preserving
- * everything else. upsmon.conf now holds a NUT password (the MONITOR line), so it
- * must be 0640 root:nut — writeWithBackup alone can leave it world-readable, so we
- * re-lock it like upsd.users. If nut-monitor is already running it's reloaded;
- * we never START it here (arming is the explicit startMonitor step). Returns the
- * new file text.
+ * Write `next` to upsmon.conf, preserving the owner and re-locking 0640
+ * root:nut — upsmon.conf holds a NUT password (the MONITOR line), and
+ * writeWithBackup alone can leave it world-readable. If nut-monitor is already
+ * running it's reloaded; we never START it here (arming is the explicit
+ * startMonitor step). Shared by applyUpsmon (full config) and applyUpsmonPolicy
+ * (edit shutdown directives without touching the MONITOR creds).
  */
-export async function applyUpsmon(confDir: string, fields: UpsmonFields): Promise<string> {
+async function writeUpsmonFile(confDir: string, next: string): Promise<string> {
     const path = `${confDir}/upsmon.conf`;
     const current = await readTry(path);
-    const next = buildUpsmonConf(current, fields);
 
     // Preserve the existing owner (typically root:nut); default to that for a new file.
     let owner = "root:nut";
@@ -367,9 +365,39 @@ export async function applyUpsmon(confDir: string, fields: UpsmonFields): Promis
     return next;
 }
 
+/** Write the full upsmon.conf (MONITOR + shutdown directives) for the wizard. */
+export async function applyUpsmon(confDir: string, fields: UpsmonFields): Promise<string> {
+    const current = await readTry(`${confDir}/upsmon.conf`);
+    return writeUpsmonFile(confDir, buildUpsmonConf(current, fields));
+}
+
+/**
+ * Edit just the shutdown policy (SHUTDOWNCMD / MINSUPPLIES / killpower) over the
+ * existing upsmon.conf, leaving the MONITOR line (and its credentials) intact —
+ * for the Shutdown settings view, which tweaks an already-configured host
+ * without re-supplying creds. Each field is optional; only what's passed changes.
+ */
+export async function applyUpsmonPolicy(
+    confDir: string, p: { shutdownCmd?: string, minSupplies?: number, powerDownFlag?: string | null },
+): Promise<string> {
+    let next = (await readTry(`${confDir}/upsmon.conf`)) ?? "";
+    if (p.shutdownCmd !== undefined)
+        next = setShutdownCmd(next, p.shutdownCmd);
+    if (p.minSupplies !== undefined)
+        next = setMinSupplies(next, p.minSupplies);
+    if (p.powerDownFlag !== undefined)
+        next = setPowerDownFlag(next, p.powerDownFlag);
+    return writeUpsmonFile(confDir, next);
+}
+
 /** Arm shutdown handling: enable + start nut-monitor (the explicit, ack-gated action). */
 export async function startMonitor(): Promise<void> {
     await cockpit.spawn(["systemctl", "enable", "--now", MONITOR_UNIT], { superuser: "require", err: "message" });
+}
+
+/** Disarm shutdown handling: stop + disable nut-monitor (leaves upsmon.conf intact). */
+export async function stopMonitor(): Promise<void> {
+    await cockpit.spawn(["systemctl", "disable", "--now", MONITOR_UNIT], { superuser: "require", err: "message" });
 }
 
 /** The equivalent shell commands, for the "or run this yourself" fallback per step. */

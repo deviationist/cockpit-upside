@@ -37,6 +37,7 @@ import { NutAuthModal } from './NutAuthModal';
 import { NutUserWizard } from './NutUserWizard';
 import { Settings } from './Settings';
 import { Setup } from './Setup';
+import { Shutdown } from './Shutdown';
 import { Topology } from './Topology';
 import { Trends } from './Trends';
 import { Mode, UpsideConfig, loadModePref, resolveMode, saveConfig, saveModePref, useConfig } from './lib/config';
@@ -591,6 +592,9 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
                 <Button variant="link" isInline onClick={() => cockpit.location.go(["ups", ups.ref.name, "config"])}>
                     {_("Configure settings →")}
                 </Button>
+                <Button variant="link" isInline onClick={() => cockpit.location.go(["ups", ups.ref.name, "shutdown"])}>
+                    {_("Shutdown settings →")}
+                </Button>
             </div>
 
             {mode === "control" &&
@@ -930,6 +934,11 @@ export const Application = () => {
         const title = config.names[path[1]] || descs[path[1]] ||
             (u ? displayName(u, descs, config.names) : path[1]);
         view = <Variables upses={upses} name={path[1]} title={title} />;
+    } else if (path[0] === "ups" && path[1] && path[2] === "shutdown") {
+        const u = upses?.find(x => x.ref.name === path[1]);
+        const title = config.names[path[1]] || descs[path[1]] ||
+            (u ? displayName(u, descs, config.names) : path[1]);
+        view = <Shutdown ups={path[1]} title={title} />;
     } else if (path[0] === "ups" && path[1])
         view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} config={config} descs={descs} lastUpdate={lastUpdate} mode={mode} />;
     else if (path[0] === "settings")
