@@ -130,22 +130,39 @@ npm run stylelint
 ## Features
 
 - **Monitor / control mode** — UPSide is read-only (**monitor**) by default;
-  **control** mode surfaces tier-A actions (battery self-test, beeper). Actions
-  authenticate to NUT with a least-privilege control user (`upscmd`), and the
-  step-6 wizard sets that up — **create** a new user or **reuse** an existing one
-  (validated by a no-op LOGIN, password entered by you, never read from
-  `upsd.users`). The file (`/etc/cockpit/upside.json`) pins the mode when set (an
-  admin can force monitor-only); otherwise it's a per-browser toggle in Settings.
-- **Guided setup wizard** — on its own route (`#/setup`); when no UPS is found the
-  overview redirects there. Choose **"this machine"** or **"another host"**
-  (remote `upsd`). For a local UPS it walks install → `MODE` → device → services →
-  verify → (optional) control, applying each fix with one click: a preview, a
-  `.bak` backup, and an admin prompt — or the equivalent command. It **gates the
-  steps behind administrative access** (with an in-wizard *Enable administrative
-  access* button), auto-detects a USB UPS with **`nut-scanner`** (one-click
-  **Install libusb & scan** if the scanner can't load it), can **add a standard
-  USB HID UPS manually** with a config preview, and has a **"can't find your UPS?"**
-  troubleshooter (`lsusb`).
+  **control** mode surfaces the UPS's instant commands grouped by risk:
+  **one-click** safe actions (battery self-test, beeper), a **confirm** step for
+  disruptive-but-recoverable ones (calibrate, bypass), and a collapsed **danger
+  zone** — load on/off, shutdown sequences — each behind an explicit "this cuts
+  power" acknowledgment (`.delay` commands take a seconds value). Actions
+  authenticate to NUT with a least-privilege control user (`upscmd`); the wizard's
+  control step **creates** or **reuses** that user (validated by a no-op LOGIN,
+  password entered by you, never read from `upsd.users`). The file
+  (`/etc/cockpit/upside.json`) pins the mode when set; otherwise it's a per-browser
+  toggle in Settings.
+- **UPS configuration** (`upsrw`) — a per-UPS **Configuration** view (its own
+  route, from the detail page) lists the UPS's writable variables (low-battery
+  threshold, start/shutdown delays, transfer voltages, …) with type-appropriate
+  editors (number / dropdown / text, validated). Edit several and **apply them all
+  at once**; read-only in monitor mode, editing is control-mode + authenticated.
+  Setting a variable needs NUT's `actions = SET` grant — UPSide adds it to the
+  control user on demand if missing.
+- **Guided setup wizard** — a PatternFly wizard on its own route
+  (`#/setup-wizard`); until a UPS is configured the whole app **locks to it** (no
+  menu, no other pages). Step 1 picks this machine's **role** — *standalone* (UPS
+  here, this box only), *netserver* (UPS here, **shared** to other hosts), or
+  *netclient* (no local UPS — watch one on another host) — and the later steps
+  follow the choice, applying each fix with one click (preview + `.bak` backup +
+  admin prompt, or the equivalent command), gated behind administrative access:
+  - **local UPS**: install → device (auto-detect with **`nut-scanner`**, one-click
+    **Install libusb & scan**, **add a USB HID UPS manually** with a preview, a
+    **"can't find your UPS?"** `lsusb` troubleshooter) → start & verify;
+  - **netserver** also wires **serving**: bind `upsd` to a chosen address
+    (`upsd.conf` LISTEN), create a **secondary login** user, and show the firewall
+    command (guidance — UPSide doesn't touch the firewall);
+  - **netclient**: point UPSide at a primary's `upsd` (sets the remote source);
+  - then an optional **control** step. Scope is **connectivity-only** — it doesn't
+    configure `upsmon` shutdown sequencing (that stays the operator's job).
 - **Remote NUT source** — set `"nutHost": "host[:port]"` (or pick *another host*
   in the wizard) to read/control a `upsd` over the network — running UPSide on a
   **secondary** pointed at the primary. Reads need no credentials; control
@@ -175,30 +192,32 @@ npm run stylelint
 
 ## Roadmap
 
-UPSide is monitoring-complete and at the first rung of carefully scoped
-**control**. Done so far:
+UPSide is monitoring-complete and now has broad, risk-gated **control** plus
+UPS **configuration**. Done so far:
 
-- [x] **Control, tier A:** battery self-test + beeper control (`upscmd`)
+- [x] **Control actions, all tiers:** one-click safe (battery self-test, beeper),
+      confirm-first (calibrate, bypass), and a gated **danger zone** (load on/off,
+      shutdown) — `upscmd`, capability-driven per device
+- [x] **UPS configuration** via `upsrw` — typed editors, batch apply, `actions=SET`
+      granted to the control user on demand
+- [x] **Setup wizard rebuilt around NUT `MODE`** — standalone / netserver
+      (LISTEN + secondary login + firewall guidance) / netclient roles; locks the
+      app until a UPS is configured
 - [x] Remote `upsd` support (`name@host`) — monitor/control a UPS on another host
 - [x] History spanning multiple `pmlogger` archive volumes
-- [x] Guided setup wizard (admin-gated) with create/reuse of the NUT control user
+- [x] Create/reuse of the least-privilege NUT control user
 
 Future plans:
 
-- [ ] **Setup `MODE` choice** — the wizard auto-sets `standalone` (local
-      monitoring). Decide how to handle **`netserver`** (sharing the UPS to other
-      hosts): fold the standalone set into "start services" + a note, vs. a real
-      standalone/netserver toggle. Full netserver also needs `LISTEN` + a firewall
-      rule, which the wizard doesn't write yet — so for now netserver is a manual,
-      advanced path.
-- [ ] **Secondary onboarding** — deploy + guide UPSide on a secondary (remote
-      source): a `.deb` without `nut-server`, plus the wizard's "another host" tab
-      to set `nutHost`. (Reading a remote `upsd` already works; this is the
-      packaging + guided-setup polish.)
+- [ ] **Secondary onboarding (packaging)** — a `.deb` without `nut-server` so a
+      remote-source host installs lean. (Reading/controlling a remote `upsd` and
+      the netclient wizard role already work; this is the packaging polish.)
 - [ ] **History on a secondary** — optionally run a local OpenMetrics scraper +
       `pmlogger` on a remote-source host so Trends works there too.
 - [ ] One-click "enable history" that installs the PCP scraper automatically
-- [ ] Control tiers B–D (variables via `upsrw`, shutdown via `upsmon`) — gated
+- [ ] **`upsmon` shutdown sequencing** — currently out of scope (connectivity
+      only); a guided shutdown-config flow would complete the netserver/netclient
+      story.
 - [ ] Event notifications on power events (`upssched` / `NOTIFYCMD`)
 
 See **[ROADMAP.md](ROADMAP.md)** for the full control ladder (tiers A–D) and the

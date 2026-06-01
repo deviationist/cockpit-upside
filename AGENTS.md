@@ -57,23 +57,48 @@ It is based on the official
   `nutHost` is set the app reads `name@host`, hides Trends (history is local to
   each host), and hides the create-user wizard (can't write a remote `upsd.users`
   — remote control is authenticate-only). Validate-creds dials `host:port`.
-- **Admin gating in the wizard** (`lib/admin.ts` `useAdmin` over
-  `cockpit.permission({admin:true})`): the setup steps change system
-  files/services, so `Setup.tsx` renders **only the guidance until admin access is
-  on** — including the "where is the UPS?" chooser. It tracks the permission's
-  `changed` event so it reveals live. `requestAdmin()` opens Cockpit's escalation
-  dialog by clicking the shell's `.ct-locked` toggle (same-origin parent) — the
-  plugin can't escalate itself (`superuser:"require"` returns access-denied, no
-  `cockpit.superuser` API). Keep the gate: don't surface privileged fields without
-  admin.
+- **Setup wizard — NUT `MODE`, as a PatternFly `Wizard`** (`Setup.tsx`): a
+  role-branched wizard on its own route (`#/setup-wizard`). Step 1 picks the role
+  (standalone / netserver / netclient); later `WizardStep`s are shown/hidden to
+  match (`isHidden`), and the footer's Next is gated per step from `detect()`.
+  **Connectivity-only scope:** netserver wires `upsd.conf` LISTEN + a secondary
+  login user + firewall *guidance* (we don't mutate the firewall — distro-specific);
+  netclient sets the remote source. We deliberately do **not** configure `upsmon`
+  shutdown sequencing. Lib: `lib/setup.ts` `applyListen`/`listenAddresses`/
+  `firewallHint`, `lib/setup-parse.ts` `parseListen`/`addListen`.
+- **First-run lockout** (`app.tsx`): until a UPS is visible (`upses.length > 0`),
+  the App renders **only** the wizard — masthead shows just the brand + GitHub link
+  (no nav), and every route resolves to the wizard. One `configured` flag, not
+  per-element header conditionals. Once configured, the full shell returns.
+- **Admin gating** (`lib/admin.ts` `useAdmin` over `cockpit.permission({admin:true})`):
+  setup + config steps change system files/services, so they render **only the
+  guidance until admin access is on**, tracking the permission's `changed` event so
+  it reveals live. `requestAdmin()` opens Cockpit's escalation dialog by clicking
+  the shell's `.ct-locked` toggle (same-origin parent) — the plugin can't escalate
+  itself (`superuser:"require"` returns access-denied, no `cockpit.superuser` API).
+- **Control actions — risk tiers** (`lib/control-parse.ts` `tierOf`,
+  `Controls.tsx`): surface **every** instant command the UPS exposes, gated by
+  tier — **A** one-click (beeper, `test.*`), **B** confirm (calibrate/bypass/reset/
+  shutdown.stop), **danger** an explicit-acknowledgment zone (load.*, shutdown.*,
+  and any *unrecognised* command — unknown defaults to danger, never silently run),
+  **hidden** driver internals. `.delay` commands take a seconds value (`runCommand`'s
+  optional arg).
+- **UPS config — `upsrw`** (`lib/rwvars.ts` + pure `rwvars-parse.ts`, `Config.tsx`):
+  per-UPS writable-variable editor on its own route (`#/ups/<name>/config`),
+  type-aware (NUMBER/STRING/ENUM/RANGE) with batch apply. Read-only in monitor mode.
+  Setting needs NUT's `actions = SET` grant (separate from `instcmds`); on
+  `ACCESS-DENIED` the view self-heals — `ensureControlGrants` adds `actions = SET`
+  to the user (admin) and retries. After a successful set, adopt the applied values
+  as the baseline (the driver re-reports only on its next poll, so an immediate
+  re-read is stale).
 - **Control-user wizard** (`lib/control-user.ts`, `NutUserWizard.tsx`): the ONE
   place UPSide writes `upsd.users`, on an explicit action. **Create** a
-  least-privilege user (generated password, granted only chosen instcmds +
-  `upsmon secondary` for LOGIN validation) or **reuse** an existing one — for
-  reuse the operator types the password (we never read it out of `upsd.users` to
-  store; we only add a missing `upsmon` role in place). Writes back up to `.bak`,
-  re-chmod 0640 root:nut. Control is enabled (the mode pref) only after a no-op
-  LOGIN validates the creds, and only if the config doesn't pin monitor.
+  least-privilege user (generated password, chosen instcmds + `actions = SET` +
+  `upsmon secondary` for LOGIN validation) or **reuse** an existing one — for reuse
+  the operator types the password (never read out of `upsd.users` to store; we only
+  add missing grants in place via `ensureControlGrants`). Writes back up to `.bak`,
+  re-chmod 0640 root:nut. Control is enabled only after a no-op LOGIN validates the
+  creds, and only if the config doesn't pin monitor.
 
 ## Build / lint / test
 
@@ -196,13 +221,15 @@ Integration tests live in `test/` (Cockpit test framework).
 src/index.html      Cockpit page shell
 src/index.tsx       React entrypoint
 src/app.tsx         top-level component (shell, routing, polling, Overview/Detail)
-src/Setup.tsx       guided NUT setup wizard (admin-gated; #/setup route + empty-state redirect)
+src/Setup.tsx       NUT-MODE setup wizard (PatternFly Wizard, role-branched; admin-gated; own #/setup-wizard route; App locks to it until configured)
 src/Settings.tsx    file-backed settings form
-src/Controls.tsx    control-mode action card (tier A); NutAuthModal.tsx (auth), NutUserWizard.tsx (create/reuse user)
+src/Controls.tsx    control-mode action card (risk-tiered + danger zone); NutAuthModal.tsx (auth), NutUserWizard.tsx (create/reuse user)
+src/Config.tsx      per-UPS writable-variable editor (upsrw; own #/ups/<name>/config route)
 src/Trends.tsx      PCP sparklines; src/Metrics.tsx full charts; Gauge/Chart/MetricChart (SVG); src/lib/axis.ts (ticks)
 src/lib/nut*.ts     NUT client (nut.ts, UpsRef/refId — local or name@host) + pure parsing (nut-parse.ts)
-src/lib/setup*.ts   setup probes/apply (setup.ts) + pure parsing (setup-parse.ts)
-src/lib/control*.ts control commands/validate (control.ts) + control-user create/reuse (control-user.ts) + parsers
+src/lib/setup*.ts   setup probes/apply incl. MODE/LISTEN/firewall (setup.ts) + pure parsing (setup-parse.ts)
+src/lib/control*.ts control commands/tiers/validate (control.ts, control-parse.ts) + control-user create/reuse/grants (control-user.ts)
+src/lib/rwvars*.ts  read-write variables: upsrw list/set (rwvars.ts) + pure parse/validate (rwvars-parse.ts)
 src/lib/admin.ts    useAdmin (cockpit.permission) + requestAdmin (opens the shell escalation dialog)
 src/lib/{config,derive,metrics,prefs}.ts   config (+ nutHost/mode), derived values, PCP reader (metrics.ts), localStorage prefs
 src/app.scss        app styles
