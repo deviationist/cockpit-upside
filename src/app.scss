@@ -676,6 +676,18 @@ $upside-amber: #f59e0b;
     }
 }
 
+// On phones, left-align the wrapped filter row rather than pushing it right —
+// reads better hugging the breadcrumb's edge on a narrow screen.
+@media (width <= 767px) {
+    .upside-metrics > .upside-metrics__header > .upside-metrics__bar {
+        justify-self: start;
+    }
+
+    .upside-metrics > .upside-metrics__header .upside-metrics__nav {
+        margin-inline-start: 0;
+    }
+}
+
 // Right-aligned control cluster: timeframe dropdown + zoom + prev/next.
 .upside-metrics__nav {
     margin-inline-start: auto;
