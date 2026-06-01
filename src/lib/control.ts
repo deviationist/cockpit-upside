@@ -3,15 +3,15 @@
  *
  * Copyright (C) 2026 deviationist
  *
- * Cockpit-bound NUT control client (tier A: battery/panel self-test + beeper).
- * Lists a UPS's instant commands with `upscmd -l` (unauthenticated) and runs the
- * safe ones with `upscmd -w -u <user> -p <pass>`. Pure parsing + the safety
- * allowlist live in control-parse.ts.
+ * Cockpit-bound NUT control client. Lists a UPS's instant commands with
+ * `upscmd -l` (unauthenticated) and runs them with `upscmd -w -u <user>
+ * -p <pass>`. Pure parsing + risk-tiering live in control-parse.ts; the UI gates
+ * each tier (one-click / confirm / danger-zone acknowledgment).
  */
 
 import cockpit from 'cockpit';
 
-import { InstantCommand, parseCommandList, safeCommands } from './control-parse';
+import { InstantCommand, actionableCommands, parseCommandList } from './control-parse';
 
 export * from './control-parse';
 
@@ -24,10 +24,26 @@ const LABELS: Record<string, string> = {
     "test.battery.stop": _("Stop battery test"),
     "test.panel.start": _("Test front panel"),
     "test.panel.stop": _("Stop panel test"),
+    "test.system.start": _("System test"),
     "beeper.enable": _("Enable beeper"),
     "beeper.disable": _("Disable beeper"),
     "beeper.mute": _("Mute beeper"),
     "beeper.toggle": _("Toggle beeper"),
+    "calibrate.start": _("Start runtime calibration"),
+    "calibrate.stop": _("Stop calibration"),
+    "bypass.start": _("Switch to bypass"),
+    "bypass.stop": _("Leave bypass"),
+    "load.off": _("Turn load off"),
+    "load.on": _("Turn load on"),
+    "load.off.delay": _("Turn load off (delayed)"),
+    "load.on.delay": _("Turn load on (delayed)"),
+    "shutdown.return": _("Shut down, return when power is back"),
+    "shutdown.stayoff": _("Shut down and stay off"),
+    "shutdown.reboot": _("Shut down and reboot"),
+    "shutdown.reboot.graceful": _("Shut down and reboot (graceful)"),
+    "shutdown.stop": _("Cancel pending shutdown"),
+    "reset.input.minmax": _("Reset min/max input voltage"),
+    "reset.watchdog": _("Reset watchdog"),
 };
 
 /** Friendly button label for an instant command (falls back to its NUT description). */
@@ -35,23 +51,28 @@ export function commandLabel(c: InstantCommand): string {
     return LABELS[c.name] || c.desc || c.name;
 }
 
-/** Safe (tier-A) instant commands the UPS supports. `upscmd -l` needs no auth. */
-export async function listSafeCommands(ups: string): Promise<InstantCommand[]> {
+/** Instant commands UPSide surfaces (all but driver internals). `upscmd -l`
+ *  needs no auth; the caller tiers them via tierOf for gating. */
+export async function listCommands(ups: string): Promise<InstantCommand[]> {
     const out: string = await cockpit.spawn(["upscmd", "-l", ups], { err: "message" });
-    return safeCommands(parseCommandList(out));
+    return actionableCommands(parseCommandList(out));
 }
 
 /**
  * Run an instant command, authenticating with a NUT user/password. `-w` waits
- * for the driver to report the actual result.
+ * for the driver to report the actual result. `value` is appended for commands
+ * that take an argument (the seconds for a `.delay` command).
  *
  * SECURITY: upscmd takes the password as a CLI argument (`-p`) — briefly visible
  * in `ps` to other local users. That's a NUT limitation (it offers no stdin/env
  * password input). The caller holds the credentials in memory only, never
  * persists them, and UPSide never reads upsd.users.
  */
-export async function runCommand(ups: string, cmd: string, user: string, pass: string): Promise<string> {
-    return cockpit.spawn(["upscmd", "-w", "-u", user, "-p", pass, ups, cmd], { err: "message" });
+export async function runCommand(ups: string, cmd: string, user: string, pass: string, value?: string): Promise<string> {
+    const argv = ["upscmd", "-w", "-u", user, "-p", pass, ups, cmd];
+    if (value !== undefined && value !== "")
+        argv.push(value);
+    return cockpit.spawn(argv, { err: "message" });
 }
 
 /** A UPS reference: bare "name", or "name@host", or "name@host:port". */

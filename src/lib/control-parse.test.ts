@@ -3,13 +3,13 @@
  *
  * Copyright (C) 2026 deviationist
  *
- * Unit tests for the instant-command parser + the tier-A safety allowlist.
+ * Unit tests for the instant-command parser + risk-tiering.
  */
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { isSafeCommand, parseCommandList, safeCommands } from './control-parse.ts';
+import { actionableCommands, parseCommandList, takesDelaySeconds, tierOf } from './control-parse.ts';
 
 // Real-ish `upscmd -l` output (from a PowerWalker), incl. dangerous commands.
 const LIST = `Instant commands supported on UPS [powerwalker]:
@@ -34,22 +34,35 @@ test("parseCommandList: empty / undefined", () => {
     assert.deepEqual(parseCommandList(undefined), []);
 });
 
-test("isSafeCommand: only battery/panel tests + beeper are safe", () => {
-    assert.equal(isSafeCommand("test.battery.start"), true);
-    assert.equal(isSafeCommand("test.battery.start.quick"), true);
-    assert.equal(isSafeCommand("test.panel.start"), true);
-    assert.equal(isSafeCommand("beeper.toggle"), true);
-    // dangerous / out of scope
-    assert.equal(isSafeCommand("load.off"), false);
-    assert.equal(isSafeCommand("load.on"), false);
-    assert.equal(isSafeCommand("shutdown.return"), false);
-    assert.equal(isSafeCommand("driver.killpower"), false);
-    assert.equal(isSafeCommand("calibrate.start"), false);
-    assert.equal(isSafeCommand("bypass.start"), false);
+test("tierOf: A = beeper/tests, B = calibrate/bypass/reset/shutdown.stop", () => {
+    assert.equal(tierOf("beeper.toggle"), "A");
+    assert.equal(tierOf("test.battery.start.deep"), "A");
+    assert.equal(tierOf("test.panel.start"), "A");
+    assert.equal(tierOf("calibrate.start"), "B");
+    assert.equal(tierOf("bypass.start"), "B");
+    assert.equal(tierOf("reset.input.minmax"), "B");
+    assert.equal(tierOf("shutdown.stop"), "B"); // aborts a pending shutdown
 });
 
-test("safeCommands: filters a real list down to tier A only", () => {
-    const safe = safeCommands(parseCommandList(LIST)).map(c => c.name)
+test("tierOf: danger = load/shutdown/outlet + unknown; hidden = driver internals", () => {
+    assert.equal(tierOf("load.off"), "danger");
+    assert.equal(tierOf("load.on.delay"), "danger");
+    assert.equal(tierOf("shutdown.return"), "danger");
+    assert.equal(tierOf("shutdown.stayoff"), "danger");
+    assert.equal(tierOf("outlet.1.load.cycle"), "danger");
+    assert.equal(tierOf("some.unknown.command"), "danger"); // unknown → gated
+    assert.equal(tierOf("driver.killpower"), "hidden");
+    assert.equal(tierOf("driver.reload"), "hidden");
+});
+
+test("takesDelaySeconds: only *.delay commands", () => {
+    assert.equal(takesDelaySeconds("load.off.delay"), true);
+    assert.equal(takesDelaySeconds("load.off"), false);
+    assert.equal(takesDelaySeconds("beeper.toggle"), false);
+});
+
+test("actionableCommands: everything but hidden driver internals", () => {
+    const names = actionableCommands(parseCommandList(LIST)).map(c => c.name)
             .sort();
-    assert.deepEqual(safe, ["beeper.toggle", "test.battery.start", "test.battery.stop"]);
+    assert.deepEqual(names, ["beeper.toggle", "load.off", "load.on", "shutdown.return", "test.battery.start", "test.battery.stop"]);
 });
