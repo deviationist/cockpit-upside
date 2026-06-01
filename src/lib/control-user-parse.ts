@@ -9,26 +9,40 @@
  */
 
 import { isValidSectionName } from './setup-parse.ts';
+import type { UpsmonType } from './upsmon-parse.ts';
 
 /** Conventional default name for UPSide's control user. */
 export const DEFAULT_USER = "upside";
 
 /**
  * Render an upsd.users block for a control user: the password, the granted
- * instant commands, `actions = SET`, and `upsmon secondary`.
+ * instant commands, `actions = SET`, and an `upsmon <role>` line.
  *  - instcmds let it run the chosen instant commands (upscmd).
  *  - `actions = SET` lets it change read-write variables (upsrw) — without it
  *    upsd answers ACCESS-DENIED to a SET even with the right password.
  *  - the upsmon role lets UPSide validate the credentials with a no-op LOGIN
- *    (see control.ts validateCreds); without it LOGIN is denied.
+ *    (see control.ts validateCreds); without it LOGIN is denied. Defaults to
+ *    `secondary`; a host that OWNS the UPS and runs upsmon as primary needs
+ *    `primary` (the role must match the MONITOR line's type or LOGIN is denied).
  */
-export function buildUserBlock(name: string, password: string, instcmds: string[]): string {
+export function buildUserBlock(name: string, password: string, instcmds: string[], role: UpsmonType = "secondary"): string {
     const lines = [`[${name}]`, `\tpassword = ${password}`];
     for (const c of instcmds)
         lines.push(`\tinstcmds = ${c}`);
     lines.push("\tactions = SET");
-    lines.push("\tupsmon secondary");
+    lines.push(`\tupsmon ${role}`);
     return lines.join("\n") + "\n";
+}
+
+/**
+ * Render an upsd.users block for a pure monitor (upsmon) user: just a password
+ * and the `upsmon <role>` line — no instcmds, no `actions = SET`. This is the
+ * least-privilege identity upsmon logs in as on its MONITOR line; it never needs
+ * to run commands or set variables, so it gets neither (the credential lives in
+ * upsmon.conf, so keeping it minimal limits the blast radius if it leaks).
+ */
+export function buildMonitorBlock(name: string, password: string, role: UpsmonType): string {
+    return [`[${name}]`, `\tpassword = ${password}`, `\tupsmon ${role}`].join("\n") + "\n";
 }
 
 /** A upsd.users section name follows the same rules as any NUT section name. */
@@ -129,10 +143,44 @@ function addToBlock(text: string | null | undefined, name: string, line: string,
     return lines.join("\n");
 }
 
-/** Add `upsmon secondary` to a user's block if it lacks an upsmon role (needed
- *  for UPSide's no-op LOGIN credential check). */
-export function addUpsmonRole(text: string | null | undefined, name: string): string {
-    return addToBlock(text, name, "\tupsmon secondary", /^\s*upsmon\s+\S+/i);
+/** Add `upsmon <role>` (default secondary) to a user's block if it lacks any
+ *  upsmon role (needed for UPSide's no-op LOGIN credential check). */
+export function addUpsmonRole(text: string | null | undefined, name: string, role: UpsmonType = "secondary"): string {
+    return addToBlock(text, name, `\tupsmon ${role}`, /^\s*upsmon\s+\S+/i);
+}
+
+/**
+ * Force a user's upsmon role to `role`, replacing any existing `upsmon <role>`
+ * line in its block (addUpsmonRole can't change one — its regex matches any
+ * role, so it treats a `secondary` line as "already present"). Adds the line if
+ * absent. Used to upgrade a control user to `primary` for a UPS-owning host.
+ */
+export function setUpsmonRole(text: string | null | undefined, name: string, role: UpsmonType): string {
+    if (!text)
+        return text ?? "";
+    const lines = text.split("\n");
+    let start = -1;
+    let end = lines.length;
+    for (let i = 0; i < lines.length; i++) {
+        const sec = /^\s*\[(.+?)\]\s*$/.exec(lines[i]);
+        if (!sec)
+            continue;
+        if (start < 0 && sec[1] === name)
+            start = i;
+        else if (start >= 0) {
+            end = i;
+            break;
+        }
+    }
+    if (start < 0)
+        return text; // user not present
+    for (let i = start + 1; i < end; i++) {
+        if (/^\s*upsmon\s+\S+/i.test(lines[i])) {
+            lines[i] = `\tupsmon ${role}`;
+            return lines.join("\n");
+        }
+    }
+    return addUpsmonRole(text, name, role);
 }
 
 /** Add `actions = SET` to a user's block if it lacks it (needed to set
