@@ -19,7 +19,7 @@
 import cockpit from 'cockpit';
 
 import { appendStanza, parseConfSections } from './setup-parse';
-import { UserGrants, addUpsmonRole, buildUserBlock, parseUserBlock } from './control-user-parse';
+import { UserGrants, addSetAction, addUpsmonRole, buildUserBlock, parseUserBlock } from './control-user-parse';
 
 export * from './control-user-parse';
 
@@ -133,14 +133,15 @@ export async function readControlUser(name: string): Promise<UserGrants | null> 
 }
 
 /**
- * Make an existing control user validatable: if it lacks an `upsmon` role (so a
- * no-op LOGIN can't verify its password), add one — leaving its password and
- * instcmds untouched. We do NOT read or return the password: when reusing a
- * user, the operator types it so UPSide validates and stores what they entered,
- * never a credential silently lifted out of upsd.users. Returns whether a role
- * was added (false = already validatable / nothing changed).
+ * Make an existing control user fully capable for UPSide, adding only what's
+ * missing and never touching its password:
+ *   - an `upsmon` role, so a no-op LOGIN can verify the credentials;
+ *   - `actions = SET`, so it can change read-write variables (upsrw).
+ * We don't read or return the password — when reusing a user the operator types
+ * it, so UPSide validates and stores what they entered, never a credential
+ * lifted out of upsd.users. Returns which grants were added.
  */
-export async function ensureUpsmonRole(name: string): Promise<{ grantedUpsmon: boolean }> {
+export async function ensureControlGrants(name: string): Promise<{ grantedUpsmon: boolean, grantedSet: boolean }> {
     const path = await findUsersFile();
     const current = await read(path, "try");
     if (current === null)
@@ -148,8 +149,13 @@ export async function ensureUpsmonRole(name: string): Promise<{ grantedUpsmon: b
     const g = parseUserBlock(current, name);
     if (!g)
         throw new Error(cockpit.format(_("\"$0\" isn't in upsd.users."), name));
-    if (g.hasUpsmon)
-        return { grantedUpsmon: false };
-    await writeUsersFile(path, addUpsmonRole(current, name), current);
-    return { grantedUpsmon: true };
+    let next = current;
+    if (!g.hasUpsmon)
+        next = addUpsmonRole(next, name);
+    if (!g.hasSet)
+        next = addSetAction(next, name);
+    if (next === current)
+        return { grantedUpsmon: false, grantedSet: false };
+    await writeUsersFile(path, next, current);
+    return { grantedUpsmon: !g.hasUpsmon, grantedSet: !g.hasSet };
 }

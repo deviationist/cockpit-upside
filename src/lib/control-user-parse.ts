@@ -15,15 +15,18 @@ export const DEFAULT_USER = "upside";
 
 /**
  * Render an upsd.users block for a control user: the password, the granted
- * instant commands, and `upsmon secondary`. The upsmon role is what lets UPSide
- * validate the credentials with a no-op LOGIN (see control.ts validateCreds) —
- * without it, LOGIN is denied even for the correct password. The user is still
- * limited to the listed instcmds for actual control.
+ * instant commands, `actions = SET`, and `upsmon secondary`.
+ *  - instcmds let it run the chosen instant commands (upscmd).
+ *  - `actions = SET` lets it change read-write variables (upsrw) — without it
+ *    upsd answers ACCESS-DENIED to a SET even with the right password.
+ *  - the upsmon role lets UPSide validate the credentials with a no-op LOGIN
+ *    (see control.ts validateCreds); without it LOGIN is denied.
  */
 export function buildUserBlock(name: string, password: string, instcmds: string[]): string {
     const lines = [`[${name}]`, `\tpassword = ${password}`];
     for (const c of instcmds)
         lines.push(`\tinstcmds = ${c}`);
+    lines.push("\tactions = SET");
     lines.push("\tupsmon secondary");
     return lines.join("\n") + "\n";
 }
@@ -43,6 +46,8 @@ export interface UserGrants {
     allCmds: boolean;
     /** Has an `upsmon <role>` line — required for UPSide's no-op LOGIN validation. */
     hasUpsmon: boolean;
+    /** Has `actions = … SET …` — required to set read-write variables (upsrw). */
+    hasSet: boolean;
 }
 
 /**
@@ -56,7 +61,7 @@ export function parseUserBlock(text: string | null | undefined, name: string): U
         return null;
     let inSection = false;
     let found = false;
-    const g: UserGrants = { password: null, instcmds: [], allCmds: false, hasUpsmon: false };
+    const g: UserGrants = { password: null, instcmds: [], allCmds: false, hasUpsmon: false, hasSet: false };
     for (const line of text.split("\n")) {
         const sec = /^\s*\[(.+?)\]\s*$/.exec(line);
         if (sec) {
@@ -82,17 +87,18 @@ export function parseUserBlock(text: string | null | undefined, name: string): U
         }
         if (/^\s*upsmon\s+\S+/i.test(line))
             g.hasUpsmon = true;
+        if (/^\s*actions\s*=.*\bSET\b/i.test(line))
+            g.hasSet = true;
     }
     return found ? g : null;
 }
 
 /**
- * Add `upsmon secondary` to the `[name]` block if it has no upsmon role, leaving
- * everything else — crucially the password — untouched. Used to make an existing
- * user validatable (no-op LOGIN) without rewriting/handling its password. Returns
- * the text unchanged if the user is absent or already has a role.
+ * Insert `line` into the `[name]` block if no existing line in it matches
+ * `present`, leaving everything else — crucially the password — untouched.
+ * Returns the text unchanged if the user is absent or already has it.
  */
-export function addUpsmonRole(text: string | null | undefined, name: string): string {
+function addToBlock(text: string | null | undefined, name: string, line: string, present: RegExp): string {
     if (!text)
         return text ?? "";
     const lines = text.split("\n");
@@ -112,13 +118,25 @@ export function addUpsmonRole(text: string | null | undefined, name: string): st
     if (start < 0)
         return text; // user not present
     for (let i = start + 1; i < end; i++) {
-        if (/^\s*upsmon\s+\S+/i.test(lines[i]))
-            return text; // already has a role
+        if (present.test(lines[i]))
+            return text; // already present
     }
     // Insert after the block's last non-blank line.
     let at = end;
     while (at - 1 > start && lines[at - 1].trim() === "")
         at--;
-    lines.splice(at, 0, "\tupsmon secondary");
+    lines.splice(at, 0, line);
     return lines.join("\n");
+}
+
+/** Add `upsmon secondary` to a user's block if it lacks an upsmon role (needed
+ *  for UPSide's no-op LOGIN credential check). */
+export function addUpsmonRole(text: string | null | undefined, name: string): string {
+    return addToBlock(text, name, "\tupsmon secondary", /^\s*upsmon\s+\S+/i);
+}
+
+/** Add `actions = SET` to a user's block if it lacks it (needed to set
+ *  read-write variables via upsrw). */
+export function addSetAction(text: string | null | undefined, name: string): string {
+    return addToBlock(text, name, "\tactions = SET", /^\s*actions\s*=.*\bSET\b/i);
 }

@@ -9,15 +9,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { addUpsmonRole, buildUserBlock, isValidUserName, parseUserBlock } from './control-user-parse.ts';
+import { addSetAction, addUpsmonRole, buildUserBlock, isValidUserName, parseUserBlock } from './control-user-parse.ts';
 
-test("buildUserBlock: tab-indented block with password, instcmds and upsmon role", () => {
+test("buildUserBlock: password, instcmds, actions=SET and the upsmon role", () => {
     const block = buildUserBlock("upside", "deadbeef", ["test.battery.start", "beeper.toggle"]);
     assert.equal(block,
                  "[upside]\n" +
         "\tpassword = deadbeef\n" +
         "\tinstcmds = test.battery.start\n" +
         "\tinstcmds = beeper.toggle\n" +
+        "\tactions = SET\n" +
         "\tupsmon secondary\n");
 });
 
@@ -34,20 +35,29 @@ test("buildUserBlock: one instcmds line per command, in order", () => {
     assert.deepEqual(lines, ["\tinstcmds = a", "\tinstcmds = b", "\tinstcmds = c"]);
 });
 
-test("parseUserBlock: extracts password, instcmds, upsmon role for a named user", () => {
-    const text = "[other]\n\tpassword = x\n\n[upside]\n\tpassword = s3cr3t\n\tinstcmds = beeper.toggle\n\tinstcmds = test.battery.start\n\tupsmon secondary\n";
+test("parseUserBlock: extracts password, instcmds, upsmon role + SET for a named user", () => {
+    const text = "[other]\n\tpassword = x\n\n[upside]\n\tpassword = s3cr3t\n\tinstcmds = beeper.toggle\n\tinstcmds = test.battery.start\n\tactions = SET\n\tupsmon secondary\n";
     assert.deepEqual(parseUserBlock(text, "upside"), {
-        password: "s3cr3t", instcmds: ["beeper.toggle", "test.battery.start"], allCmds: false, hasUpsmon: true,
+        password: "s3cr3t", instcmds: ["beeper.toggle", "test.battery.start"], allCmds: false, hasUpsmon: true, hasSet: true,
     });
     // Different section's fields don't bleed in.
-    assert.deepEqual(parseUserBlock(text, "other"), { password: "x", instcmds: [], allCmds: false, hasUpsmon: false });
+    assert.deepEqual(parseUserBlock(text, "other"), { password: "x", instcmds: [], allCmds: false, hasUpsmon: false, hasSet: false });
 });
 
-test("parseUserBlock: ALL → allCmds, no upsmon → hasUpsmon false, missing → null", () => {
+test("parseUserBlock: ALL → allCmds, no upsmon/SET → false, missing → null", () => {
     assert.deepEqual(parseUserBlock("[u]\n\tpassword = p\n\tinstcmds = ALL\n", "u"),
-                     { password: "p", instcmds: [], allCmds: true, hasUpsmon: false });
+                     { password: "p", instcmds: [], allCmds: true, hasUpsmon: false, hasSet: false });
+    assert.equal(parseUserBlock("[u]\n\tpassword = p\n\tactions = SET FSD\n", "u")?.hasSet, true);
     assert.equal(parseUserBlock("[u]\n\tpassword = p\n", "absent"), null);
     assert.equal(parseUserBlock("", "u"), null);
+});
+
+test("addSetAction: adds actions=SET when missing, no-op when present", () => {
+    const out = addSetAction("[upside]\n\tpassword = s\n\tupsmon secondary\n", "upside");
+    assert.match(out, /\tactions = SET\n/);
+    assert.match(out, /\tpassword = s\n/); // untouched
+    const has = "[u]\n\tpassword = p\n\tactions = SET\n";
+    assert.equal(addSetAction(has, "u"), has);
 });
 
 test("addUpsmonRole: adds a role to a user missing one, leaves the password", () => {
