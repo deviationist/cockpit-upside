@@ -116,6 +116,15 @@ export async function createControlUser(name: string, password: string, instcmds
     return { path };
 }
 
+/**
+ * Create a secondary-login user: the upsd.users entry a remote upsmon logs in
+ * as on a netserver primary — a password + `upsmon secondary`, no command
+ * grants. Same privileged write path as a control user, just no instcmds.
+ */
+export async function createSecondaryUser(name: string, password: string): Promise<{ path: string }> {
+    return createControlUser(name, password, []);
+}
+
 /** Read an existing user's grants (password + instcmds + upsmon role). Needs
  *  admin to see the password; returns null for a missing user or non-admin.
  *  Uses "try" so it doesn't pop an admin prompt just from inspecting a name. */

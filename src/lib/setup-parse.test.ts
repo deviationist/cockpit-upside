@@ -10,8 +10,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
-    appendStanza, buildManualUsbStanza, buildUpsStanza, describeDevice, isValidSectionName,
-    parseConfSections, parseLsusb, parseMode, parseScannerOutput, removeStanza, setModeText, usbScanDisabled,
+    addListen, appendStanza, buildManualUsbStanza, buildUpsStanza, describeDevice, isValidSectionName,
+    parseConfSections, parseListen, parseLsusb, parseMode, parseScannerOutput, removeStanza, setModeText, usbScanDisabled,
 } from './setup-parse.ts';
 
 const NUT_CONF = `# Network UPS Tools: example nut.conf
@@ -136,4 +136,21 @@ test("parseLsusb: id + name, flags UPS-looking devices", () => {
     assert.equal(out.length, 2);
     assert.deepEqual(out[0], { id: "06da:ffff", name: "Phoenixtec Power Co., Ltd Offline UPS", likelyUps: true });
     assert.equal(out[1].likelyUps, false);
+});
+
+test("parseListen: reads LISTEN addr + optional port", () => {
+    const conf = "# upsd.conf\nLISTEN 127.0.0.1 3493\nLISTEN 10.99.0.1 3493\nLISTEN ::1\n";
+    assert.deepEqual(parseListen(conf), [
+        { addr: "127.0.0.1", port: 3493 },
+        { addr: "10.99.0.1", port: 3493 },
+        { addr: "::1", port: null },
+    ]);
+    assert.deepEqual(parseListen(""), []);
+});
+
+test("addListen: appends only when the address isn't already listened on", () => {
+    const conf = "LISTEN 127.0.0.1 3493\n";
+    assert.equal(addListen(conf, "10.99.0.1", 3493), "LISTEN 127.0.0.1 3493\nLISTEN 10.99.0.1 3493\n");
+    assert.equal(addListen(conf, "127.0.0.1", 3493), conf); // already present → unchanged
+    assert.equal(addListen("", "0.0.0.0", 3493), "LISTEN 0.0.0.0 3493\n");
 });

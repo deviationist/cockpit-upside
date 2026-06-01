@@ -17,13 +17,15 @@
 
 import cockpit from 'cockpit';
 
-import { NutMode, appendStanza, parseConfSections, parseMode, removeStanza, setModeText } from './setup-parse';
+import { NutMode, addListen, appendStanza, parseConfSections, parseListen, parseMode, removeStanza, setModeText } from './setup-parse';
 
 export * from './setup-parse';
 
 const NUT_DIRS = ["/etc/nut", "/etc/ups"];
 const SERVER_UNIT = "nut-server.service";
 const DRIVER_UNIT = "nut-driver-enumerator.service";
+/** upsd's default TCP port (RFC 9271). */
+export const NUT_PORT = 3493;
 
 export interface SetupState {
     /** upsd/upsdrvctl present on PATH (the server — a locally-attached UPS). */
@@ -42,6 +44,9 @@ export interface SetupState {
     serverActive: boolean;
     /** Names from `upsc -l` — the real proof the stack works. */
     upsList: string[];
+    /** upsd.conf LISTEN addresses (what upsd binds) — a non-loopback one means
+     *  it's reachable by secondaries (netserver). */
+    listen: string[];
     /** Detected package manager for the install hint. */
     pkgManager: "apt" | "dnf" | "zypper" | "pacman" | undefined;
     /** A privileged read failed — the user likely needs admin to diagnose. */
@@ -97,6 +102,7 @@ export async function detect(): Promise<SetupState> {
     const mode = parseMode(nutConf);
     const upsConf = await readTry(`${dir}/ups.conf`);
     const sections = parseConfSections(upsConf);
+    const listen = parseListen(await readTry(`${dir}/upsd.conf`)).map(e => e.addr);
     const serverActive = (await sh(`systemctl is-active ${SERVER_UNIT} || true`)) === "active";
 
     let upsList: string[] = [];
@@ -115,6 +121,7 @@ export async function detect(): Promise<SetupState> {
         sections,
         serverActive,
         upsList,
+        listen,
         pkgManager: await detectPkgManager(),
         needAdmin,
     };
@@ -200,6 +207,50 @@ export async function removeSection(confDir: string, name: string): Promise<stri
     const next = removeStanza(current, name);
     await writeWithBackup(path, next, current);
     return next;
+}
+
+/** Existing LISTEN addresses in upsd.conf (what upsd binds). Empty for non-admins. */
+export async function listenEntries(confDir: string): Promise<string[]> {
+    return parseListen(await readTry(`${confDir}/upsd.conf`)).map(e => e.addr);
+}
+
+/**
+ * Make a netserver primary reachable: add `LISTEN <addr> 3493` to upsd.conf
+ * (preserving the loopback and anything else) and restart upsd so it re-binds.
+ * No-op if already listening on that address. Returns the new file text.
+ */
+export async function applyListen(confDir: string, addr: string, port = NUT_PORT): Promise<string> {
+    const path = `${confDir}/upsd.conf`;
+    const current = await readTry(path);
+    const next = addListen(current, addr, port);
+    if (next === (current ?? ""))
+        return next; // already listening there
+    await writeWithBackup(path, next, current);
+    // LISTEN changes need a re-bind, not just a SIGHUP, so restart upsd.
+    await cockpit.spawn(["systemctl", "restart", SERVER_UNIT], { superuser: "require", err: "message" });
+    return next;
+}
+
+/** Host IPv4 addresses a secondary could reach upsd on (global scope, no loopback). */
+export async function listenAddresses(): Promise<string[]> {
+    const out = await sh("ip -o -4 addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1");
+    return out.split("\n").map(s => s.trim())
+            .filter(Boolean);
+}
+
+/**
+ * The command to open TCP 3493 to secondaries, for the detected firewall — shown
+ * as guidance, never run. Opening a port is host- and distro-specific (and the
+ * homelab nft rule shape varies), so UPSide doesn't mutate the firewall itself.
+ */
+export async function firewallHint(): Promise<string> {
+    const tool = await sh("for t in firewall-cmd ufw nft; do command -v $t >/dev/null && { echo $t; break; }; done");
+    switch (tool) {
+    case "firewall-cmd": return `sudo firewall-cmd --add-port=${NUT_PORT}/tcp --permanent && sudo firewall-cmd --reload`;
+    case "ufw": return `sudo ufw allow ${NUT_PORT}/tcp`;
+    case "nft": return `# add to your input chain, scoped to the secondaries' subnet:\nsudo nft add rule inet filter input tcp dport ${NUT_PORT} accept`;
+    default: return `# allow inbound TCP ${NUT_PORT} from your secondaries in your firewall`;
+    }
 }
 
 /**
