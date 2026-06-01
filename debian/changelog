@@ -1,3 +1,17 @@
+cockpit-upside (1.0.0) noble; urgency=medium
+
+  * Control: instant commands (upscmd, risk-tiered with a danger zone),
+    writable variables (upsrw Configuration view), and clean shutdown on low
+    battery (upsmon Shutdown step + per-UPS settings, opt-in killpower).
+  * Event notifications (upsmon NOTIFY) via a pluggable adapter that defaults
+    to the system mailer.
+  * Guided setup wizard (NUT modes) covering USB / SNMP / serial devices, and
+    one-click "enable history" (PCP).
+  * Per-UPS Manage menu, remote-upsd (name@host) support, and a version
+    indicator.
+
+ -- Robert Sæther <robert4832@pm.me>  Mon, 01 Jun 2026 20:37:58 +0000
+
 cockpit-upside (0.1.0) noble; urgency=medium
 
   * Initial release: UPS monitoring for Cockpit, powered by NUT.

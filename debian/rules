@@ -20,6 +20,11 @@ override_dh_auto_build:
 
 override_dh_auto_test:
 
+# Don't run `make clean` — it deletes dist/, the very bundle we ship. dpkg-
+# buildpackage runs clean before building, so without this the install step
+# below finds no dist/.
+override_dh_auto_clean:
+
 override_dh_auto_install:
 	mkdir -p $(DESTDIR)/usr/share/cockpit/upside
 	cp -r dist/. $(DESTDIR)/usr/share/cockpit/upside/
