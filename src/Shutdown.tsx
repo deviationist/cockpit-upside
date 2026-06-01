@@ -27,6 +27,7 @@ import cockpit from 'cockpit';
 import { applyUpsmonPolicy, detect, readUpsmon, startMonitor, stopMonitor } from './lib/setup';
 import { DEFAULT_POWERDOWN_FLAG, hasPowerDownFlag, isValidShutdownCmd, parseUpsmonConf } from './lib/upsmon-parse';
 import { requestAdmin, useAdmin } from './lib/admin';
+import { UpsMenu } from './UpsMenu';
 
 const _ = cockpit.gettext;
 const msg = (e: unknown): string => (e instanceof Error ? e.message : String(e));
@@ -93,6 +94,7 @@ export const Shutdown = ({ ups, title }: { ups: string, title?: string }) => {
                     </BreadcrumbItem>
                     <BreadcrumbItem isActive>{_("Shutdown")}</BreadcrumbItem>
                 </Breadcrumb>
+                <div className="upside-metrics__bar"><UpsMenu ups={ups} current="shutdown" /></div>
             </div>
 
             <Card>
