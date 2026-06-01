@@ -23,46 +23,46 @@ Monitoring reads with `upsc`. Control is three *other* NUT clients:
 `upscmd` (instant commands), `upsrw` (read-write variables), and `upsmon`
 (shutdown handling).
 
-### Tier A — Safe instant commands  ← committed next step
+### Tier A — Safe instant commands  ✅ done
 
-`upscmd`, low blast radius.
+`upscmd`, low blast radius: beeper + battery/panel self-tests, one click. Proved
+the per-session credential model (in-memory only) + `upscmd -l` capability
+discovery (only supported commands shown).
 
-- [ ] Battery self-test (`test.battery.start.quick` / `.deep`,
-      `test.battery.stop`); surface `ups.test.result`.
-- [ ] Beeper control (`beeper.mute` / `beeper.disable` / `beeper.enable`).
-- [ ] Per-session credential prompt (NUT user + password, in memory only) and
-      `upscmd -l` capability discovery to show only supported commands.
+### Tier B — Variable tuning  ✅ done
 
-Worst case is a silenced beeper or a self-test — so this is where we prove the
-auth + capability model before anything riskier.
+`upsrw` read-write variables (low-battery %, runtime-low, shutdown/start delays,
+transfer voltages…) — the per-UPS **Configuration** view with typed editors and
+batch apply. Needs the NUT `actions = SET` grant, added to the control user on
+demand.
 
-### Tier B — Threshold tuning *(later)*
+### Tier D — Power control  ✅ done (gated)
 
-`upsrw` read-write variables: low-battery %, runtime-low, shutdown/start delays.
-Device-only and reversible.
+`load.off` / `load.on` (± delay), shutdown sequences, calibrate, bypass — the
+risk-tiered Controls card: confirm-first for recoverable actions, a collapsed
+**danger zone** with an explicit "this cuts power" acknowledgment for the rest.
+Capability-driven; unknown commands default into the danger zone.
 
-### Tier C — Shutdown integration *(later)*
+### Tier C — Shutdown integration *(still future)*
 
-`upsmon` + a scoped `upsd.users` so the host shuts down cleanly on low battery —
-the deferred half of the setup guide, and the most genuinely useful "control"
-for a homelab. Bigger config surface; touches credentials.
-
-### Tier D — Power control *(maybe; heavily guarded)*
-
-`load.off` / `load.on`, outlet switching, forced shutdown, calibrate, bypass.
-Can power off the host itself — only behind hard confirmation, possibly a config
-flag, or omitted.
+`upsmon` config so a host powers down cleanly on low battery. The setup wizard's
+netserver/netclient roles wire the **connectivity** (LISTEN, a secondary login,
+the remote source) but deliberately **not** the `upsmon` shutdown sequencing —
+that's the remaining piece, and the most genuinely useful "control" for a
+homelab. Bigger config surface; touches credentials + shutdown timing.
 
 ## Other improvements
 
-- [ ] **"Protecting hosts" view** — list the `upsmon` secondaries connected to a
-      UPS via `upsc -c <ups>` (read-only, no auth), so the Detail page shows
-      every host that will shut down on it (e.g. a primary + its secondaries).
-      Note: NUT renamed master/secondary → primary/secondary in 2.8.
-- [ ] Remote `upsd` support (`name@host`) for UPSes on other hosts.
-- [ ] History across multiple `pmlogger` archive volumes (reads the latest now).
+- [x] **"Protecting hosts" view** — the Detail page lists `upsmon` clients via
+      `upsc -c <ups>` (read-only).
+- [x] Remote `upsd` support (`name@host`) — monitor/control a UPS on another host.
+- [x] History across multiple `pmlogger` archive volumes.
 - [ ] One-click "enable history" that installs the PCP scraper automatically.
-- [ ] Setup guide: scan serial/SNMP buses (today it's USB via `nut-scanner -U`).
+- [ ] **Setup: serial / SNMP buses** — today the wizard auto-detects USB
+      (`nut-scanner -U`) + manual USB-HID; a network/SNMP UPS (`snmp-ups`, host +
+      community) or serial UPS still needs a hand-written `ups.conf` stanza.
+- [ ] **History on a secondary** — a local scraper + `pmlogger` on a remote-source
+      host so Trends works there too.
 - [ ] Event notifications (`upssched` / `NOTIFYCMD`) — email on power events,
       pairing with an existing mail relay.
 
