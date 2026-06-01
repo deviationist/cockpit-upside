@@ -633,49 +633,45 @@ $upside-amber: #f59e0b;
     margin-inline-start: auto;
 }
 
-// Metrics header is a grid (not the shared flex) so it can reflow on small
-// screens: breadcrumb + controls + Manage on one row normally; on ≤767px the
-// Manage menu stays top-right with the breadcrumb and the filter controls drop
-// to a right-aligned row below. Scoped to .upside-metrics so the other
-// sub-pages keep the simple flex header.
+// Query the metrics page's own width (not the viewport) so the header reflows
+// on actual available space — tablet, narrow desktop window, or sidebar present
+// all behave correctly, not just by screen size.
+.upside-metrics {
+    container-type: inline-size;
+}
+
+// Metrics header is a grid (not the shared flex) so it can reflow. Default
+// (mobile-first, and any width too tight for one row): two rows — breadcrumb +
+// Manage up top, the filter controls on a right-aligned row below. The bar
+// never gets crammed next to the breadcrumb; it drops down the moment it
+// wouldn't fit. Scoped to .upside-metrics so the other sub-pages keep the
+// simple flex header.
 .upside-metrics > .upside-metrics__header {
     display: grid;
     align-items: center;
     column-gap: 1rem;
     row-gap: 0.5rem;
-    grid-template-columns: auto 1fr auto;
-    grid-template-areas: "crumb bar menu";
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+        "crumb menu"
+        "bar   bar";
 
     > .upside-metrics__crumb { grid-area: crumb; }
-
-    > .upside-metrics__bar {
-        grid-area: bar;
-        justify-self: end; // controls hug the right, next to the menu
-        margin-inline-start: 0; // grid handles placement, not the flex auto-margin
-    }
-
-    // Manage menu in its own column, set off by a thin left divider.
-    > .upside-metrics__menu {
-        grid-area: menu;
-        margin-inline-start: 0;
-        padding-inline-start: 1rem;
-        border-inline-start: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
-    }
+    > .upside-metrics__bar { grid-area: bar; justify-self: end; margin-inline-start: 0; }
+    > .upside-metrics__menu { grid-area: menu; margin-inline-start: 0; }
 }
 
-@media (width <= 767px) {
+// Only collapse to a single row once there's genuinely room for breadcrumb +
+// controls + Manage side by side (~64rem of content width), set off by a thin
+// left divider on the Manage column.
+@container (width >= 64rem) {
     .upside-metrics > .upside-metrics__header {
-        grid-template-columns: 1fr auto;
-        grid-template-areas:
-            "crumb menu"
-            "bar   bar";
+        grid-template-columns: auto 1fr auto;
+        grid-template-areas: "crumb bar menu";
 
-        > .upside-metrics__bar { justify-self: end; } // filter row right-aligned, not left
-
-        // No divider once the menu sits on its own row with the breadcrumb.
         > .upside-metrics__menu {
-            padding-inline-start: 0;
-            border-inline-start: 0;
+            padding-inline-start: 1rem;
+            border-inline-start: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
         }
     }
 }
