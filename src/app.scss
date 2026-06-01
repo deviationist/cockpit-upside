@@ -872,11 +872,27 @@ $upside-amber: #f59e0b;
 }
 
 // ---- PatternFly Wizard host ----
-// PF defaults the wizard to height:100% (--pf-v6-c-wizard--Height--base) which,
-// against this auto-height page section, forces unnecessary vertical scroll.
-// Size it to its content instead.
+// The wizard must fill the viewport so PF's own nav/body scrolling keeps every
+// step in view. Without a definite height the host is content-sized, so a long
+// step list runs below the fold and the whole page scrolls (the lower nav items
+// disappear off-screen). Give it a full-height flex chain — scoped to the wizard
+// route via :has(.upside-wizard) so other pages keep their natural flow.
+.pf-v6-c-page__main:has(.upside-wizard) {
+    display: flex;
+    flex-direction: column;
+}
+
+.upside-content:has(.upside-wizard),
+.upside-setup.upside-wizard {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-block-size: 0; // let the flex child shrink so its inner scroll engages
+}
+
 .upside-wizard__steps {
-    --pf-v6-c-wizard--Height: auto;
+    flex: 1 1 auto;
+    min-block-size: 0;
 }
 
 // Role picker (step 1): space the radio cards out.
