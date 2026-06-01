@@ -109,6 +109,15 @@ It is based on the official
   never runs from a probe. **Killpower** (POWERDOWNFLAG) is opt-in; the BIOS
   auto-power-on it depends on is firmware UPSide can't set (guidance only). The
   MONITOR `type` must match the user's `upsmon <role>` or LOGIN is denied.
+- **Event notifications — `upsmon` NOTIFY + a pluggable adapter** (`lib/upsmon-parse.ts`
+  setNotifyCmd/setNotifyFlagExec, `lib/notify-setup*.ts`, `Notifications.tsx`):
+  upsmon's `NOTIFYCMD` runs a host-side **dispatcher** that execs every script in
+  a drop-in `upside-notify.d/` dir (like PCP's config.d) — so new delivery
+  backends are a script drop-in, no code change. v1 ships a **mail adapter**
+  (system mailer; the default/fallback). Per-event `NOTIFYFLAG … EXEC` selects
+  which events fire. The recipient is **validated + read, never sourced** by the
+  adapter (no shell injection). Notifications are upsmon-global (host-wide), so
+  the per-UPS view says so; arming is admin-gated with a Send-test.
 
 ## Build / lint / test
 
@@ -247,12 +256,14 @@ src/Settings.tsx    file-backed settings form; HistorySetup.tsx (one-click PCP h
 src/Controls.tsx    control-mode action card (risk-tiered + danger zone); NutAuthModal.tsx (auth), NutUserWizard.tsx (create/reuse user)
 src/Config.tsx      per-UPS writable-variable editor (upsrw; own #/ups/<name>/config route)
 src/Shutdown.tsx    per-UPS shutdown settings (upsmon; own #/ups/<name>/shutdown route)
+src/Notifications.tsx  per-UPS event-notification settings (upsmon NOTIFY; own #/ups/<name>/notifications route)
 src/Trends.tsx      PCP sparklines; src/Metrics.tsx full charts; Gauge/Chart/MetricChart (SVG); src/lib/axis.ts (ticks)
 src/lib/nut*.ts     NUT client (nut.ts, UpsRef/refId — local or name@host) + pure parsing (nut-parse.ts)
 src/lib/setup*.ts   setup probes/apply incl. MODE/LISTEN/firewall + USB/SNMP scan + serial (setup.ts) + pure parsing & stanza builders (setup-parse.ts)
 src/lib/control*.ts control commands/tiers/validate (control.ts, control-parse.ts) + control-user create/reuse/grants (control-user.ts)
 src/lib/rwvars*.ts  read-write variables: upsrw list/set (rwvars.ts) + pure parse/validate (rwvars-parse.ts)
-src/lib/upsmon-parse.ts  pure upsmon.conf parse + builders (setMonitorLine/setShutdownCmd/setPowerDownFlag/buildUpsmonConf); apply*/startMonitor/stopMonitor live in setup.ts
+src/lib/upsmon-parse.ts  pure upsmon.conf parse + builders (setMonitorLine/setShutdownCmd/setPowerDownFlag/setNotify*/buildUpsmonConf); apply*/startMonitor/stopMonitor live in setup.ts
+src/lib/notify-setup*.ts  event notifications: dispatcher + mail-adapter scripts (notify-setup-parse.ts) + install/detect/test (notify-setup.ts)
 src/lib/admin.ts    useAdmin (cockpit.permission) + requestAdmin (opens the shell escalation dialog)
 src/lib/history-setup*.ts  one-click PCP history: detect/enable (history-setup.ts, additive+idempotent) + scraper/pmlogger-rule pure parts (history-setup-parse.ts)
 src/lib/{config,derive,metrics,prefs}.ts   config (+ nutHost/mode), derived values, PCP reader (metrics.ts), localStorage prefs

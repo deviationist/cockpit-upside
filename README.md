@@ -155,6 +155,12 @@ npm run stylelint
   opt-in **killpower** toggle cuts the UPS outlet after shutdown so the host
   auto-reboots when mains returns — *if* its BIOS is set to power on after AC loss
   (firmware UPSide can't change, so it's surfaced as guidance).
+- **Event notifications** (`upsmon`) — a per-UPS **Notifications** view emails on
+  power events (on/low battery, back online, comms lost/restored, …) through a
+  **pluggable adapter**: a host-side dispatcher runs every script in a drop-in
+  `upside-notify.d/` dir, so new backends (webhook, ntfy, MQTT…) are just a script
+  away; the shipped one mails via the system mailer (sendmail/msmtp). Recipient is
+  validated and read-not-sourced, with a *Send test* to confirm delivery.
 - **Guided setup wizard** — a PatternFly wizard on its own route
   (`#/setup-wizard`); until a UPS is configured the whole app **locks to it** (no
   menu, no other pages). Step 1 picks this machine's **role** — *standalone* (UPS

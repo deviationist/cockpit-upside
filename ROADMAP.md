@@ -81,8 +81,14 @@ guidance). Proven end-to-end by a Docker integration test (dummy-ups +
       `installSnmpLib`/`listSerialPorts` in `setup.ts`.
 - [ ] **History on a secondary** — a local scraper + `pmlogger` on a remote-source
       host so Trends works there too.
-- [ ] Event notifications (`upssched` / `NOTIFYCMD`) — email on power events,
-      pairing with an existing mail relay.
+- [x] Event notifications (`NOTIFYCMD`) — a per-UPS **Notifications** view wires
+      upsmon to email on power events (on/low battery, back online, comms
+      lost/restored, …). Built on a **pluggable adapter**: a host-side dispatcher
+      runs every script in a drop-in `upside-notify.d/` dir, so new backends
+      (webhook, ntfy, MQTT…) are a script drop-in; v1 ships a mail adapter using
+      the system mailer (sendmail/msmtp — the default/fallback). Recipient is
+      validated + read-not-sourced (no injection); a Send-test button confirms
+      delivery. Lib: `lib/upsmon-parse.ts` (NOTIFY setters), `lib/notify-setup*.ts`.
 
 ## Maintenance
 
