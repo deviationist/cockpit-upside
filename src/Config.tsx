@@ -184,7 +184,7 @@ export const Config = ({ ups, title, mode }: { ups: string, title?: string, mode
                     </BreadcrumbItem>
                     <BreadcrumbItem isActive>{_("Configuration")}</BreadcrumbItem>
                 </Breadcrumb>
-                <div className="upside-metrics__bar"><UpsMenu ups={ups} current="config" /></div>
+                <div className="upside-metrics__menu"><UpsMenu ups={ups} current="config" /></div>
             </div>
 
             {!control &&
