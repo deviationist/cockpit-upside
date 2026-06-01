@@ -42,6 +42,7 @@ import { Shutdown } from './Shutdown';
 import { Topology } from './Topology';
 import { Trends } from './Trends';
 import { UpsMenu } from './UpsMenu';
+import { VERSION } from './version';
 import { Mode, UpsideConfig, loadModePref, resolveMode, saveConfig, saveModePref, useConfig } from './lib/config';
 import { NutCreds, clearNutCreds, loadNutCreds, saveNutCreds } from './lib/prefs';
 import { formatElapsed, monthsBetween, parseNutDate } from './lib/derive';
@@ -696,6 +697,9 @@ const About = () => (
             <Content component="p">
                 {_("UPSide is a Cockpit plugin for monitoring UPS devices managed by NUT (Network UPS Tools).")}
             </Content>
+            <Content component="small" className="upside-about__version">
+                {cockpit.format(_("Version $0"), VERSION)}
+            </Content>
             <Content component="p">
                 <Button
                     isInline
@@ -992,6 +996,7 @@ export const Application = () => {
                                 {mode === "control" ? _("Control") : _("Monitor")}
                             </button>
                         )}
+                    <span className="upside-version" title={_("UPSide version")}>{`v${VERSION}`}</span>
                     {github}
                 </div>
                 {menuOpen &&
