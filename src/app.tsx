@@ -351,6 +351,7 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
     mode: Mode,
 }) => {
     const [open, setOpen] = useState(false);
+    const [manageOpen, setManageOpen] = useState(false);
     const [renaming, setRenaming] = useState(false);
     const [nameDraft, setNameDraft] = useState("");
     // NUT control credentials (in memory; pre-loaded if "remembered" in storage).
@@ -558,6 +559,37 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
                                     {creds ? creds.user : _("Authenticate")}
                                 </Button>
                             </FlexItem>}
+                        {/* Per-UPS menu: the sub-pages, gathered in one place. */}
+                        <FlexItem>
+                            <Dropdown
+                                isOpen={manageOpen}
+                                onOpenChange={(o: boolean) => setManageOpen(o)}
+                                onSelect={() => setManageOpen(false)}
+                                popperProps={{ position: "right" }}
+                                toggle={toggleRef => (
+                                    <MenuToggle ref={toggleRef} isExpanded={manageOpen} onClick={() => setManageOpen(!manageOpen)}>
+                                        {_("Manage")}
+                                    </MenuToggle>
+                                )}
+                            >
+                                <DropdownList>
+                                    {/* Metrics/Trends are local history — not meaningful for a remote source. */}
+                                    {!remote &&
+                                        <DropdownItem onClick={() => cockpit.location.go(["ups", ups.ref.name, "metrics"])}>
+                                            {_("Metrics")}
+                                        </DropdownItem>}
+                                    <DropdownItem onClick={() => cockpit.location.go(["ups", ups.ref.name, "config"])}>
+                                        {_("Configuration")}
+                                    </DropdownItem>
+                                    <DropdownItem onClick={() => cockpit.location.go(["ups", ups.ref.name, "shutdown"])}>
+                                        {_("Shutdown")}
+                                    </DropdownItem>
+                                    <DropdownItem onClick={() => cockpit.location.go(["ups", ups.ref.name, "variables"])}>
+                                        {_("All variables")}
+                                    </DropdownItem>
+                                </DropdownList>
+                            </Dropdown>
+                        </FlexItem>
                     </Flex>
                 </FlexItem>
             </Flex>
@@ -588,15 +620,6 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
                 </CardBody>
             </Card>
 
-            <div className="upside-detail__links">
-                <Button variant="link" isInline onClick={() => cockpit.location.go(["ups", ups.ref.name, "config"])}>
-                    {_("Configure settings →")}
-                </Button>
-                <Button variant="link" isInline onClick={() => cockpit.location.go(["ups", ups.ref.name, "shutdown"])}>
-                    {_("Shutdown settings →")}
-                </Button>
-            </div>
-
             {mode === "control" &&
                 <Controls ups={upsId} creds={creds} vars={vars} onAuthNeeded={() => setAuthOpen(true)} />}
 
@@ -613,14 +636,6 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
                     </Card>
                 ))}
             </Gallery>
-
-            {/* The full variable dump lives on its own page; link to it below the
-                curated cards (where the old "All variables" card used to be). */}
-            <div className="upside-detail__links">
-                <Button variant="link" isInline onClick={() => cockpit.location.go(["ups", ups.ref.name, "variables"])}>
-                    {_("All variables →")}
-                </Button>
-            </div>
 
             <NutAuthModal
                 isOpen={authOpen}
