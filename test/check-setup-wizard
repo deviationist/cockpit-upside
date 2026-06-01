@@ -1,0 +1,97 @@
+#!/usr/bin/python3 -cimport os, sys; os.execv(os.path.dirname(sys.argv[1]) + "/common/pywrap", sys.argv)
+
+# Run this with --help to see available options for tracing and debugging
+# See https://github.com/cockpit-project/cockpit/blob/main/test/common/testlib.py
+# "class Browser" and "class MachineCase" for the available API.
+
+import testlib
+
+
+# Destructive: installs NUT and writes /etc/nut, so each test gets a fresh VM.
+# Exercises the setup wizard's device step end-to-end in a real browser — the
+# SNMP and serial panels render, and an "Add" writes the ups.conf stanza that
+# buildSnmpStanza/buildSerialStanza produce. Complements:
+#   - the unit tests (the stanza strings), and
+#   - test/integration/snmp.test.ts (the stanza actually drives snmp-ups).
+class TestSetupWizard(testlib.MachineCase):
+    def install_nut(self):
+        # NUT must be installed (upsd/upsdrvctl on PATH) for the wizard to reach
+        # the device step; leave ups.conf unconfigured so the bus selector shows.
+        m = self.machine
+        if "debian" in m.image or "ubuntu" in m.image:
+            m.execute("DEBIAN_FRONTEND=noninteractive apt-get install -y nut-server nut-client")
+        else:
+            m.execute("dnf install -y nut")
+        # A pristine, sectionless ups.conf → DeviceStep shows the connection picker.
+        m.execute("install -d /etc/nut && printf '# test\\n' > /etc/nut/ups.conf")
+
+    def reach_device_step(self, role):
+        """Log in, grant admin, and click through Role → Install → Device."""
+        b = self.browser
+        self.install_nut()
+        self.login_and_go("/upside")
+        b.become_superuser()
+        b.enter_page("/upside")
+
+        # The app is locked to the wizard until a UPS exists, so we land on it.
+        b.wait_visible(f"#role-{role}")
+        b.click(f"#role-{role}")
+        # Role → Install.
+        b.click(".pf-v6-c-wizard__footer button.pf-m-primary")
+        b.wait_in_text(".pf-v6-c-wizard__main", "NUT is installed")
+        # Install → Device.
+        b.click(".pf-v6-c-wizard__footer button.pf-m-primary")
+        b.wait_visible("#upside-bus")
+
+    def testSnmpDevice(self):
+        b = self.browser
+        m = self.machine
+        self.reach_device_step("standalone")
+
+        # Pick the SNMP (network) connection type → the snmp-ups form appears.
+        b.select_from_dropdown("#upside-bus", "snmp")
+        b.wait_visible("#snmp-host")
+        b.set_input_text("#snmp-host", "192.168.1.5")
+        b.select_from_dropdown("#snmp-version", "v2c")
+        b.set_input_text("#snmp-community", "private")
+
+        # The live stanza preview is what buildSnmpStanza() renders.
+        b.wait_in_text(".upside-scan__dev pre.upside-cmd", 'driver = "snmp-ups"')
+        b.wait_in_text(".upside-scan__dev pre.upside-cmd", 'port = "192.168.1.5"')
+        b.wait_in_text(".upside-scan__dev pre.upside-cmd", 'snmp_version = "v2c"')
+        b.wait_in_text(".upside-scan__dev pre.upside-cmd", 'community = "private"')
+
+        # Apply it and confirm the wizard wrote the stanza to ups.conf.
+        b.click(".upside-scan__dev button.pf-m-primary")
+        b.wait_in_text(".pf-v6-c-wizard__main", "ups.conf defines")
+        conf = m.execute("cat /etc/nut/ups.conf")
+        self.assertIn('driver = "snmp-ups"', conf)
+        self.assertIn('port = "192.168.1.5"', conf)
+        self.assertIn('community = "private"', conf)
+        self.assertEqual(m.execute("grep -c '^MODE=standalone' /etc/nut/nut.conf").strip(), "1")
+
+    def testSerialDevice(self):
+        b = self.browser
+        m = self.machine
+        self.reach_device_step("standalone")
+
+        # Pick Serial → driver picker + port; choose a curated driver.
+        b.select_from_dropdown("#upside-bus", "serial")
+        b.wait_visible("#serial-driver")
+        b.select_from_dropdown("#serial-driver", "apcsmart")
+        # No /dev/tty* in the VM, so the custom path field is shown.
+        b.wait_visible("#serial-customport")
+        b.set_input_text("#serial-customport", "/dev/ttyS0")
+
+        b.wait_in_text(".upside-scan__dev pre.upside-cmd", 'driver = "apcsmart"')
+        b.wait_in_text(".upside-scan__dev pre.upside-cmd", 'port = "/dev/ttyS0"')
+
+        b.click(".upside-scan__dev button.pf-m-primary")
+        b.wait_in_text(".pf-v6-c-wizard__main", "ups.conf defines")
+        conf = m.execute("cat /etc/nut/ups.conf")
+        self.assertIn('driver = "apcsmart"', conf)
+        self.assertIn('port = "/dev/ttyS0"', conf)
+
+
+if __name__ == '__main__':
+    testlib.test_main()
