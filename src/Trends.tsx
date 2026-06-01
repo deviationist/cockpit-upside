@@ -87,6 +87,14 @@ export const Trends = ({ ups, archiveDir, locale }: { ups: string, archiveDir?: 
             <Alert variant="info" isInline title={_("No history yet")}>
                 <p>{_("History comes from PCP (pmlogger). It will appear here once a few samples have been recorded; if PCP isn't collecting NUT metrics, there's nothing to show.")}</p>
                 {diag && <p className="pf-v6-u-mt-sm"><strong>{_("Diagnostic:")}</strong> {diag}</p>}
+                <Button
+                    variant="link"
+                    isInline
+                    className="pf-v6-u-mt-sm"
+                    onClick={() => cockpit.location.go(["settings"])}
+                >
+                    {_("Set up history collection →")}
+                </Button>
             </Alert>
         );
     } else if (data === null) {
