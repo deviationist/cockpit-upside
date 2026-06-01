@@ -11,7 +11,7 @@ import { Button } from "@patternfly/react-core/dist/esm/components/Button/index.
 import { Card, CardBody, CardFooter, CardTitle } from "@patternfly/react-core/dist/esm/components/Card/index.js";
 import { Content } from "@patternfly/react-core/dist/esm/components/Content/index.js";
 import { Dropdown, DropdownItem, DropdownList } from "@patternfly/react-core/dist/esm/components/Dropdown/index.js";
-import { EmptyState, EmptyStateBody } from "@patternfly/react-core/dist/esm/components/EmptyState/index.js";
+import { EmptyState, EmptyStateActions, EmptyStateBody, EmptyStateFooter } from "@patternfly/react-core/dist/esm/components/EmptyState/index.js";
 import { Label } from "@patternfly/react-core/dist/esm/components/Label/index.js";
 import { MenuToggle } from "@patternfly/react-core/dist/esm/components/MenuToggle/index.js";
 import { Page, PageSection } from "@patternfly/react-core/dist/esm/components/Page/index.js";
@@ -326,12 +326,31 @@ const Overview = ({ upses, error, descs, names, lastUpdate }: {
     descs: Record<string, string>, names: Record<string, string>,
     lastUpdate: number | null,
 }) => {
-    // Nothing to show yet — either still loading, or no UPS is configured / upsd
-    // is unreachable. In the latter case App redirects to the guided setup route
-    // (#/setup); render a spinner for that brief redirect frame rather than the
-    // wizard inline, so the wizard has a single stable home (its own URL).
-    if (!upses || upses.length === 0)
+    // Still probing — brief spinner.
+    if (upses === null && error === null)
         return <Spinner aria-label={_("Loading UPS data")} />;
+
+    // No UPS configured (or upsd unreachable): an empty state that launches the
+    // setup wizard at its own route. No auto-redirect — the operator chooses to
+    // start, and the app chrome (nav) stays put.
+    if (!upses || upses.length === 0) {
+        return (
+            <EmptyState headingLevel="h2" titleText={_("No UPS connected yet")}>
+                <EmptyStateBody>
+                    {error
+                        ? _("UPSide can't read a UPS from NUT here. The setup guide walks you through connecting one — attached to this machine, shared to others, or watched on another host.")
+                        : _("Nothing is configured yet. The setup guide walks you through connecting a UPS — attached to this machine, shared to others, or watched on another host.")}
+                </EmptyStateBody>
+                <EmptyStateFooter>
+                    <EmptyStateActions>
+                        <Button variant="primary" onClick={() => cockpit.location.go(["setup-wizard"])}>
+                            {_("Set up UPS monitoring")}
+                        </Button>
+                    </EmptyStateActions>
+                </EmptyStateFooter>
+            </EmptyState>
+        );
+    }
 
     // We have data: show the gallery. A failed *latest* poll is surfaced as a
     // banner above the last-known state rather than replacing the whole view.
@@ -706,7 +725,7 @@ const MenuIcon = () => (
 
 const NAV: { key: string, label: string }[] = [
     { key: "overview", label: _("Overview") },
-    { key: "setup", label: _("Setup") },
+    { key: "setup-wizard", label: _("Setup") },
     { key: "settings", label: _("Settings") },
     { key: "about", label: _("About") },
 ];
@@ -824,28 +843,11 @@ export const Application = () => {
     }, [upses, config.overviewCard]);
 
     const path = location.path;
-    const section = (path[0] === "about" || path[0] === "settings" || path[0] === "setup") ? path[0] : "overview";
+    const section = (path[0] === "about" || path[0] === "settings" || path[0] === "setup-wizard") ? path[0] : "overview";
 
-    // The guided setup wizard lives at its own route (#/setup) so it's a stable
-    // page, not a transient empty-state that vanishes the instant a UPS appears
-    // (which yanked the user to the overview mid-step-5). On the overview with
-    // nothing to show — no UPS configured, or upsd unreachable — redirect there;
-    // the wizard navigates back only when the user chooses to finish. NOT during
-    // the initial poll (upses null, no error) — that's a brief spinner, and
-    // redirecting then would bounce every load even when a UPS is present.
-    const onRoot = !path[0];
-    const noUps = (upses !== null && upses.length === 0) || (upses === null && error !== null);
-    useEffect(() => {
-        if (onRoot && noUps)
-            cockpit.location.replace(["setup"]);
-    }, [onRoot, noUps]);
-
-    // First-run installer chrome: strip the masthead's nav/menu (brand + GitHub
-    // stay) so the very first setup reads as a focused installer. Only while no
-    // UPS exists yet — on the wizard route or the brief redirect frame. Once the
-    // first UPS is set up, /setup shows the normal header (nav returns), so the
-    // user can navigate away or re-run setup like any other page.
-    const installerChrome = noUps && (path[0] === "setup" || onRoot);
+    // The guided setup wizard lives at its own route (#/setup-wizard), reached
+    // from the empty-state CTA or the Setup nav tab. No auto-redirect and no
+    // conditional masthead — the normal app chrome stays put on every page.
 
     // Navigate to a top-level section and close the (mobile) menu.
     const go = (key: string) => {
@@ -867,7 +869,7 @@ export const Application = () => {
         view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} config={config} descs={descs} lastUpdate={lastUpdate} mode={mode} />;
     else if (path[0] === "settings")
         view = <Settings mode={mode} modeLocked={modeLocked} onModeChange={setMode} />;
-    else if (path[0] === "setup")
+    else if (path[0] === "setup-wizard")
         view = <Setup onDone={() => cockpit.location.go([])} mode={mode} modeLocked={modeLocked} onEnableControl={() => setMode("control")} />;
     else if (path[0] === "about")
         view = <About />;
@@ -876,7 +878,7 @@ export const Application = () => {
 
     return (
         <Page className="pf-m-no-sidebar">
-            <header className={"upside-masthead" + (installerChrome ? " upside-masthead--wizard" : "")}>
+            <header className="upside-masthead">
                 <div className="upside-masthead__brand">
                     <Logo className="upside-logo" />
                     <div className="upside-masthead__titles">
@@ -935,7 +937,7 @@ export const Application = () => {
                         ))}
                     </nav>}
             </header>
-            <PageSection hasBodyWrapper={false} className={"upside-content" + (installerChrome ? " upside-content--wizard" : "")}>
+            <PageSection hasBodyWrapper={false} className="upside-content">
                 {view}
             </PageSection>
         </Page>

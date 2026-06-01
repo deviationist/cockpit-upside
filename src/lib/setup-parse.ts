@@ -188,6 +188,38 @@ export interface UsbDevice {
     likelyUps: boolean;
 }
 
+/** A `LISTEN <addr> [port]` directive from upsd.conf. */
+export interface ListenEntry {
+    addr: string;
+    port: number | null;
+}
+
+/** Parse the `LISTEN` directives from upsd.conf text (what addresses upsd binds). */
+export function parseListen(text: string | null | undefined): ListenEntry[] {
+    if (!text)
+        return [];
+    const out: ListenEntry[] = [];
+    for (const line of text.split("\n")) {
+        const m = /^\s*LISTEN\s+(\S+)(?:\s+(\d+))?\s*$/i.exec(line);
+        if (m)
+            out.push({ addr: m[1], port: m[2] ? Number(m[2]) : null });
+    }
+    return out;
+}
+
+/**
+ * Add a `LISTEN <addr> <port>` line to upsd.conf text if that address isn't
+ * already listened on — so a netserver primary binds a reachable address while
+ * keeping whatever's there (crucially the loopback). Returns the text unchanged
+ * if the address is already present.
+ */
+export function addListen(text: string | null | undefined, addr: string, port: number): string {
+    if (parseListen(text).some(e => e.addr === addr))
+        return text ?? "";
+    const body = (text ?? "").replace(/\n*$/, "");
+    return (body ? body + "\n" : "") + `LISTEN ${addr} ${port}\n`;
+}
+
 /** Parse `lsusb` lines into id + description, flagging UPS-looking devices. */
 export function parseLsusb(text: string | null | undefined): UsbDevice[] {
     if (!text)
