@@ -964,8 +964,28 @@ export const Application = () => {
                     >
                         <MenuIcon />
                     </button>
-                    {mode === "control" &&
-                        <span className="upside-mode-badge" title={_("Control mode is on")}>{_("Control")}</span>}
+                    {modeLocked
+                        ? (
+                            <span
+                                className={"upside-mode-badge upside-mode-badge--locked" + (mode === "control" ? " upside-mode-badge--control" : "")}
+                                title={_("Mode is pinned in /etc/cockpit/upside.json — change it there.")}
+                            >
+                                {mode === "control" ? _("Control") : _("Monitor")}
+                            </span>
+                        )
+                        : (
+                            <button
+                                type="button"
+                                className={"upside-mode-badge upside-mode-badge--toggle" + (mode === "control" ? " upside-mode-badge--control" : "")}
+                                aria-pressed={mode === "control"}
+                                onClick={() => setMode(mode === "control" ? "monitor" : "control")}
+                                title={mode === "control"
+                                    ? _("Control mode — click to switch to monitor (read-only)")
+                                    : _("Monitor mode (read-only) — click to switch to control")}
+                            >
+                                {mode === "control" ? _("Control") : _("Monitor")}
+                            </button>
+                        )}
                     {github}
                 </div>
                 {menuOpen &&
