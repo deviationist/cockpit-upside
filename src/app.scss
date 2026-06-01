@@ -853,3 +853,15 @@ $upside-amber: #f59e0b;
         font-weight: 600;
     }
 }
+
+/* Two fields side by side (e.g. SNMPv3 protocol + password). */
+.upside-field--row {
+    display: flex;
+    gap: 0.75rem;
+    max-inline-size: 24rem;
+
+    > div {
+        flex: 1 1 0;
+        min-inline-size: 0;
+    }
+}

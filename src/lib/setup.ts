@@ -163,6 +163,55 @@ export async function installUsbLib(pkg: SetupState["pkgManager"]): Promise<void
     await cockpit.spawn(argv, { superuser: "require", err: "message" });
 }
 
+/**
+ * nut-scanner SNMP scan of an IPv4 CIDR range (needs admin). Returns the full
+ * output for parseScannerOutput, including the "Cannot load SNMP library"
+ * warning (see snmpScanDisabled) when libnetsnmp is absent. argv form (no
+ * shell); `cidr`/`community` come pre-validated from the form (isValidCidr /
+ * isValidHost), and err:"out" + catch keeps a non-zero exit from swallowing the
+ * captured output. Version follows nut-scanner's convention: a community means
+ * v1/v2c; v3 scanning (security args) isn't offered — use the manual form.
+ */
+export async function scanSnmp(cidr: string, community: string): Promise<string> {
+    try {
+        return await cockpit.spawn(
+            ["nut-scanner", "-q", "-S", "-m", cidr, "-c", community],
+            { superuser: "require", err: "out" });
+    } catch (e) {
+        return (e as { message?: string })?.message || "";
+    }
+}
+
+/** Candidate serial device nodes (no admin) — to prefill the serial port picker. */
+export async function listSerialPorts(): Promise<string[]> {
+    const out = await sh("ls -1 /dev/ttyS* /dev/ttyUSB* /dev/ttyACM* 2>/dev/null");
+    return out.split("\n").map(s => s.trim())
+            .filter(Boolean);
+}
+
+/** A non-loopback host IPv4 (for prefilling the SNMP scan range), or "". */
+export async function primaryAddress(): Promise<string> {
+    return (await listenAddresses())[0] ?? "";
+}
+
+/**
+ * Install the net-snmp dev package (the unversioned libnetsnmp.so symlink
+ * nut-scanner dlopen's) so SNMP scanning works. Needs admin; non-interactive per
+ * package manager. Fixed argv from a closed set. Not needed for the snmp-ups
+ * driver itself — only for scanning.
+ */
+export async function installSnmpLib(pkg: SetupState["pkgManager"]): Promise<void> {
+    const argv = (() => {
+        switch (pkg) {
+        case "dnf": return ["dnf", "install", "-y", "net-snmp-devel"];
+        case "zypper": return ["zypper", "--non-interactive", "install", "net-snmp-devel"];
+        case "pacman": return ["pacman", "-S", "--noconfirm", "net-snmp"];
+        default: return ["apt-get", "install", "-y", "libsnmp-dev"];
+        }
+    })();
+    await cockpit.spawn(argv, { superuser: "require", err: "message" });
+}
+
 /** Back up <path> to <path>.bak (best-effort) then write `content`. Needs admin. */
 async function writeWithBackup(path: string, content: string, current: string | null): Promise<void> {
     if (current !== null) {
@@ -298,6 +347,18 @@ export const commands = {
         case "zypper": return "sudo zypper install libusb-1_0-devel";
         case "pacman": return "sudo pacman -S libusb";
         default: return "sudo apt install libusb-1.0-0-dev";
+        }
+    },
+    scanSnmp: (cidr: string, community: string): string => `sudo nut-scanner -q -S -m ${cidr || "192.168.1.0/24"} -c ${community || "public"}`,
+    // Enables nut-scanner's SNMP scanning: it dlopen's the unversioned
+    // libnetsnmp.so (the -dev package on Debian/Ubuntu). The snmp-ups driver
+    // itself doesn't need this — only scanning does.
+    installSnmpLib: (pkg: SetupState["pkgManager"]): string => {
+        switch (pkg) {
+        case "dnf": return "sudo dnf install net-snmp-devel";
+        case "zypper": return "sudo zypper install net-snmp-devel";
+        case "pacman": return "sudo pacman -S net-snmp";
+        default: return "sudo apt install libsnmp-dev";
         }
     },
     addStanza: (confDir: string): string => `# append the stanza above to ${confDir}/ups.conf`,
