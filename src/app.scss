@@ -732,9 +732,11 @@ $upside-amber: #f59e0b;
 }
 
 // ---- PatternFly Wizard host ----
-// Give the inline wizard a sensible working height and roomy step bodies.
+// PF defaults the wizard to height:100% (--pf-v6-c-wizard--Height--base) which,
+// against this auto-height page section, forces unnecessary vertical scroll.
+// Size it to its content instead.
 .upside-wizard__steps {
-    min-block-size: 30rem;
+    --pf-v6-c-wizard--Height: auto;
 }
 
 // Role picker (step 1): space the radio cards out.
