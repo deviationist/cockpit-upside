@@ -142,6 +142,10 @@ const FIELD_GROUPS: FieldGroup[] = [
         ],
     },
     {
+        // Load, power, and the input/output line characteristics (voltage /
+        // frequency) all describe the same electrical picture — kept in one card
+        // rather than three thin Power/Input/Output cards. Empty rows are filtered
+        // at render, so partial-capability UPSes still look tidy.
         id: "power",
         title: _("Power"),
         fields: [
@@ -150,27 +154,15 @@ const FIELD_GROUPS: FieldGroup[] = [
             { key: "ups.realpower.nominal", label: _("Nominal real power"), unit: "W" },
             { key: "ups.power", label: _("Apparent power"), unit: "VA" },
             { key: "ups.power.nominal", label: _("Nominal apparent power"), unit: "VA" },
-        ],
-    },
-    {
-        id: "input",
-        title: _("Input"),
-        fields: [
-            { key: "input.voltage", label: _("Voltage"), unit: "V" },
-            { key: "input.voltage.nominal", label: _("Nominal voltage"), unit: "V" },
-            { key: "input.frequency", label: _("Frequency"), unit: "Hz" },
-            { key: "input.frequency.nominal", label: _("Nominal frequency"), unit: "Hz" },
+            { key: "input.voltage", label: _("Input voltage"), unit: "V" },
+            { key: "input.voltage.nominal", label: _("Nominal input voltage"), unit: "V" },
+            { key: "input.frequency", label: _("Input frequency"), unit: "Hz" },
+            { key: "input.frequency.nominal", label: _("Nominal input frequency"), unit: "Hz" },
             { key: "input.transfer.low", label: _("Transfer low"), unit: "V" },
             { key: "input.transfer.high", label: _("Transfer high"), unit: "V" },
-        ],
-    },
-    {
-        id: "output",
-        title: _("Output"),
-        fields: [
-            { key: "output.voltage", label: _("Voltage"), unit: "V" },
-            { key: "output.frequency", label: _("Frequency"), unit: "Hz" },
-            { key: "output.current", label: _("Current"), unit: "A" },
+            { key: "output.voltage", label: _("Output voltage"), unit: "V" },
+            { key: "output.frequency", label: _("Output frequency"), unit: "Hz" },
+            { key: "output.current", label: _("Output current"), unit: "A" },
         ],
     },
     {
