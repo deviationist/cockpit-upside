@@ -505,15 +505,6 @@ $upside-amber: #f59e0b;
 }
 
 // "Configure settings →" link row on the detail page.
-.upside-detail__links {
-    margin-block-start: -0.25rem;
-    // Space the links apart (they're inline link-buttons); wrap on narrow widths.
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem 1.5rem;
-    align-items: center;
-}
-
 // ---- Config view (Config.tsx) ----
 .upside-config__hint {
     display: block;
