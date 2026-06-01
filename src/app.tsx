@@ -672,7 +672,7 @@ const Variables = ({ upses, name, title }: { upses: Ups[] | null, name: string, 
                     </BreadcrumbItem>
                     <BreadcrumbItem isActive>{_("All variables")}</BreadcrumbItem>
                 </Breadcrumb>
-                <div className="upside-metrics__bar"><UpsMenu ups={name} current="variables" /></div>
+                <div className="upside-metrics__menu"><UpsMenu ups={name} current="variables" /></div>
             </div>
             <Card>
                 <CardTitle>{_("All variables")}</CardTitle>

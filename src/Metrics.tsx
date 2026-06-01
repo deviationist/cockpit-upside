@@ -245,9 +245,8 @@ export const Metrics = ({ ups, title, archiveDir, retentionDays, locale }: { ups
                             {_("Export")}
                         </Button>
                     </div>
-                    <span className="upside-metrics__sep" aria-hidden="true" />
-                    <UpsMenu ups={ups} current="metrics" />
                 </div>
+                <div className="upside-metrics__menu"><UpsMenu ups={ups} current="metrics" /></div>
             </div>
 
             {error &&

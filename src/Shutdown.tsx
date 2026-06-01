@@ -94,7 +94,7 @@ export const Shutdown = ({ ups, title }: { ups: string, title?: string }) => {
                     </BreadcrumbItem>
                     <BreadcrumbItem isActive>{_("Shutdown")}</BreadcrumbItem>
                 </Breadcrumb>
-                <div className="upside-metrics__bar"><UpsMenu ups={ups} current="shutdown" /></div>
+                <div className="upside-metrics__menu"><UpsMenu ups={ups} current="shutdown" /></div>
             </div>
 
             <Card>

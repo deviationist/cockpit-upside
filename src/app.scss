@@ -471,6 +471,10 @@ $upside-amber: #f59e0b;
 // area reads as a single surface under the masthead.
 .pf-v6-c-page__main-container {
     border: none;
+    // The container clips with a 16px radius, rounding the masthead's top
+    // corners; square them off so the navy bar meets the window edges flush.
+    border-start-start-radius: 0;
+    border-start-end-radius: 0;
 }
 
 // The page main is the actual scroll container (masthead + content live in it);
@@ -623,13 +627,57 @@ $upside-amber: #f59e0b;
     margin-inline-start: auto; // push the controls to the right of the breadcrumb
 }
 
-// Thin vertical rule setting the per-UPS "Manage" menu apart from the page's
-// own controls (e.g. Export) in the metrics header bar.
-.upside-metrics__sep {
-    align-self: center;
-    block-size: 1.5rem;
-    inline-size: 1px;
-    background: var(--pf-t--global--border--color--default, #d2d2d2);
+// The per-UPS "Manage" menu wrapper. In the flex header (config/shutdown/
+// variables) it right-aligns; the metrics grid below repositions it.
+.upside-metrics__menu {
+    margin-inline-start: auto;
+}
+
+// Metrics header is a grid (not the shared flex) so it can reflow on small
+// screens: breadcrumb + controls + Manage on one row normally; on ≤767px the
+// Manage menu stays top-right with the breadcrumb and the filter controls drop
+// to a right-aligned row below. Scoped to .upside-metrics so the other
+// sub-pages keep the simple flex header.
+.upside-metrics > .upside-metrics__header {
+    display: grid;
+    align-items: center;
+    column-gap: 1rem;
+    row-gap: 0.5rem;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas: "crumb bar menu";
+
+    > .upside-metrics__crumb { grid-area: crumb; }
+
+    > .upside-metrics__bar {
+        grid-area: bar;
+        justify-self: end; // controls hug the right, next to the menu
+        margin-inline-start: 0; // grid handles placement, not the flex auto-margin
+    }
+
+    // Manage menu in its own column, set off by a thin left divider.
+    > .upside-metrics__menu {
+        grid-area: menu;
+        margin-inline-start: 0;
+        padding-inline-start: 1rem;
+        border-inline-start: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+    }
+}
+
+@media (width <= 767px) {
+    .upside-metrics > .upside-metrics__header {
+        grid-template-columns: 1fr auto;
+        grid-template-areas:
+            "crumb menu"
+            "bar   bar";
+
+        > .upside-metrics__bar { justify-self: end; } // filter row right-aligned, not left
+
+        // No divider once the menu sits on its own row with the breadcrumb.
+        > .upside-metrics__menu {
+            padding-inline-start: 0;
+            border-inline-start: 0;
+        }
+    }
 }
 
 // Right-aligned control cluster: timeframe dropdown + zoom + prev/next.
