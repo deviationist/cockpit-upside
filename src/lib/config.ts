@@ -243,7 +243,11 @@ export function resolveMode(config: UpsideConfig, pref: Mode | null): { mode: Mo
 /** Persist the config to the host file (needs admin; cockpit prompts as needed). */
 export function saveConfig(config: UpsideConfig): Promise<void> {
     const file = cockpit.file(PATH, { superuser: "try", syntax });
-    return file.replace(config).finally(() => file.close());
+    // .replace resolves to the new revision tag (string); callers only care that
+    // it succeeded, so drop it to keep the Promise<void> contract.
+    return file.replace(config)
+            .then(() => { /* discard the returned revision tag */ })
+            .finally(() => file.close());
 }
 
 /**

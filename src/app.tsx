@@ -50,12 +50,12 @@ const POLL_INTERVAL = 5000;
 
 /* ---- helpers (UI concerns; data lives in lib/nut + lib/derive) ---- */
 
-function stateColor(state: UpsState): "green" | "gold" | "orange" | "red" | "grey" {
+function stateColor(state: UpsState): "green" | "yellow" | "orange" | "red" | "grey" {
     switch (state) {
     case "online":
         return "green";
     case "onBattery":
-        return "gold";
+        return "yellow";
     case "bypass":
         return "orange";
     case "lowBattery":

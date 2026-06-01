@@ -34,7 +34,7 @@ const M = { left: 46, right: 12, top: 16, bottom: 22 };
 
 /** Track the container's content width so the SVG renders at real px. */
 function useWidth(): [React.RefObject<HTMLDivElement | null>, number] {
-    const ref = useRef<HTMLDivElement | null>(null);
+    const ref = useRef<HTMLDivElement>(null);
     const [w, setW] = useState(0);
     useEffect(() => {
         const el = ref.current;
@@ -122,7 +122,10 @@ export const MetricChart = ({ points, unit, color, min, max, startMs, endMs, hei
     const selW = drag ? Math.abs(drag.x1 - drag.x0) : 0;
 
     return (
-        <div className="upside-mchart" ref={ref}>
+        // pkg/lib mixes a React-19-style invariant RefObject<T> with React-18's
+        // LegacyRef prop type; the ref is sound at runtime, so cast to the prop's
+        // exact type to bridge the version mismatch.
+        <div className="upside-mchart" ref={ref as React.LegacyRef<HTMLDivElement>}>
             {!enough
                 ? <div className="upside-chart__empty" style={{ height }}>{emptyLabel}</div>
                 : (
