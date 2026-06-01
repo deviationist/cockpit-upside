@@ -907,6 +907,13 @@ $upside-amber: #f59e0b;
     overflow: visible;
 }
 
+// PF positions the nav absolute with z-index 200, which paints over our sticky
+// masthead (z-index 100) when the page scrolls. Drop it below the masthead so it
+// slides under like the rest of the content.
+.upside-wizard__steps .pf-v6-c-wizard__nav {
+    z-index: 1;
+}
+
 // Role picker (step 1): space the radio cards out.
 .upside-wizard__roles {
     display: flex;
