@@ -453,7 +453,7 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
         <div className="upside-detail">
             <Flex
                 className="upside-detail__head"
-                alignItems={{ default: "alignItemsFlexStart" }}
+                alignItems={{ default: "alignItemsCenter" }}
                 spaceItems={{ default: "spaceItemsLg" }}
                 flexWrap={{ default: "wrap" }}
             >
