@@ -1005,7 +1005,12 @@ export const Setup = ({ onDone, mode, modeLocked, onEnableControl }: {
             </Content>
             {error && <Alert variant="danger" isInline className="upside-setup__error" title={_("Something went wrong")}>{error}</Alert>}
 
+            {/* Render only the steps that apply to the role (rather than PF's
+                isHidden, which keeps hidden steps in the nav numbering — 1,2,3,4,6,7
+                — and can desync the step model on navigation). `key={role}` rebuilds
+                the wizard cleanly when the role (hence the step set) changes. */}
             <Wizard
+                key={role}
                 className="upside-wizard__steps"
                 navAriaLabel={_("UPS setup steps")}
                 onClose={finishToOverview}
@@ -1019,21 +1024,25 @@ export const Setup = ({ onDone, mode, modeLocked, onEnableControl }: {
                     <InstallStep role={role} state={state} busy={busy} refresh={refresh} />
                 </WizardStep>
 
-                <WizardStep name={_("UPS device")} id="device" isHidden={role === "netclient"} footer={{ isNextDisabled: !deviceOk }}>
-                    <DeviceStep role={role} state={state} busy={busy} run={run} />
-                </WizardStep>
+                {role !== "netclient" &&
+                    <WizardStep name={_("UPS device")} id="device" footer={{ isNextDisabled: !deviceOk }}>
+                        <DeviceStep role={role} state={state} busy={busy} run={run} />
+                    </WizardStep>}
 
-                <WizardStep name={_("Start & verify")} id="start" isHidden={role === "netclient"} footer={{ isNextDisabled: !verifiedOk }}>
-                    <StartStep state={state} busy={busy} run={run} refresh={refresh} />
-                </WizardStep>
+                {role !== "netclient" &&
+                    <WizardStep name={_("Start & verify")} id="start" footer={{ isNextDisabled: !verifiedOk }}>
+                        <StartStep state={state} busy={busy} run={run} refresh={refresh} />
+                    </WizardStep>}
 
-                <WizardStep name={_("Serve to the network")} id="serve" isHidden={role !== "netserver"} footer={{ isNextDisabled: !servesOk }}>
-                    <ServeStep state={state} busy={busy} run={run} />
-                </WizardStep>
+                {role === "netserver" &&
+                    <WizardStep name={_("Serve to the network")} id="serve" footer={{ isNextDisabled: !servesOk }}>
+                        <ServeStep state={state} busy={busy} run={run} />
+                    </WizardStep>}
 
-                <WizardStep name={_("Connect to a primary")} id="connect" isHidden={role !== "netclient"} footer={{ isNextDisabled: !connectedOk }}>
-                    <ConnectStep busy={busy} run={run} onConnected={setRemoteUps} />
-                </WizardStep>
+                {role === "netclient" &&
+                    <WizardStep name={_("Connect to a primary")} id="connect" footer={{ isNextDisabled: !connectedOk }}>
+                        <ConnectStep busy={busy} run={run} onConnected={setRemoteUps} />
+                    </WizardStep>}
 
                 <WizardStep name={_("Shutdown")} id="shutdown">
                     <ShutdownStep role={role} state={state} busy={busy} run={run} system={monitorSystem} />
