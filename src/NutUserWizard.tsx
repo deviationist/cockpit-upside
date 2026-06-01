@@ -24,7 +24,7 @@ import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/
 import cockpit from 'cockpit';
 
 import { InstantCommand, commandLabel, listCommands, validateCreds } from './lib/control';
-import { DEFAULT_USER, UserGrants, createControlUser, ensureUpsmonRole, generatePassword, isValidUserName, listControlUsers, readControlUser } from './lib/control-user';
+import { DEFAULT_USER, UserGrants, createControlUser, ensureControlGrants, generatePassword, isValidUserName, listControlUsers, readControlUser } from './lib/control-user';
 
 const _ = cockpit.gettext;
 
@@ -96,7 +96,7 @@ export const NutUserWizard = ({ isOpen, ups, onClose, onCreated }: {
             return;
         setBusy(true);
         setError(null);
-        ensureUpsmonRole(name)
+        ensureControlGrants(name)
                 .then(() => validateCreds(ups, name, password))
                 .then(() => onCreated(name, password, remember))
                 .catch(e => setError(msg(e)))

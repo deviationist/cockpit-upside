@@ -519,7 +519,8 @@ $upside-amber: #f59e0b;
 // links and the switcher toggle (both inherit) then follow to body--default
 // (14px), matching Cockpit's /metrics breadcrumb.
 .upside-detail .pf-v6-c-breadcrumb,
-.upside-metrics .pf-v6-c-breadcrumb {
+.upside-metrics .pf-v6-c-breadcrumb,
+.upside-config .pf-v6-c-breadcrumb {
     --pf-v6-c-breadcrumb__item--FontSize: var(--pf-t--global--font--size--body--default);
     // Linked items carry inline padding that plain (active) items don't, so the
     // same crumb shifts between pages. Zero it so link and active text align.

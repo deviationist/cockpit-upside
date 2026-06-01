@@ -30,6 +30,8 @@ import { Mode, useConfig } from './lib/config';
 import { refId } from './lib/nut';
 import { RwVar, isValidRwValue, listRwVars, setRwVar } from './lib/rwvars';
 import { validateCreds } from './lib/control';
+import { ensureControlGrants } from './lib/control-user';
+import { requestAdmin, useAdmin } from './lib/admin';
 import { NutCreds, clearNutCreds, loadNutCreds, saveNutCreds } from './lib/prefs';
 import { NutAuthModal } from './NutAuthModal';
 
@@ -58,7 +60,9 @@ export const Config = ({ ups, title, mode }: { ups: string, title?: string, mode
     const [creds, setCreds] = useState<NutCreds | null>(loadNutCreds);
     const [remembered, setRemembered] = useState(() => loadNutCreds() !== null);
     const [authOpen, setAuthOpen] = useState(false);
+    const [needsGrant, setNeedsGrant] = useState(false); // a SET was denied → user lacks actions=SET
     const { config } = useConfig();
+    const admin = useAdmin();
 
     const control = mode === "control";
     // The NUT target: "name" locally, "name@host" when a remote source is set
@@ -88,6 +92,8 @@ export const Config = ({ ups, title, mode }: { ups: string, title?: string, mode
             return;
         setBusy(true);
         setFeedback(null);
+        setNeedsGrant(false);
+        const n = dirty.length;
         const fails: string[] = [];
         for (const v of dirty) {
             try {
@@ -96,11 +102,43 @@ export const Config = ({ ups, title, mode }: { ups: string, title?: string, mode
                 fails.push(`${v.name}: ${msg(e)}`);
             }
         }
-        setFeedback(fails.length
-            ? { ok: false, msg: fails.join("; ") }
-            : { ok: true, msg: cockpit.format(_("Applied $0 change(s)."), dirty.length) });
-        await load();
+        if (fails.length === 0) {
+            setFeedback({ ok: true, msg: cockpit.format(_("Applied $0 change(s)."), n) });
+            await load(); // success → refresh + reset the draft
+        } else {
+            // upsd refuses a SET when the user lacks `actions = SET` — offer to fix
+            // that rather than just reporting it. Keep the draft so it can retry.
+            const denied = fails.some(f => /ACCESS-DENIED/i.test(f));
+            setNeedsGrant(denied);
+            setFeedback({
+                ok: false,
+                msg: denied ? _("This NUT user isn't allowed to change settings.") : fails.join("; "),
+            });
+        }
         setBusy(false);
+    };
+
+    // Self-heal the ACCESS-DENIED above: grant the control user `actions = SET`
+    // (needs admin to edit upsd.users), then retry. The password isn't touched.
+    const grant = async () => {
+        if (!creds)
+            return;
+        if (admin !== true) {
+            requestAdmin(); // open the shell's access dialog; user grants once it's on
+            return;
+        }
+        setBusy(true);
+        setFeedback(null);
+        try {
+            await ensureControlGrants(creds.user);
+            setNeedsGrant(false);
+        } catch (e) {
+            setFeedback({ ok: false, msg: msg(e) });
+            setBusy(false);
+            return;
+        }
+        setBusy(false);
+        await apply(); // retry with SET now granted
     };
 
     const editor = (v: RwVar) => {
@@ -199,6 +237,18 @@ export const Config = ({ ups, title, mode }: { ups: string, title?: string, mode
                                 title={feedback.ok ? _("Saved") : _("Some changes failed")}
                             >
                                 {feedback.msg}
+                            </Alert>}
+
+                        {needsGrant &&
+                            <Alert variant="warning" isInline className="pf-v6-u-mt-md" title={_("Permission needed")}>
+                                {admin === true
+                                    ? cockpit.format(_("The NUT user \"$0\" can run commands but isn't permitted to change settings (it needs actions = SET in upsd.users). Grant it and retry?"), creds?.user || "")
+                                    : _("Changing settings needs administrative access to grant the NUT user permission. Enable it, then grant.")}
+                                <div className="upside-config__apply">
+                                    <Button variant="primary" isLoading={busy} onClick={grant}>
+                                        {admin === true ? _("Grant permission & apply") : _("Enable administrative access")}
+                                    </Button>
+                                </div>
                             </Alert>}
                     </CardBody>
                 </Card>}
