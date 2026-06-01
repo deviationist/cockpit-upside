@@ -31,6 +31,7 @@ import { Controls } from './Controls';
 import { validateCreds } from './lib/control';
 import { Gauge } from './Gauge';
 import { Logo } from './Logo';
+import { Config } from './Config';
 import { Metrics } from './Metrics';
 import { NutAuthModal } from './NutAuthModal';
 import { NutUserWizard } from './NutUserWizard';
@@ -597,6 +598,12 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
                 </CardBody>
             </Card>
 
+            <div className="upside-detail__links">
+                <Button variant="link" isInline onClick={() => cockpit.location.go(["ups", ups.ref.name, "config"])}>
+                    {_("Configure settings →")}
+                </Button>
+            </div>
+
             {mode === "control" &&
                 <Controls ups={upsId} creds={creds} vars={vars} onAuthNeeded={() => setAuthOpen(true)} />}
 
@@ -888,6 +895,11 @@ export const Application = () => {
         const title = config.names[path[1]] || descs[path[1]] ||
             (u ? displayName(u, descs, config.names) : path[1]);
         view = <Metrics ups={path[1]} title={title} archiveDir={config.historyArchiveDir} retentionDays={config.historyRetentionDays} locale={config.locale} />;
+    } else if (path[0] === "ups" && path[1] && path[2] === "config") {
+        const u = upses?.find(x => x.ref.name === path[1]);
+        const title = config.names[path[1]] || descs[path[1]] ||
+            (u ? displayName(u, descs, config.names) : path[1]);
+        view = <Config ups={path[1]} title={title} mode={mode} />;
     } else if (path[0] === "ups" && path[1])
         view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} config={config} descs={descs} lastUpdate={lastUpdate} mode={mode} />;
     else if (path[0] === "settings")
