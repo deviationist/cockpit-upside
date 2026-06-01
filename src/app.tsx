@@ -447,9 +447,6 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
         return { id: g.id, title: g.title, rows };
     }).filter(g => g.rows.length > 0);
 
-    const allRows = Object.keys(vars).sort()
-            .map(k => ({ label: k, value: vars[k] }));
-
     return (
         <div className="upside-detail">
             <Flex
@@ -613,10 +610,13 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
                 ))}
             </Gallery>
 
-            <Card>
-                <CardTitle>{_("All variables")}</CardTitle>
-                <CardBody><TableRows rows={allRows} /></CardBody>
-            </Card>
+            {/* The full variable dump lives on its own page; link to it below the
+                curated cards (where the old "All variables" card used to be). */}
+            <div className="upside-detail__links">
+                <Button variant="link" isInline onClick={() => cockpit.location.go(["ups", ups.ref.name, "variables"])}>
+                    {_("All variables →")}
+                </Button>
+            </div>
 
             <NutAuthModal
                 isOpen={authOpen}
@@ -658,6 +658,39 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
                         setWizardOpen(false);
                     }}
                 />}
+        </div>
+    );
+};
+
+/* ---- all variables (its own page; linked from Detail) ---- */
+
+const Variables = ({ upses, name, title }: { upses: Ups[] | null, name: string, title?: string }) => {
+    const ups = upses?.find(u => u.ref.name === name);
+    const rows = ups
+        ? Object.keys(ups.vars).sort()
+                .map(k => ({ label: k, value: ups.vars[k] }))
+        : [];
+    return (
+        <div className="upside-config">
+            <div className="upside-metrics__header">
+                <Breadcrumb className="upside-metrics__crumb">
+                    <BreadcrumbItem to="#" onClick={(e: React.MouseEvent) => { e.preventDefault(); cockpit.location.go([]) }}>
+                        {_("Overview")}
+                    </BreadcrumbItem>
+                    <BreadcrumbItem to="#" onClick={(e: React.MouseEvent) => { e.preventDefault(); cockpit.location.go(["ups", name]) }}>
+                        {title || name}
+                    </BreadcrumbItem>
+                    <BreadcrumbItem isActive>{_("All variables")}</BreadcrumbItem>
+                </Breadcrumb>
+            </div>
+            <Card>
+                <CardTitle>{_("All variables")}</CardTitle>
+                <CardBody>
+                    {ups
+                        ? <TableRows rows={rows} />
+                        : <Spinner aria-label={_("Loading UPS data")} />}
+                </CardBody>
+            </Card>
         </div>
     );
 };
@@ -892,6 +925,11 @@ export const Application = () => {
         const title = config.names[path[1]] || descs[path[1]] ||
             (u ? displayName(u, descs, config.names) : path[1]);
         view = <Config ups={path[1]} title={title} mode={mode} />;
+    } else if (path[0] === "ups" && path[1] && path[2] === "variables") {
+        const u = upses?.find(x => x.ref.name === path[1]);
+        const title = config.names[path[1]] || descs[path[1]] ||
+            (u ? displayName(u, descs, config.names) : path[1]);
+        view = <Variables upses={upses} name={path[1]} title={title} />;
     } else if (path[0] === "ups" && path[1])
         view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} config={config} descs={descs} lastUpdate={lastUpdate} mode={mode} />;
     else if (path[0] === "settings")
