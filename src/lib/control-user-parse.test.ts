@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { addSetAction, addUpsmonRole, buildUserBlock, isValidUserName, parseUserBlock } from './control-user-parse.ts';
+import { addSetAction, addUpsmonRole, buildMonitorBlock, buildUserBlock, isValidUserName, parseUserBlock, setUpsmonRole } from './control-user-parse.ts';
 
 test("buildUserBlock: password, instcmds, actions=SET and the upsmon role", () => {
     const block = buildUserBlock("upside", "deadbeef", ["test.battery.start", "beeper.toggle"]);
@@ -33,6 +33,27 @@ test("buildUserBlock: one instcmds line per command, in order", () => {
     const lines = block.trimEnd().split("\n")
             .filter(l => l.includes("instcmds"));
     assert.deepEqual(lines, ["\tinstcmds = a", "\tinstcmds = b", "\tinstcmds = c"]);
+});
+
+test("buildUserBlock: role param defaults to secondary, accepts primary", () => {
+    assert.match(buildUserBlock("u", "p", []), /\tupsmon secondary\n$/); // default unchanged
+    assert.match(buildUserBlock("u", "p", [], "primary"), /\tupsmon primary\n$/);
+});
+
+test("buildMonitorBlock: least-privilege — password + role only, no SET/instcmds", () => {
+    assert.equal(buildMonitorBlock("mon", "pw", "primary"),
+                 "[mon]\n\tpassword = pw\n\tupsmon primary\n");
+    assert.equal(buildMonitorBlock("mon", "pw", "primary").includes("actions = SET"), false);
+});
+
+test("setUpsmonRole: changes an existing role in place, keeps the password", () => {
+    const users = "[mon]\n\tpassword = secret\n\tupsmon secondary\n";
+    const out = setUpsmonRole(users, "mon", "primary");
+    assert.match(out, /\tpassword = secret\n/); // untouched
+    assert.match(out, /\tupsmon primary\n/);
+    assert.doesNotMatch(out, /upsmon secondary/);
+    // addUpsmonRole can't change a role (treats any as present); setUpsmonRole can.
+    assert.match(addUpsmonRole(users, "mon", "primary"), /upsmon secondary/);
 });
 
 test("parseUserBlock: extracts password, instcmds, upsmon role + SET for a named user", () => {

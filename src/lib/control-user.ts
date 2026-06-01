@@ -19,7 +19,8 @@
 import cockpit from 'cockpit';
 
 import { appendStanza, parseConfSections } from './setup-parse';
-import { UserGrants, addSetAction, addUpsmonRole, buildUserBlock, parseUserBlock } from './control-user-parse';
+import { UserGrants, addSetAction, addUpsmonRole, buildMonitorBlock, buildUserBlock, parseUserBlock, setUpsmonRole } from './control-user-parse';
+import type { UpsmonType } from './upsmon-parse';
 
 export * from './control-user-parse';
 
@@ -123,6 +124,40 @@ export async function createControlUser(name: string, password: string, instcmds
  */
 export async function createSecondaryUser(name: string, password: string): Promise<{ path: string }> {
     return createControlUser(name, password, []);
+}
+
+/**
+ * Create a monitor (upsmon) user: a password + `upsmon <role>`, nothing else.
+ * This is the least-privilege identity upsmon's MONITOR line logs in as on a
+ * UPS-owning host (role `primary`) — separate from any control user. Same
+ * privileged write path; throws if the name already exists.
+ */
+export async function createMonitorUser(name: string, password: string, role: UpsmonType): Promise<{ path: string }> {
+    const path = await findUsersFile();
+    const current = await read(path, "require");
+    if (current && parseConfSections(current).includes(name))
+        throw new Error(cockpit.format(_("A NUT user named \"$0\" already exists in upsd.users."), name));
+    await writeUsersFile(path, appendStanza(current, buildMonitorBlock(name, password, role)), current);
+    return { path };
+}
+
+/**
+ * Force an existing user's upsmon role to `role` (e.g. upgrade a reused user to
+ * `primary` so a primary MONITOR line authenticates). Never touches the
+ * password. Returns whether the file changed.
+ */
+export async function ensureUpsmonRole(name: string, role: UpsmonType): Promise<{ changed: boolean }> {
+    const path = await findUsersFile();
+    const current = await read(path, "try");
+    if (current === null)
+        throw new Error(_("Administrator access is needed to read upsd.users."));
+    if (!parseUserBlock(current, name))
+        throw new Error(cockpit.format(_("\"$0\" isn't in upsd.users."), name));
+    const next = setUpsmonRole(current, name, role);
+    if (next === current)
+        return { changed: false };
+    await writeUsersFile(path, next, current);
+    return { changed: true };
 }
 
 /** Read an existing user's grants (password + instcmds + upsmon role). Needs

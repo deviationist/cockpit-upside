@@ -18,12 +18,14 @@
 import cockpit from 'cockpit';
 
 import { NutMode, addListen, appendStanza, parseConfSections, parseListen, parseMode, removeStanza, setModeText } from './setup-parse';
+import { UpsmonFields, buildUpsmonConf } from './upsmon-parse';
 
 export * from './setup-parse';
 
 const NUT_DIRS = ["/etc/nut", "/etc/ups"];
 const SERVER_UNIT = "nut-server.service";
 const DRIVER_UNIT = "nut-driver-enumerator.service";
+const MONITOR_UNIT = "nut-monitor.service";
 /** upsd's default TCP port (RFC 9271). */
 export const NUT_PORT = 3493;
 
@@ -47,6 +49,10 @@ export interface SetupState {
     /** upsd.conf LISTEN addresses (what upsd binds) — a non-loopback one means
      *  it's reachable by secondaries (netserver). */
     listen: string[];
+    /** nut-monitor (upsmon) is active — shutdown handling is armed. */
+    monitorActive: boolean;
+    /** upsmon.conf carries a MONITOR line — shutdown is configured (maybe not started). */
+    monitorConfigured: boolean;
     /** Detected package manager for the install hint. */
     pkgManager: "apt" | "dnf" | "zypper" | "pacman" | undefined;
     /** A privileged read failed — the user likely needs admin to diagnose. */
@@ -104,6 +110,9 @@ export async function detect(): Promise<SetupState> {
     const sections = parseConfSections(upsConf);
     const listen = parseListen(await readTry(`${dir}/upsd.conf`)).map(e => e.addr);
     const serverActive = (await sh(`systemctl is-active ${SERVER_UNIT} || true`)) === "active";
+    const monitorActive = (await sh(`systemctl is-active ${MONITOR_UNIT} || true`)) === "active";
+    const upsmonConf = await readTry(`${dir}/upsmon.conf`);
+    const monitorConfigured = !!upsmonConf && /^\s*MONITOR\s/m.test(upsmonConf);
 
     let upsList: string[] = [];
     try {
@@ -122,6 +131,8 @@ export async function detect(): Promise<SetupState> {
         serverActive,
         upsList,
         listen,
+        monitorActive,
+        monitorConfigured,
         pkgManager: await detectPkgManager(),
         needAdmin,
     };
@@ -316,6 +327,51 @@ export async function startServices(): Promise<void> {
     await cockpit.spawn(["systemctl", "enable", "--now", SERVER_UNIT], { superuser: "require", err: "message" });
 }
 
+/** Read upsmon.conf (admin "try"; null if absent/forbidden) for the Shutdown step/view. */
+export async function readUpsmon(confDir: string): Promise<string | null> {
+    return readTry(`${confDir}/upsmon.conf`);
+}
+
+/**
+ * Write upsmon.conf with UPSide's managed directives applied over the current
+ * file (MONITOR + SHUTDOWNCMD + MINSUPPLIES + optional POWERDOWNFLAG), preserving
+ * everything else. upsmon.conf now holds a NUT password (the MONITOR line), so it
+ * must be 0640 root:nut — writeWithBackup alone can leave it world-readable, so we
+ * re-lock it like upsd.users. If nut-monitor is already running it's reloaded;
+ * we never START it here (arming is the explicit startMonitor step). Returns the
+ * new file text.
+ */
+export async function applyUpsmon(confDir: string, fields: UpsmonFields): Promise<string> {
+    const path = `${confDir}/upsmon.conf`;
+    const current = await readTry(path);
+    const next = buildUpsmonConf(current, fields);
+
+    // Preserve the existing owner (typically root:nut); default to that for a new file.
+    let owner = "root:nut";
+    if (current !== null) {
+        try {
+            const o: string = await cockpit.spawn(["stat", "-c", "%U:%G", path], { superuser: "require", err: "message" });
+            if (/^\S+:\S+$/.test(o.trim()))
+                owner = o.trim();
+        } catch { /* keep the default */ }
+    }
+
+    await writeWithBackup(path, next, current);
+    for (const p of [path, `${path}.bak`]) {
+        await cockpit.spawn(["chmod", "640", p], { superuser: "require", err: "message" }).catch(() => { /* .bak may be absent */ });
+        await cockpit.spawn(["chown", owner, p], { superuser: "require", err: "message" }).catch(() => { /* best effort */ });
+    }
+    // Reload only if already armed — fixed unit literal, never started from here.
+    await cockpit.spawn(["sh", "-c", `systemctl is-active --quiet ${MONITOR_UNIT} && systemctl try-reload-or-restart ${MONITOR_UNIT} || true`],
+                        { superuser: "require", err: "message" });
+    return next;
+}
+
+/** Arm shutdown handling: enable + start nut-monitor (the explicit, ack-gated action). */
+export async function startMonitor(): Promise<void> {
+    await cockpit.spawn(["systemctl", "enable", "--now", MONITOR_UNIT], { superuser: "require", err: "message" });
+}
+
 /** The equivalent shell commands, for the "or run this yourself" fallback per step. */
 export const commands = {
     install: (pkg: SetupState["pkgManager"]): string => {
@@ -363,4 +419,5 @@ export const commands = {
     },
     addStanza: (confDir: string): string => `# append the stanza above to ${confDir}/ups.conf`,
     start: `sudo systemctl restart ${DRIVER_UNIT}; sudo systemctl enable --now ${SERVER_UNIT}`,
+    enableMonitor: `sudo systemctl enable --now ${MONITOR_UNIT}`,
 };
