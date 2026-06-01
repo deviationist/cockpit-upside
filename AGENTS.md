@@ -107,6 +107,7 @@ npm install
 npm run watch        # rebuild dist/ on change (dev)
 npm run build        # one-shot build
 npm test             # unit tests (Node's built-in runner; strips TS types natively)
+npm run test:integration  # Docker-backed integration tests (test/integration/); skips if no Docker
 npm run eslint
 npm run stylelint
 ```
@@ -116,6 +117,16 @@ derivation) in Cockpit-free modules like `src/lib/nut-parse.ts` so it can be
 unit-tested under plain Node (`*.test.ts` via `node --test`). Anything that
 imports `cockpit` (spawn, gettext) goes in a sibling module (`src/lib/nut.ts`)
 and is exercised by the integration tests, not the Node unit tests.
+
+**Docker integration tests** (`test/integration/`, `npm run test:integration`):
+where a unit test can't reach — does our *generated* config actually drive real
+NUT? `snmp.test.ts` imports the real `buildSnmpStanza`, feeds its output to
+`snmp-ups` against an `snmpsim` RFC-1628 UPS in a container, and asserts `upsc`
+readings. Safety: `--network none` (loopback only, simulated agent unreachable
+from host/LAN), no published ports, force-removed in a `finally`, never touches
+the host's NUT. Skips cleanly without Docker. Not TS-linted (outside the `src/`
+tsconfig scope, like `test/browser/`). New integration cases follow this shape:
+build via the real lib function → run isolated → assert against real tooling.
 
 Deploy locally for manual testing:
 
