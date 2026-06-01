@@ -47,7 +47,9 @@ export async function listUps(host?: string): Promise<UpsRef[]> {
     return out.split("\n")
             .map(s => s.trim())
             .filter(Boolean)
-            .map(name => ({ name, host }));
+            // Omit host when local: with exactOptionalPropertyTypes, UpsRef's
+            // optional host may be absent but not present-and-undefined.
+            .map(name => host ? { name, host } : { name });
 }
 
 /** Read every variable for a single UPS. */

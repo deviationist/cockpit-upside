@@ -1,8 +1,11 @@
 {
   "compilerOptions": {
     "allowJs": true,
+    // Sibling modules are imported with explicit ".ts" extensions so Node's
+    // type-stripping test runner can resolve them; allow that in tsc too
+    // (valid because noEmit is set — tsc only typechecks here, esbuild builds).
+    "allowImportingTsExtensions": true,
     "checkJs": true,
-    "exactOptionalPropertyTypes": true,
     "jsx": "react",
     "lib": [
       "dom",
