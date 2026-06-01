@@ -11,7 +11,7 @@ import { Button } from "@patternfly/react-core/dist/esm/components/Button/index.
 import { Card, CardBody, CardFooter, CardTitle } from "@patternfly/react-core/dist/esm/components/Card/index.js";
 import { Content } from "@patternfly/react-core/dist/esm/components/Content/index.js";
 import { Dropdown, DropdownItem, DropdownList } from "@patternfly/react-core/dist/esm/components/Dropdown/index.js";
-import { EmptyState, EmptyStateActions, EmptyStateBody, EmptyStateFooter } from "@patternfly/react-core/dist/esm/components/EmptyState/index.js";
+import { EmptyState, EmptyStateBody } from "@patternfly/react-core/dist/esm/components/EmptyState/index.js";
 import { Label } from "@patternfly/react-core/dist/esm/components/Label/index.js";
 import { MenuToggle } from "@patternfly/react-core/dist/esm/components/MenuToggle/index.js";
 import { Page, PageSection } from "@patternfly/react-core/dist/esm/components/Page/index.js";
@@ -326,31 +326,10 @@ const Overview = ({ upses, error, descs, names, lastUpdate }: {
     descs: Record<string, string>, names: Record<string, string>,
     lastUpdate: number | null,
 }) => {
-    // Still probing — brief spinner.
-    if (upses === null && error === null)
+    // Until a UPS is configured the App locks to the wizard, so this only runs
+    // with data — a spinner is just a defensive fallback.
+    if (!upses || upses.length === 0)
         return <Spinner aria-label={_("Loading UPS data")} />;
-
-    // No UPS configured (or upsd unreachable): an empty state that launches the
-    // setup wizard at its own route. No auto-redirect — the operator chooses to
-    // start, and the app chrome (nav) stays put.
-    if (!upses || upses.length === 0) {
-        return (
-            <EmptyState headingLevel="h2" titleText={_("No UPS connected yet")}>
-                <EmptyStateBody>
-                    {error
-                        ? _("UPSide can't read a UPS from NUT here. The setup guide walks you through connecting one — attached to this machine, shared to others, or watched on another host.")
-                        : _("Nothing is configured yet. The setup guide walks you through connecting a UPS — attached to this machine, shared to others, or watched on another host.")}
-                </EmptyStateBody>
-                <EmptyStateFooter>
-                    <EmptyStateActions>
-                        <Button variant="primary" onClick={() => cockpit.location.go(["setup-wizard"])}>
-                            {_("Set up UPS monitoring")}
-                        </Button>
-                    </EmptyStateActions>
-                </EmptyStateFooter>
-            </EmptyState>
-        );
-    }
 
     // We have data: show the gallery. A failed *latest* poll is surfaced as a
     // banner above the last-known state rather than replacing the whole view.
@@ -855,6 +834,50 @@ export const Application = () => {
         setMenuOpen(false);
     };
 
+    const loading = upses === null && error === null;
+    const configured = upses !== null && upses.length > 0;
+
+    // Brand + GitHub link are shown in every state (identity + the repo link the
+    // user asked to keep always visible); the nav menu and other pages are not.
+    const brand = (
+        <div className="upside-masthead__brand">
+            <Logo className="upside-logo" />
+            <div className="upside-masthead__titles">
+                <span className="upside-masthead__name">UP<span className="upside-masthead__name-accent">S</span>ide</span>
+                <span className="upside-masthead__tagline">{_("UPS monitoring · NUT")}</span>
+            </div>
+        </div>
+    );
+    const github = (
+        <a
+            className="upside-masthead__action"
+            href="https://github.com/deviationist/cockpit-upside"
+            target="_blank" rel="noopener noreferrer"
+            aria-label={_("UPSide on GitHub")} title={_("UPSide on GitHub")}
+        >
+            <GithubMark />
+        </a>
+    );
+
+    // Until a UPS is set up, the app IS the wizard: no nav menu, no other pages —
+    // just brand + GitHub and the setup flow. A single `configured` gate, not a
+    // pile of per-element conditionals. Once a UPS is visible, the full shell.
+    if (loading || !configured) {
+        return (
+            <Page className="pf-m-no-sidebar">
+                <header className="upside-masthead">
+                    {brand}
+                    <div className="upside-masthead__right">{github}</div>
+                </header>
+                <PageSection hasBodyWrapper={false} className="upside-content">
+                    {loading
+                        ? <Spinner aria-label={_("Loading UPS data")} />
+                        : <Setup onDone={() => cockpit.location.go([])} mode={mode} modeLocked={modeLocked} onEnableControl={() => setMode("control")} />}
+                </PageSection>
+            </Page>
+        );
+    }
+
     let view;
     if (path[0] === "ups" && path[1] && path[2] === "metrics") {
         // Resolve the friendly name from the custom name / NUT desc first — both
@@ -879,13 +902,7 @@ export const Application = () => {
     return (
         <Page className="pf-m-no-sidebar">
             <header className="upside-masthead">
-                <div className="upside-masthead__brand">
-                    <Logo className="upside-logo" />
-                    <div className="upside-masthead__titles">
-                        <span className="upside-masthead__name">UP<span className="upside-masthead__name-accent">S</span>ide</span>
-                        <span className="upside-masthead__tagline">{_("UPS monitoring · NUT")}</span>
-                    </div>
-                </div>
+                {brand}
                 <nav className="upside-masthead__nav" aria-label={_("Sections")}>
                     {NAV.map(item => (
                         <button
@@ -911,16 +928,7 @@ export const Application = () => {
                     </button>
                     {mode === "control" &&
                         <span className="upside-mode-badge" title={_("Control mode is on")}>{_("Control")}</span>}
-                    <a
-                        className="upside-masthead__action"
-                        href="https://github.com/deviationist/cockpit-upside"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={_("UPSide on GitHub")}
-                        title={_("UPSide on GitHub")}
-                    >
-                        <GithubMark />
-                    </a>
+                    {github}
                 </div>
                 {menuOpen &&
                     <nav className="upside-masthead__menu" aria-label={_("Sections")}>
