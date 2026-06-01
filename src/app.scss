@@ -165,6 +165,12 @@ $upside-amber: #f59e0b;
     color: var(--pf-t--global--text--color--subtle, #6a6e73);
 }
 
+// Separate the collapsible danger zone from the action buttons above it — its
+// toggle changes background on hover, so a flush edge looks jammed.
+.upside-controls__danger {
+    margin-block-start: 1.25rem;
+}
+
 .upside-controls__form {
     margin-block-start: 1rem;
     max-inline-size: 26rem;
