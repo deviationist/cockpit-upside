@@ -623,6 +623,15 @@ $upside-amber: #f59e0b;
     margin-inline-start: auto; // push the controls to the right of the breadcrumb
 }
 
+// Thin vertical rule setting the per-UPS "Manage" menu apart from the page's
+// own controls (e.g. Export) in the metrics header bar.
+.upside-metrics__sep {
+    align-self: center;
+    block-size: 1.5rem;
+    inline-size: 1px;
+    background: var(--pf-t--global--border--color--default, #d2d2d2);
+}
+
 // Right-aligned control cluster: timeframe dropdown + zoom + prev/next.
 .upside-metrics__nav {
     margin-inline-start: auto;

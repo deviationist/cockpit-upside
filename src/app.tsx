@@ -40,6 +40,7 @@ import { Setup } from './Setup';
 import { Shutdown } from './Shutdown';
 import { Topology } from './Topology';
 import { Trends } from './Trends';
+import { UpsMenu } from './UpsMenu';
 import { Mode, UpsideConfig, loadModePref, resolveMode, saveConfig, saveModePref, useConfig } from './lib/config';
 import { NutCreds, clearNutCreds, loadNutCreds, saveNutCreds } from './lib/prefs';
 import { formatElapsed, monthsBetween, parseNutDate } from './lib/derive';
@@ -351,7 +352,6 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
     mode: Mode,
 }) => {
     const [open, setOpen] = useState(false);
-    const [manageOpen, setManageOpen] = useState(false);
     const [renaming, setRenaming] = useState(false);
     const [nameDraft, setNameDraft] = useState("");
     // NUT control credentials (in memory; pre-loaded if "remembered" in storage).
@@ -559,37 +559,8 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
                                     {creds ? creds.user : _("Authenticate")}
                                 </Button>
                             </FlexItem>}
-                        {/* Per-UPS menu: the sub-pages, gathered in one place. */}
-                        <FlexItem>
-                            <Dropdown
-                                isOpen={manageOpen}
-                                onOpenChange={(o: boolean) => setManageOpen(o)}
-                                onSelect={() => setManageOpen(false)}
-                                popperProps={{ position: "right" }}
-                                toggle={toggleRef => (
-                                    <MenuToggle ref={toggleRef} isExpanded={manageOpen} onClick={() => setManageOpen(!manageOpen)}>
-                                        {_("Manage")}
-                                    </MenuToggle>
-                                )}
-                            >
-                                <DropdownList>
-                                    {/* Metrics/Trends are local history — not meaningful for a remote source. */}
-                                    {!remote &&
-                                        <DropdownItem onClick={() => cockpit.location.go(["ups", ups.ref.name, "metrics"])}>
-                                            {_("Metrics")}
-                                        </DropdownItem>}
-                                    <DropdownItem onClick={() => cockpit.location.go(["ups", ups.ref.name, "config"])}>
-                                        {_("Configuration")}
-                                    </DropdownItem>
-                                    <DropdownItem onClick={() => cockpit.location.go(["ups", ups.ref.name, "shutdown"])}>
-                                        {_("Shutdown")}
-                                    </DropdownItem>
-                                    <DropdownItem onClick={() => cockpit.location.go(["ups", ups.ref.name, "variables"])}>
-                                        {_("All variables")}
-                                    </DropdownItem>
-                                </DropdownList>
-                            </Dropdown>
-                        </FlexItem>
+                        {/* Per-UPS menu: the sub-pages, gathered in one place (also on each sub-view). */}
+                        <FlexItem><UpsMenu ups={ups.ref.name} /></FlexItem>
                     </Flex>
                 </FlexItem>
             </Flex>
@@ -701,6 +672,7 @@ const Variables = ({ upses, name, title }: { upses: Ups[] | null, name: string, 
                     </BreadcrumbItem>
                     <BreadcrumbItem isActive>{_("All variables")}</BreadcrumbItem>
                 </Breadcrumb>
+                <div className="upside-metrics__bar"><UpsMenu ups={name} current="variables" /></div>
             </div>
             <Card>
                 <CardTitle>{_("All variables")}</CardTitle>

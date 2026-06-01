@@ -34,6 +34,7 @@ import { ensureControlGrants } from './lib/control-user';
 import { requestAdmin, useAdmin } from './lib/admin';
 import { NutCreds, clearNutCreds, loadNutCreds, saveNutCreds } from './lib/prefs';
 import { NutAuthModal } from './NutAuthModal';
+import { UpsMenu } from './UpsMenu';
 
 const _ = cockpit.gettext;
 const msg = (e: unknown): string => (e instanceof Error ? e.message : String(e));
@@ -183,6 +184,7 @@ export const Config = ({ ups, title, mode }: { ups: string, title?: string, mode
                     </BreadcrumbItem>
                     <BreadcrumbItem isActive>{_("Configuration")}</BreadcrumbItem>
                 </Breadcrumb>
+                <div className="upside-metrics__bar"><UpsMenu ups={ups} current="config" /></div>
             </div>
 
             {!control &&

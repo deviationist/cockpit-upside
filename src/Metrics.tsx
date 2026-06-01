@@ -30,6 +30,7 @@ import { DownloadIcon } from "@patternfly/react-icons/dist/esm/icons/download-ic
 import cockpit from 'cockpit';
 
 import { MetricChart } from './MetricChart';
+import { UpsMenu } from './UpsMenu';
 import { ArchiveResult, loadArchive } from './lib/metrics';
 import { getPref, setPref } from './lib/prefs';
 
@@ -244,6 +245,8 @@ export const Metrics = ({ ups, title, archiveDir, retentionDays, locale }: { ups
                             {_("Export")}
                         </Button>
                     </div>
+                    <span className="upside-metrics__sep" aria-hidden="true" />
+                    <UpsMenu ups={ups} current="metrics" />
                 </div>
             </div>
 
