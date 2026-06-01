@@ -483,6 +483,26 @@ $upside-amber: #f59e0b;
     gap: 1rem;
 }
 
+// "Configure settings →" link row on the detail page.
+.upside-detail__links {
+    margin-block-start: -0.25rem;
+}
+
+// ---- Config view (Config.tsx) ----
+.upside-config__hint {
+    display: block;
+    margin-block-start: 0.25rem;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
+.upside-config__apply {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-block-start: 1.25rem;
+}
+
 // PatternFly's spaceItems sets a symmetric gap, which wastes vertical space
 // when a row wraps. Keep the (larger) column gap but shrink the row gap.
 .upside-detail__head {
