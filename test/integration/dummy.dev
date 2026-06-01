@@ -1,0 +1,9 @@
+# dummy-ups replay file for the upsmon integration test — a minimal, valid UPS
+# upsmon can monitor. The shutdown is triggered with `upsmon -c fsd` (forced),
+# so the status here just needs to be a sane online state.
+ups.status: OL
+ups.mfr: Dummy
+ups.model: Test UPS
+battery.charge: 80
+battery.runtime: 1200
+battery.charge.low: 20
