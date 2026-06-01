@@ -887,12 +887,24 @@ $upside-amber: #f59e0b;
     display: flex;
     flex: 1 1 auto;
     flex-direction: column;
-    min-block-size: 0; // let the flex child shrink so its inner scroll engages
+    // NOTE: no `min-block-size: 0` — we deliberately don't let these shrink below
+    // their content, so when the window is short the page (iframe) scrolls instead
+    // of PatternFly's inner nav scroll burying the lower steps.
 }
 
 .upside-wizard__steps {
+    // Size to content (no inner nav/body scroll), but keep a comfortable minimum
+    // and grow to fill when there's room. Overflow falls to the outer scroll.
+    --pf-v6-c-wizard--Height: auto;
     flex: 1 1 auto;
-    min-block-size: 0;
+    min-block-size: 30rem;
+}
+
+// Don't let PF's nav clip/scroll internally — let the whole wizard (and the page)
+// grow so every step stays reachable via the outer scroll.
+.upside-wizard__steps .pf-v6-c-wizard__nav,
+.upside-wizard__steps .pf-v6-c-wizard__main {
+    overflow: visible;
 }
 
 // Role picker (step 1): space the radio cards out.
