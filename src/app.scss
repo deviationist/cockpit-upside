@@ -8,6 +8,8 @@ html,
 body,
 #app {
     block-size: 100%;
+    // No rubber-band/scroll-chaining past the plugin's own scroll bounds.
+    overscroll-behavior: none;
 }
 
 // Brand palette, taken from the UPSide banner: deep navy header with the amber
@@ -469,6 +471,12 @@ $upside-amber: #f59e0b;
 // area reads as a single surface under the masthead.
 .pf-v6-c-page__main-container {
     border: none;
+}
+
+// The page main is the actual scroll container (masthead + content live in it);
+// stop overscroll bounce / scroll-chaining there too, not just on the document.
+.pf-v6-c-page__main {
+    overscroll-behavior: none;
 }
 
 // Content area below the full-bleed masthead. hasBodyWrapper={false} lets the
