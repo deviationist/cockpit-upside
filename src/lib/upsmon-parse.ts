@@ -190,6 +190,56 @@ export function buildUpsmonConf(text: string | null | undefined, f: UpsmonFields
     return out.replace(/\n*$/, "") + "\n";
 }
 
+/* ---- event notifications (NOTIFYCMD / NOTIFYFLAG) ---- */
+
+/** The power events UPSide offers for notification. */
+export const NOTIFY_EVENTS = ["ONBATT", "LOWBATT", "ONLINE", "COMMBAD", "COMMOK", "SHUTDOWN", "REPLBATT", "FSD"] as const;
+export type NotifyEvent = typeof NOTIFY_EVENTS[number];
+/** Events enabled out of the box (the core power transitions). */
+export const NOTIFY_EVENTS_DEFAULT: NotifyEvent[] = ["ONBATT", "LOWBATT", "ONLINE", "COMMBAD", "COMMOK"];
+
+/** Set NOTIFYCMD — the command upsmon runs on events flagged EXEC. */
+export function setNotifyCmd(text: string | null | undefined, cmd: string): string {
+    return setDirective(text, "NOTIFYCMD", `"${cmd}"`);
+}
+
+/**
+ * Enable or disable EXEC (running NOTIFYCMD) for one event via its NOTIFYFLAG.
+ * Enabled → `NOTIFYFLAG <EVENT> SYSLOG+WALL+EXEC` (keeps NUT's default syslog/
+ * wall, adds EXEC). Disabled → drop our line so the event reverts to the default
+ * (no NOTIFYCMD). Idempotent — removes any existing line for the event first.
+ */
+export function setNotifyFlagExec(text: string | null | undefined, event: string, enabled: boolean): string {
+    const re = new RegExp(`^\\s*NOTIFYFLAG\\s+${event}\\b`);
+    const kept = (text ?? "").split("\n").filter(l => !(re.test(l) && !l.trim().startsWith("#")));
+    let out = kept.join("\n");
+    if (enabled) {
+        out = out.replace(/\n*$/, "");
+        out = (out ? out + "\n" : "") + `NOTIFYFLAG ${event} SYSLOG+WALL+EXEC\n`;
+    }
+    return out;
+}
+
+/** Read NOTIFYCMD + the events that have EXEC set, from upsmon.conf text. */
+export function parseNotify(text: string | null | undefined): { cmd: string | null, events: string[] } {
+    let cmd: string | null = null;
+    const events: string[] = [];
+    for (const raw of (text ?? "").split("\n")) {
+        const line = raw.trim();
+        if (!line || line.startsWith("#"))
+            continue;
+        const c = /^NOTIFYCMD\s+"?(.*?)"?\s*$/.exec(line);
+        if (c) {
+            cmd = c[1];
+            continue;
+        }
+        const f = /^NOTIFYFLAG\s+(\S+)\s+(.+)$/.exec(line);
+        if (f && /\bEXEC\b/.test(f[2]))
+            events.push(f[1]);
+    }
+    return { cmd, events };
+}
+
 /** A SHUTDOWNCMD must be a non-empty command. */
 export function isValidShutdownCmd(s: string | null | undefined): boolean {
     return !!s && s.trim().length > 0 && !s.includes('"');
