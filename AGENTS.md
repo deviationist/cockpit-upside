@@ -6,10 +6,10 @@ this repository. Keep this file current as conventions evolve.
 ## What this project is
 
 **UPSide** is a [Cockpit](https://cockpit-project.org/) plugin for monitoring
-UPS devices managed by **NUT (Network UPS Tools)**. Monitoring is complete;
-**control tier A** (battery self-test + beeper, via authenticated `upscmd`) is
-implemented. Higher tiers (variables via `upsrw`, shutdown via `upsmon`) are
-deliberately not started.
+and controlling UPS devices managed by **NUT (Network UPS Tools)**. Monitoring
+is complete, and the control ladder is built out: instant commands (`upscmd`,
+tiered + danger zone), read-write variables (`upsrw`), and **clean shutdown on
+low battery** (`upsmon` — the Shutdown wizard step + settings view).
 
 It is based on the official
 [cockpit-project/starter-kit](https://github.com/cockpit-project/starter-kit).
@@ -99,6 +99,16 @@ It is based on the official
   add missing grants in place via `ensureControlGrants`). Writes back up to `.bak`,
   re-chmod 0640 root:nut. Control is enabled only after a no-op LOGIN validates the
   creds, and only if the config doesn't pin monitor.
+- **Shutdown — `upsmon`** (`lib/upsmon-parse.ts` builders, `applyUpsmon`/
+  `applyUpsmonPolicy`/`startMonitor`/`stopMonitor` in `lib/setup.ts`, the Shutdown
+  wizard step in `Setup.tsx` + `Shutdown.tsx` view): write `upsmon.conf` so a host
+  powers down cleanly on low battery. Primary roles get a least-privilege monitor
+  user (`setMonitorUser`, `upsmon primary`); netclient uses the typed secondary
+  login. **upsmon.conf holds the MONITOR password**, so the write re-locks it 0640
+  root:nut like upsd.users. Arming (`startMonitor`) is **explicit + ack-gated** and
+  never runs from a probe. **Killpower** (POWERDOWNFLAG) is opt-in; the BIOS
+  auto-power-on it depends on is firmware UPSide can't set (guidance only). The
+  MONITOR `type` must match the user's `upsmon <role>` or LOGIN is denied.
 
 ## Build / lint / test
 
@@ -236,11 +246,13 @@ src/Setup.tsx       NUT-MODE setup wizard (PatternFly Wizard, role-branched; adm
 src/Settings.tsx    file-backed settings form; HistorySetup.tsx (one-click PCP history enablement card)
 src/Controls.tsx    control-mode action card (risk-tiered + danger zone); NutAuthModal.tsx (auth), NutUserWizard.tsx (create/reuse user)
 src/Config.tsx      per-UPS writable-variable editor (upsrw; own #/ups/<name>/config route)
+src/Shutdown.tsx    per-UPS shutdown settings (upsmon; own #/ups/<name>/shutdown route)
 src/Trends.tsx      PCP sparklines; src/Metrics.tsx full charts; Gauge/Chart/MetricChart (SVG); src/lib/axis.ts (ticks)
 src/lib/nut*.ts     NUT client (nut.ts, UpsRef/refId — local or name@host) + pure parsing (nut-parse.ts)
 src/lib/setup*.ts   setup probes/apply incl. MODE/LISTEN/firewall + USB/SNMP scan + serial (setup.ts) + pure parsing & stanza builders (setup-parse.ts)
 src/lib/control*.ts control commands/tiers/validate (control.ts, control-parse.ts) + control-user create/reuse/grants (control-user.ts)
 src/lib/rwvars*.ts  read-write variables: upsrw list/set (rwvars.ts) + pure parse/validate (rwvars-parse.ts)
+src/lib/upsmon-parse.ts  pure upsmon.conf parse + builders (setMonitorLine/setShutdownCmd/setPowerDownFlag/buildUpsmonConf); apply*/startMonitor/stopMonitor live in setup.ts
 src/lib/admin.ts    useAdmin (cockpit.permission) + requestAdmin (opens the shell escalation dialog)
 src/lib/history-setup*.ts  one-click PCP history: detect/enable (history-setup.ts, additive+idempotent) + scraper/pmlogger-rule pure parts (history-setup-parse.ts)
 src/lib/{config,derive,metrics,prefs}.ts   config (+ nutHost/mode), derived values, PCP reader (metrics.ts), localStorage prefs

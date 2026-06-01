@@ -43,13 +43,18 @@ risk-tiered Controls card: confirm-first for recoverable actions, a collapsed
 **danger zone** with an explicit "this cuts power" acknowledgment for the rest.
 Capability-driven; unknown commands default into the danger zone.
 
-### Tier C — Shutdown integration *(still future)*
+### Tier C — Shutdown integration  ✅ done
 
-`upsmon` config so a host powers down cleanly on low battery. The setup wizard's
-netserver/netclient roles wire the **connectivity** (LISTEN, a secondary login,
-the remote source) but deliberately **not** the `upsmon` shutdown sequencing —
-that's the remaining piece, and the most genuinely useful "control" for a
-homelab. Bigger config surface; touches credentials + shutdown timing.
+`upsmon` config so a host powers down cleanly on low battery — the feature the
+UPS exists for. A **Shutdown** wizard step (all roles) + a per-UPS settings view
+(`#/ups/<name>/shutdown`) write `upsmon.conf` (MONITOR + SHUTDOWNCMD +
+MINSUPPLIES) and the least-privilege monitor user, then arm `nut-monitor` behind
+a danger-ack. **Killpower** is an opt-in toggle (POWERDOWNFLAG) for auto-recovery
+— it cuts the UPS outlet so the host reboots when mains returns, *if* the BIOS is
+set to power on after AC loss (a firmware setting UPSide can't change, surfaced as
+guidance). Proven end-to-end by a Docker integration test (dummy-ups +
+`upsmon -c fsd` → harmless SHUTDOWNCMD fires). Lib: `lib/upsmon-parse.ts`,
+`applyUpsmon`/`applyUpsmonPolicy`/`startMonitor`/`stopMonitor` in `lib/setup.ts`.
 
 ## Other improvements
 
