@@ -65,9 +65,15 @@ homelab. Bigger config surface; touches credentials + shutdown timing.
       missing and restarts pmcd/pmlogger only when something changed, so it
       never disturbs existing archives. PCP/PMDA prerequisites are guidance
       (not auto-installed). Lib: `lib/history-setup.ts` + `-parse.ts`.
-- [ ] **Setup: serial / SNMP buses** — today the wizard auto-detects USB
-      (`nut-scanner -U`) + manual USB-HID; a network/SNMP UPS (`snmp-ups`, host +
-      community) or serial UPS still needs a hand-written `ups.conf` stanza.
+- [x] **Setup: serial / SNMP buses** — the device step now has a connection-type
+      selector (USB / Network·SNMP / Serial). **SNMP**: a manual `snmp-ups` form
+      (host, community, v1/v2c/v3 with SNMPv3 auth/priv) plus a CIDR network scan
+      (`nut-scanner -S`) with a net-snmp-lib install helper (mirrors the libusb
+      flow). **Serial**: a curated driver picker (`nutdrv_qx`, `apcsmart`,
+      `genericups` + upstype, … + custom) and a `/dev` port from a live scan or
+      free entry. Pure stanza builders + validators in `setup-parse.ts`
+      (`buildSnmpStanza`/`buildSerialStanza`); privileged `scanSnmp`/
+      `installSnmpLib`/`listSerialPorts` in `setup.ts`.
 - [ ] **History on a secondary** — a local scraper + `pmlogger` on a remote-source
       host so Trends works there too.
 - [ ] Event notifications (`upssched` / `NOTIFYCMD`) — email on power events,

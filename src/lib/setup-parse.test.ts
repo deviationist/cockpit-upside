@@ -10,8 +10,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
-    addListen, appendStanza, buildManualUsbStanza, buildUpsStanza, describeDevice, isValidSectionName,
-    parseConfSections, parseListen, parseLsusb, parseMode, parseScannerOutput, removeStanza, setModeText, usbScanDisabled,
+    addListen, appendStanza, buildManualUsbStanza, buildSerialStanza, buildSnmpStanza, buildUpsStanza,
+    describeDevice, isValidCidr, isValidHost, isValidSectionName, isValidSerialPort,
+    parseConfSections, parseListen, parseLsusb, parseMode, parseScannerOutput, removeStanza, setModeText,
+    snmpScanDisabled, suggestCidr, usbScanDisabled,
 } from './setup-parse.ts';
 
 const NUT_CONF = `# Network UPS Tools: example nut.conf
@@ -153,4 +155,61 @@ test("addListen: appends only when the address isn't already listened on", () =>
     assert.equal(addListen(conf, "10.99.0.1", 3493), "LISTEN 127.0.0.1 3493\nLISTEN 10.99.0.1 3493\n");
     assert.equal(addListen(conf, "127.0.0.1", 3493), conf); // already present → unchanged
     assert.equal(addListen("", "0.0.0.0", 3493), "LISTEN 0.0.0.0 3493\n");
+});
+
+test("buildSnmpStanza: v2c emits community; v3 emits security by level", () => {
+    assert.equal(buildSnmpStanza("netups", { host: "192.168.1.5", version: "v2c", community: "private" }, "Server UPS"),
+                 '[netups]\n\tdriver = "snmp-ups"\n\tport = "192.168.1.5"\n\tsnmp_version = "v2c"\n' +
+                 '\tcommunity = "private"\n\tdesc = "Server UPS"\n');
+    // v1 defaults community to public when blank.
+    assert.match(buildSnmpStanza("u", { host: "h", version: "v1" }), /community = "public"/);
+    // v3 authPriv: all security fields; auth + priv present.
+    const v3 = buildSnmpStanza("u", {
+        host: "h",
+        version: "v3",
+        v3: {
+            secLevel: "authPriv", secName: "admin", authProtocol: "SHA", authPassword: "ap", privProtocol: "AES", privPassword: "pp",
+        }
+    });
+    assert.match(v3, /secLevel = "authPriv"/);
+    assert.match(v3, /secName = "admin"/);
+    assert.match(v3, /authProtocol = "SHA"[\s\S]*privProtocol = "AES"/);
+    assert.ok(!/community/.test(v3)); // v3 never emits a community
+    // v3 noAuthNoPriv: no auth/priv fields leak through.
+    const v3none = buildSnmpStanza("u", {
+        host: "h",
+        version: "v3",
+        v3: {
+            secLevel: "noAuthNoPriv", secName: "ro", authPassword: "x", privPassword: "y",
+        }
+    });
+    assert.ok(!/authPassword|privPassword/.test(v3none));
+});
+
+test("buildSerialStanza: driver + port; genericups gets upstype", () => {
+    assert.equal(buildSerialStanza("ser", "apcsmart", "/dev/ttyS0"),
+                 '[ser]\n\tdriver = "apcsmart"\n\tport = "/dev/ttyS0"\n');
+    assert.match(buildSerialStanza("ser", "genericups", "/dev/ttyS0", { upstype: "1" }), /upstype = "1"/);
+    // upstype only applies to genericups.
+    assert.ok(!/upstype/.test(buildSerialStanza("ser", "apcsmart", "/dev/ttyS0", { upstype: "1" })));
+});
+
+test("snmpScanDisabled: detects nut-scanner's missing-libnetsnmp warning", () => {
+    assert.equal(snmpScanDisabled("Cannot load SNMP library (libnetsnmp.so) : file not found."), true);
+    assert.equal(snmpScanDisabled("[nutdev1]\n\tdriver = snmp-ups\n"), false);
+    assert.equal(snmpScanDisabled(""), false);
+});
+
+test("host / CIDR / serial-port validators", () => {
+    assert.equal(isValidHost("192.168.1.5"), true);
+    assert.equal(isValidHost("ups.example.com"), true);
+    assert.equal(isValidHost("bad host"), false);
+    assert.equal(isValidHost('a";rm -rf'), false);
+    assert.equal(isValidCidr("192.168.3.0/24"), true);
+    assert.equal(isValidCidr("192.168.3.0/33"), false);
+    assert.equal(isValidCidr("10.0.0.0"), false);
+    assert.equal(suggestCidr("192.168.3.9"), "192.168.3.0/24");
+    assert.equal(suggestCidr("not-an-ip"), "");
+    assert.equal(isValidSerialPort("/dev/ttyUSB0"), true);
+    assert.equal(isValidSerialPort("/etc/passwd"), false);
 });

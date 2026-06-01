@@ -227,7 +227,7 @@ src/Controls.tsx    control-mode action card (risk-tiered + danger zone); NutAut
 src/Config.tsx      per-UPS writable-variable editor (upsrw; own #/ups/<name>/config route)
 src/Trends.tsx      PCP sparklines; src/Metrics.tsx full charts; Gauge/Chart/MetricChart (SVG); src/lib/axis.ts (ticks)
 src/lib/nut*.ts     NUT client (nut.ts, UpsRef/refId — local or name@host) + pure parsing (nut-parse.ts)
-src/lib/setup*.ts   setup probes/apply incl. MODE/LISTEN/firewall (setup.ts) + pure parsing (setup-parse.ts)
+src/lib/setup*.ts   setup probes/apply incl. MODE/LISTEN/firewall + USB/SNMP scan + serial (setup.ts) + pure parsing & stanza builders (setup-parse.ts)
 src/lib/control*.ts control commands/tiers/validate (control.ts, control-parse.ts) + control-user create/reuse/grants (control-user.ts)
 src/lib/rwvars*.ts  read-write variables: upsrw list/set (rwvars.ts) + pure parse/validate (rwvars-parse.ts)
 src/lib/admin.ts    useAdmin (cockpit.permission) + requestAdmin (opens the shell escalation dialog)
