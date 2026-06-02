@@ -3,18 +3,27 @@
  *
  * Copyright (C) 2026 deviationist
  *
- * Per-browser UI preferences in cockpit.localStorage — the fallback tier used
- * when a setting isn't pinned in the file config (see config.ts). Currently
- * just the monitor/control mode fallback; the file config takes precedence.
+ * Per-browser UI preferences: the monitor/control mode fallback, remembered NUT
+ * + history credentials, and the last metrics range. The file config (config.ts)
+ * takes precedence where it pins a value.
+ *
+ * Stored in the browser's own `window.localStorage` under our `upside:` prefix —
+ * deliberately NOT `cockpit.localStorage`. Cockpit wipes its localStorage on
+ * logout (it removes every key prefixed with the app id; `cockpit.localStorage`
+ * double-prefixes ours as `<app>:upside:…`, so they got cleared whenever the
+ * session ended — e.g. a reboot that forced re-login). A bare `upside:` key
+ * isn't the app prefix, so Cockpit's logout-clear leaves it alone and prefs
+ * survive logout/reboot. Trade-off: remembered credentials now persist past a
+ * Cockpit logout too — acceptable as the explicit "remember on this device"
+ * opt-in, bounded by a least-privilege NUT/htpasswd user (and still plaintext,
+ * since client-side encryption of a client-decrypted secret is false security).
  */
-
-import cockpit from 'cockpit';
 
 const PREFIX = "upside:";
 
 export function getPref(key: string): string | null {
     try {
-        return cockpit.localStorage.getItem(PREFIX + key);
+        return window.localStorage.getItem(PREFIX + key);
     } catch {
         return null;
     }
@@ -22,7 +31,7 @@ export function getPref(key: string): string | null {
 
 export function setPref(key: string, value: string): void {
     try {
-        cockpit.localStorage.setItem(PREFIX + key, value);
+        window.localStorage.setItem(PREFIX + key, value);
     } catch {
         /* storage unavailable — non-fatal for a UI preference */
     }
@@ -30,7 +39,7 @@ export function setPref(key: string, value: string): void {
 
 export function removePref(key: string): void {
     try {
-        cockpit.localStorage.removeItem(PREFIX + key);
+        window.localStorage.removeItem(PREFIX + key);
     } catch {
         /* non-fatal */
     }
