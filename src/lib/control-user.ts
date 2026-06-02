@@ -19,7 +19,7 @@
 import cockpit from 'cockpit';
 
 import { appendStanza, parseConfSections, removeStanza } from './setup-parse';
-import { UserGrants, addSetAction, addUpsmonRole, buildMonitorBlock, buildUserBlock, parseUserBlock, setUpsmonRole } from './control-user-parse';
+import { UserGrants, addSetAction, addUpsmonRole, buildMonitorBlock, buildUserBlock, ensureInstcmds, parseUserBlock, setUpsmonRole } from './control-user-parse';
 import type { UpsmonType } from './upsmon-parse';
 
 export * from './control-user-parse';
@@ -176,9 +176,11 @@ export async function readControlUser(name: string): Promise<UserGrants | null> 
  *   - `actions = SET`, so it can change read-write variables (upsrw).
  * We don't read or return the password — when reusing a user the operator types
  * it, so UPSide validates and stores what they entered, never a credential
- * lifted out of upsd.users. Returns which grants were added.
+ * lifted out of upsd.users. Optionally also grant `instcmds` (the commands the
+ * GUI displays) so no control button dead-ends on ACCESS-DENIED. Returns which
+ * grants were added.
  */
-export async function ensureControlGrants(name: string): Promise<{ grantedUpsmon: boolean, grantedSet: boolean }> {
+export async function ensureControlGrants(name: string, instcmds: string[] = []): Promise<{ grantedUpsmon: boolean, grantedSet: boolean, grantedCmds: string[] }> {
     const path = await findUsersFile();
     const current = await read(path, "try");
     if (current === null)
@@ -191,8 +193,13 @@ export async function ensureControlGrants(name: string): Promise<{ grantedUpsmon
         next = addUpsmonRole(next, name);
     if (!g.hasSet)
         next = addSetAction(next, name);
+    // The displayed instant commands the user doesn't already hold (skipped
+    // entirely if it's `instcmds = ALL`).
+    const grantedCmds = g.allCmds ? [] : instcmds.filter(c => !g.instcmds.includes(c));
+    if (instcmds.length)
+        next = ensureInstcmds(next, name, instcmds);
     if (next === current)
-        return { grantedUpsmon: false, grantedSet: false };
+        return { grantedUpsmon: false, grantedSet: false, grantedCmds: [] };
     await writeUsersFile(path, next, current);
-    return { grantedUpsmon: !g.hasUpsmon, grantedSet: !g.hasSet };
+    return { grantedUpsmon: !g.hasUpsmon, grantedSet: !g.hasSet, grantedCmds };
 }

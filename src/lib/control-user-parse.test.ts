@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { addSetAction, addUpsmonRole, buildMonitorBlock, buildUserBlock, isValidUserName, parseUserBlock, setUpsmonRole } from './control-user-parse.ts';
+import { addSetAction, addUpsmonRole, buildMonitorBlock, buildUserBlock, ensureInstcmds, isValidUserName, parseUserBlock, setUpsmonRole } from './control-user-parse.ts';
 
 test("buildUserBlock: password, instcmds, actions=SET and the upsmon role", () => {
     const block = buildUserBlock("upside", "deadbeef", ["test.battery.start", "beeper.toggle"]);
@@ -106,4 +106,27 @@ test("isValidUserName: rejects whitespace/brackets, accepts safe names", () => {
     assert.equal(isValidUserName("has space"), false);
     assert.equal(isValidUserName("br[ack]et"), false);
     assert.equal(isValidUserName(""), false);
+});
+
+test("ensureInstcmds: adds only the missing commands, preserves password + others", () => {
+    const text = "[upside]\n\tpassword = sekret\n\tinstcmds = test.battery.start\n\tactions = SET\n\tupsmon secondary\n";
+    const out = ensureInstcmds(text, "upside", ["test.battery.start", "load.off", "shutdown.stop"]);
+    const g = parseUserBlock(out, "upside");
+    assert.ok(g);
+    assert.deepEqual(g!.instcmds.sort(), ["load.off", "shutdown.stop", "test.battery.start"]);
+    assert.equal(g!.password, "sekret");   // untouched
+    assert.equal(g!.hasSet, true);
+    assert.match(out, /upsmon secondary/);
+    // idempotent: re-running adds nothing
+    assert.equal(ensureInstcmds(out, "upside", ["load.off"]), out);
+});
+
+test("ensureInstcmds: a no-op when the user already grants instcmds = ALL", () => {
+    const text = "[upside]\n\tpassword = x\n\tinstcmds = ALL\n";
+    assert.equal(ensureInstcmds(text, "upside", ["load.off", "shutdown.stop"]), text);
+});
+
+test("ensureInstcmds: absent user → unchanged", () => {
+    const text = "[other]\n\tpassword = x\n";
+    assert.equal(ensureInstcmds(text, "upside", ["load.off"]), text);
 });
