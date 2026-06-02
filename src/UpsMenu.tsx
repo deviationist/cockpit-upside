@@ -11,6 +11,7 @@
  */
 
 import React, { useState } from 'react';
+import { Divider } from "@patternfly/react-core/dist/esm/components/Divider/index.js";
 import { Dropdown, DropdownItem, DropdownList } from "@patternfly/react-core/dist/esm/components/Dropdown/index.js";
 import { MenuToggle } from "@patternfly/react-core/dist/esm/components/MenuToggle/index.js";
 
@@ -55,6 +56,16 @@ export const UpsMenu = ({ ups, current }: { ups: string, current?: UpsSub }) => 
                 )}
             >
                 <DropdownList>
+                    {/* Back to the UPS's main detail page. Called "Dashboard" (not
+                        "Overview" — that's the all-UPS list in the breadcrumb). */}
+                    <DropdownItem
+                        key="dashboard"
+                        isSelected={!current}
+                        onClick={() => cockpit.location.go(["ups", ups])}
+                    >
+                        {_("Dashboard")}
+                    </DropdownItem>
+                    <Divider />
                     {items.map(it => (
                         <DropdownItem
                             key={it.key}

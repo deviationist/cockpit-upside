@@ -728,6 +728,13 @@ $upside-amber: #f59e0b;
     margin-inline-start: auto;
 }
 
+// Detail-page header: set the per-UPS menu off from the status/auth cluster with
+// the same thin vertical divider the metrics header uses.
+.upside-detail__menu {
+    padding-inline-start: 1rem;
+    border-inline-start: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+}
+
 // The per-UPS menu dropdown sits in normal-flow content that scrolls under the
 // sticky masthead (z-index 100). PF's MenuToggle is `position: relative` (to
 // anchor its border) and was painting OVER the masthead on scroll. Wrapping the
