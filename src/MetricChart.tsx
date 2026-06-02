@@ -12,7 +12,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 
-import { formatTimeTick, formatValueTick, niceTicks, timeTicks } from './lib/axis';
+import { axisBands, formatFullTimestamp, formatTimeTick, formatValueTick, niceTicks, timeStep, timeTicks } from './lib/axis';
 
 export interface ChartPoint { t: number, v: number }
 
@@ -30,7 +30,9 @@ interface MetricChartProps {
     locale?: string; // BCP-47 tag for date/time formatting (undefined = system)
 }
 
-const M = { left: 46, right: 12, top: 16, bottom: 22 };
+// bottom fits two label rows: the primary tick row (time/date) + the secondary
+// context band (day/month/year), Grafana-style.
+const M = { left: 46, right: 12, top: 16, bottom: 34 };
 
 /** Track the container's content width so the SVG renders at real px. */
 function useWidth(): [React.RefObject<HTMLDivElement | null>, number] {
@@ -69,14 +71,40 @@ export const MetricChart = ({ points, unit, color, min, max, startMs, endMs, hei
     const sx = (t: number) => M.left + ((t - startMs) / span) * innerW;
     const sy = (v: number) => M.top + (1 - (v - yLo) / (yHi - yLo || 1)) * innerH;
 
-    const line = points.map((p, i) => `${i ? "L" : "M"}${sx(p.t).toFixed(1)} ${sy(p.v).toFixed(1)}`).join(" ");
+    // Typical sample spacing → the threshold for a "real" gap. Used both to break
+    // the line/area where data is missing (so it isn't drawn straight across a
+    // hole) and to suppress the hover when the cursor sits in such a gap.
+    const spacings = points.slice(1).map((p, i) => p.t - points[i].t).sort((a, b) => a - b);
+    const medSpacing = spacings.length ? spacings[Math.floor(spacings.length / 2)] : span;
+    const gapMs = Math.max(medSpacing * 1.5, 1);
+
+    // Contiguous runs, split where a gap exceeds the typical spacing.
+    const segments: ChartPoint[][] = [];
+    for (let i = 0; i < points.length; i++) {
+        if (i === 0 || points[i].t - points[i - 1].t > gapMs)
+            segments.push([]);
+        segments[segments.length - 1].push(points[i]);
+    }
+    const pathOf = (seg: ChartPoint[]) =>
+        seg.map((p, i) => `${i ? "L" : "M"}${sx(p.t).toFixed(1)} ${sy(p.v).toFixed(1)}`).join(" ");
     const baseY = (M.top + innerH).toFixed(1);
-    const area = enough ? `${line} L${sx(points[points.length - 1].t).toFixed(1)} ${baseY} L${sx(points[0].t).toFixed(1)} ${baseY} Z` : "";
+    const line = segments.map(pathOf).join(" ");
+    // Each run gets its own filled area down to the baseline (single-point runs
+    // can't form an area, so they're skipped — which also de-emphasises strays).
+    const area = enough
+        ? segments.filter(seg => seg.length >= 2).map(seg =>
+            `${pathOf(seg)} L${sx(seg[seg.length - 1].t).toFixed(1)} ${baseY} L${sx(seg[0].t).toFixed(1)} ${baseY} Z`).join(" ")
+        : "";
 
     // Tick count scales with width (~one label per 90px) so labels don't crowd
     // on small screens or for wide spans. Clamped to a sane 2..8.
     const xTarget = Math.max(2, Math.min(8, Math.round(innerW / 90)));
+    const xStep = timeStep(startMs, endMs, xTarget);
     const xTicks = timeTicks(startMs, endMs, xTarget);
+
+    // Secondary context tier (day/month/year): boundary lines, with each
+    // period's label centred within its visible span (between its boundaries).
+    const bands = axisBands(startMs, endMs, xStep, locale);
 
     // The capture rect starts at x=M.left inside the SVG; add it back so the
     // pointer x is in SVG coordinates, matching sx().
@@ -104,7 +132,9 @@ export const MetricChart = ({ points, unit, color, min, max, startMs, endMs, hei
             const dx = Math.abs(sx(points[i].t) - x);
             if (dx < bestDx) { bestDx = dx; best = i }
         }
-        setHover(best);
+        // Don't snap across a data gap: if the nearest sample is far (in time)
+        // from the cursor, there's nothing really under the pointer.
+        setHover(Math.abs(points[best].t - invX(x)) > gapMs ? null : best);
     };
     const onUp = () => {
         if (drag) {
@@ -141,9 +171,26 @@ export const MetricChart = ({ points, unit, color, min, max, startMs, endMs, hei
                             </g>
                         ))}
 
-                        {/* x time labels */}
+                        {/* secondary context band: a faint boundary line at each period
+                            start, and the period's label centred within its visible span
+                            (skipped when the span is too narrow to fit it). */}
+                        {bands.map((b, i) => {
+                            const rightMs = i + 1 < bands.length ? bands[i + 1].ms : endMs;
+                            const x0 = sx(b.ms);
+                            const x1 = sx(rightMs);
+                            return (
+                                <g key={"band" + b.ms}>
+                                    {b.ms > startMs &&
+                                        <line className="upside-mchart__band-sep" x1={x0} x2={x0} y1={M.top} y2={M.top + innerH} />}
+                                    {x1 - x0 >= 34 &&
+                                        <text className="upside-mchart__band" x={(x0 + x1) / 2} y={height - 6}>{b.label}</text>}
+                                </g>
+                            );
+                        })}
+
+                        {/* primary x labels (time / date / month, chosen by tick step) */}
                         {xTicks.map(t => (
-                            <text key={t} className="upside-mchart__xlabel" x={sx(t)} y={height - 6}>{formatTimeTick(t, span, locale)}</text>
+                            <text key={t} className="upside-mchart__xlabel" x={sx(t)} y={height - 20}>{formatTimeTick(t, xStep, locale)}</text>
                         ))}
 
                         <path d={area} fill={color} fillOpacity="0.15" stroke="none" />
@@ -178,7 +225,7 @@ export const MetricChart = ({ points, unit, color, min, max, startMs, endMs, hei
                     style={{ left: `${sx(hp.t)}px` }}
                 >
                     <strong>{formatValueTick(hp.v)}{unit}</strong>
-                    <span>{formatTimeTick(hp.t, Math.min(span, 86400_000), locale)}</span>
+                    <span>{formatFullTimestamp(hp.t, locale)}</span>
                 </div>}
         </div>
     );

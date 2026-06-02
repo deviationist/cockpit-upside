@@ -43,6 +43,7 @@ import { Topology } from './Topology';
 import { Trends } from './Trends';
 import { UpsMenu } from './UpsMenu';
 import { VERSION } from './version';
+import { GithubMark } from './Github';
 import { Mode, UpsideConfig, loadModePref, resolveMode, saveConfig, saveModePref, useConfig } from './lib/config';
 import { NutCreds, clearNutCreds, loadNutCreds, saveNutCreds } from './lib/prefs';
 import { formatElapsed, monthsBetween, parseNutDate } from './lib/derive';
@@ -596,8 +597,9 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
             {mode === "control" &&
                 <Controls ups={upsId} creds={creds} vars={vars} onAuthNeeded={() => setAuthOpen(true)} />}
 
-            {config.history && !remote &&
-                <Trends ups={ups.ref.name} archiveDir={config.historyArchiveDir} locale={config.locale} />}
+            {((!remote && config.history) || (remote && config.historyUrl)) &&
+                <Trends ups={ups.ref.name} archiveDir={config.historyArchiveDir}
+                        historyUrl={remote ? config.historyUrl : undefined} locale={config.locale} />}
 
             <Topology ups={upsId} />
 
@@ -717,12 +719,6 @@ const About = () => (
 );
 
 /* ---- shell ---- */
-
-const GithubMark = () => (
-    <svg viewBox="0 0 16 16" aria-hidden="true" className="upside-masthead__github-icon">
-        <path fillRule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
-    </svg>
-);
 
 const MenuIcon = () => (
     <svg viewBox="0 0 24 24" aria-hidden="true" className="upside-masthead__burger-icon">
@@ -883,7 +879,7 @@ export const Application = () => {
             target="_blank" rel="noopener noreferrer"
             aria-label={_("UPSide on GitHub")} title={_("UPSide on GitHub")}
         >
-            <GithubMark />
+            <GithubMark className="upside-masthead__github-icon" />
         </a>
     );
 
@@ -915,7 +911,7 @@ export const Application = () => {
         const u = upses?.find(x => x.ref.name === path[1]);
         const title = config.names[path[1]] || descs[path[1]] ||
             (u ? displayName(u, descs, config.names) : path[1]);
-        view = <Metrics ups={path[1]} title={title} archiveDir={config.historyArchiveDir} retentionDays={config.historyRetentionDays} locale={config.locale} />;
+        view = <Metrics ups={path[1]} title={title} archiveDir={config.historyArchiveDir} historyUrl={config.historyUrl} locale={config.locale} />;
     } else if (path[0] === "ups" && path[1] && path[2] === "config") {
         const u = upses?.find(x => x.ref.name === path[1]);
         const title = config.names[path[1]] || descs[path[1]] ||

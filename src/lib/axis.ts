@@ -59,30 +59,92 @@ export function timeStep(startMs: number, endMs: number, target = 6): number {
 }
 
 /** Time ticks aligned to the step boundary, within [startMs, endMs]. */
+/** Time ticks within [startMs, endMs]. Sub-day steps align to the step boundary;
+ *  day-and-coarser steps align to LOCAL midnight (UTC alignment drifts off the
+ *  local day in any non-UTC zone — which is what made daily labels carry a stray
+ *  time). Day+ steps advance by whole calendar days so DST can't slew them. */
 export function timeTicks(startMs: number, endMs: number, target = 6): number[] {
     const step = timeStep(startMs, endMs, target);
-    const first = Math.ceil(startMs / step) * step;
     const ticks: number[] = [];
+    if (step >= DAY) {
+        const days = Math.round(step / DAY);
+        const d = new Date(startMs);
+        d.setHours(0, 0, 0, 0);
+        if (d.getTime() < startMs)
+            d.setDate(d.getDate() + 1);
+        for (; d.getTime() <= endMs; d.setDate(d.getDate() + days))
+            ticks.push(d.getTime());
+        return ticks;
+    }
+    const first = Math.ceil(startMs / step) * step;
     for (let t = first; t <= endMs; t += step)
         ticks.push(t);
     return ticks;
 }
 
 /**
- * Time-of-day for a sub-day window; "date time" (or just the date at midnight)
- * for wider spans. Date order and 12- vs 24-hour follow `locale` (a BCP-47 tag;
- * undefined = the runtime/system locale).
+ * Primary x-axis label, chosen by the tick STEP (not the window span) so the
+ * granularity matches the spacing: a time when ticks are sub-day, a date when
+ * they're days apart, a month when they're a month+ apart. The coarser context
+ * (which day / month / year) is carried by the secondary tier — see axisBands.
+ * Order + 12/24-hour follow `locale` (BCP-47; undefined = runtime/system).
  */
-export function formatTimeTick(ms: number, spanMs: number, locale?: string): string {
+export function formatTimeTick(ms: number, stepMs: number, locale?: string): string {
     const d = new Date(ms);
-    const time = d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
-    if (spanMs <= 86400_000)
-        return time;
-    const date = d.toLocaleDateString(locale, { month: "numeric", day: "numeric" });
-    // A midnight tick on a multi-day span: show just the date.
-    if (spanMs > 2 * 86400_000 && d.getHours() === 0 && d.getMinutes() === 0)
-        return date;
-    return `${date} ${time}`;
+    if (stepMs < DAY)
+        return d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+    if (stepMs < 28 * DAY)
+        return d.toLocaleDateString(locale, { month: "short", day: "numeric" });
+    return d.toLocaleDateString(locale, { month: "short" });
+}
+
+export interface AxisBand { ms: number, label: string }
+
+/**
+ * Secondary "context" tier (Grafana-style): markers at the next coarser unit's
+ * local boundaries across [startMs, endMs], plus a leading marker at the window
+ * start so the date is always visible. When primary ticks are TIMES the bands
+ * are day boundaries ("Jun 2"); for day/week ticks they're months ("Jun"); for
+ * month+ ticks they're years ("2026").
+ */
+export function axisBands(startMs: number, endMs: number, stepMs: number, locale?: string): AxisBand[] {
+    const unit: "day" | "month" | "year" =
+        stepMs < DAY ? "day" : stepMs < 28 * DAY ? "month" : "year";
+    const label = (ms: number): string => {
+        const d = new Date(ms);
+        if (unit === "day")
+            return d.toLocaleDateString(locale, { month: "short", day: "numeric" });
+        if (unit === "month")
+            return d.toLocaleDateString(locale, { month: "short" });
+        return String(d.getFullYear());
+    };
+    // Cursor at the local boundary of `unit` containing startMs.
+    const cur = new Date(startMs);
+    cur.setHours(0, 0, 0, 0);
+    if (unit !== "day")
+        cur.setDate(1);
+    if (unit === "year")
+        cur.setMonth(0);
+    const advance = () => {
+        if (unit === "day")
+            cur.setDate(cur.getDate() + 1);
+        else if (unit === "month")
+            cur.setMonth(cur.getMonth() + 1);
+        else
+            cur.setFullYear(cur.getFullYear() + 1);
+    };
+    const bands: AxisBand[] = [{ ms: startMs, label: label(startMs) }];
+    // Step to the first boundary strictly after startMs, then collect within range.
+    advance();
+    for (; cur.getTime() <= endMs; advance())
+        bands.push({ ms: cur.getTime(), label: label(cur.getTime()) });
+    return bands;
+}
+
+/** Full, unambiguous date+time for the hover readout (always shows the day). */
+export function formatFullTimestamp(ms: number, locale?: string): string {
+    return new Date(ms).toLocaleString(locale,
+                                       { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 /** Compact value label: drop trailing ".0", keep one decimal otherwise. */

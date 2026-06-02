@@ -31,6 +31,13 @@
 # subdirs (/subdir/...)
 /packaging/arch/PKGBUILD
 /packaging/debian/changelog
+
+# dpkg-buildpackage artifacts (debian/changelog + rules etc. stay tracked)
+/debian/.debhelper/
+/debian/cockpit-upside/
+/debian/files
+/debian/debhelper-build-stamp
+/debian/*.substvars
 /po/*.pot
 /po/LINGUAS
 /test/common/

@@ -19,6 +19,8 @@ import cockpit from 'cockpit';
 
 import { Chart } from './Chart';
 import { HistPoint, loadArchive } from './lib/metrics';
+import { loadSeries } from './lib/series';
+import { loadHistoryCreds } from './lib/prefs';
 
 const _ = cockpit.gettext;
 
@@ -42,7 +44,7 @@ const SERIES: Series[] = [
 
 const WINDOW_MS = 6 * 3600_000; // last 6 hours
 
-export const Trends = ({ ups, archiveDir, locale }: { ups: string, archiveDir?: string, locale?: string }) => {
+export const Trends = ({ ups, archiveDir, historyUrl, locale }: { ups: string, archiveDir?: string, historyUrl?: string, locale?: string }) => {
     const [data, setData] = useState<Record<string, HistPoint[]> | null>(null);
     const [failed, setFailed] = useState(false);
     const [diag, setDiag] = useState<string | null>(null);
@@ -58,8 +60,12 @@ export const Trends = ({ ups, archiveDir, locale }: { ups: string, archiveDir?: 
         // configured — so Trends is as fast as, and consistent with, /metrics.
         const end = Date.now();
         const start = end - WINDOW_MS;
-        loadArchive(SERIES.map(s => `openmetrics.nut.${s.key}`), ups,
-                    { startMs: start, endMs: end, intervalMs: 60_000, limit: 100000 }, archiveDir)
+        const names = SERIES.map(s => `openmetrics.nut.${s.key}`);
+        const r = { startMs: start, endMs: end, intervalMs: 60_000, limit: 100000 };
+        const fetch = historyUrl
+            ? loadSeries(historyUrl, loadHistoryCreds(), names, ups, r)
+            : loadArchive(names, ups, r, archiveDir);
+        fetch
                 .then(r => {
                     if (cancelled)
                         return;
@@ -79,7 +85,7 @@ export const Trends = ({ ups, archiveDir, locale }: { ups: string, archiveDir?: 
                 });
 
         return () => { cancelled = true };
-    }, [ups, archiveDir]);
+    }, [ups, archiveDir, historyUrl]);
 
     let body;
     if (failed) {

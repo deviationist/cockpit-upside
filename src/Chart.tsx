@@ -11,6 +11,8 @@
 
 import React, { useRef, useState } from 'react';
 
+import { formatFullTimestamp } from './lib/axis';
+
 export interface Point { t: number, v: number }
 
 interface ChartProps {
@@ -84,7 +86,7 @@ export const Chart = ({ points, label, color, unit = "", min, max, height = 88, 
                         <div className="upside-chart__dot" style={{ left: `${xPct(hover as number)}%`, top: `${yPct(hp.v)}%`, background: color }} />
                         <div className="upside-chart__tip" style={{ left: `${xPct(hover as number)}%` }}>
                             <strong>{Math.round(hp.v * 10) / 10}{unit}</strong>
-                            <span>{fmt(hp.t)}</span>
+                            <span>{formatFullTimestamp(hp.t, locale)}</span>
                         </div>
                     </>}
             </div>

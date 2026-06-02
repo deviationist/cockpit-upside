@@ -28,6 +28,33 @@ test("buildHosts: roles, local hostname, primary-first sort", () => {
     assert.equal(hosts[1].name, "quim-wg"); // resolved via rdns
 });
 
+test("buildHosts: netclient — loopback is the REMOTE primary, our own IP is the local secondary", () => {
+    // As seen on quim reading xavi's upsd: xavi's upsmon is the loopback client,
+    // quim connects from its trunk IP 10.99.0.2 (which is one of our localIps).
+    const hosts = buildHosts(
+        ["127.0.0.1", "10.99.0.2"], "quim", { "10.99.0.2": "quim-wg" },
+        { remoteHost: "10.99.0.1", remoteName: "xavi", localIps: ["192.168.3.8", "10.99.0.2"] });
+    assert.equal(hosts.length, 2);
+    // The remote primary: named xavi, shown by its host address — NOT "this host".
+    assert.equal(hosts[0].role, "primary");
+    assert.equal(hosts[0].local, false);
+    assert.equal(hosts[0].name, "xavi");
+    assert.equal(hosts[0].ip, "10.99.0.1");
+    // Our own row: the secondary matching a local IP, flagged as this host.
+    assert.equal(hosts[1].role, "secondary");
+    assert.equal(hosts[1].local, true);
+    assert.equal(hosts[1].name, "quim");
+    assert.equal(hosts[1].ip, "10.99.0.2");
+});
+
+test("buildHosts: netclient — no local IP match means no row claims to be this host", () => {
+    const hosts = buildHosts(
+        ["127.0.0.1", "10.99.0.2"], "quim", {},
+        { remoteHost: "10.99.0.1", remoteName: "xavi", localIps: ["172.16.0.9"] });
+    assert.ok(hosts.every(h => !h.local)); // can't self-identify → nobody gets the badge
+    assert.equal(hosts.filter(h => h.role === "primary").length, 1);
+});
+
 test("buildHosts: dedupes and counts connections per host", () => {
     const hosts = buildHosts(["10.0.0.5", "10.0.0.5", "10.0.0.5"], "", {});
     assert.equal(hosts.length, 1);

@@ -56,6 +56,8 @@ import { clearNutCreds, loadNutCreds, saveNutCreds } from './lib/prefs';
 import { createSecondaryUser, generatePassword, isValidUserName, setMonitorUser } from './lib/control-user';
 import { NutUserWizard } from './NutUserWizard';
 import { NutAuthModal } from './NutAuthModal';
+import { GithubMark } from './Github';
+import { VERSION } from './version';
 
 const _ = cockpit.gettext;
 
@@ -1043,9 +1045,20 @@ export const Setup = ({ onDone, mode, modeLocked, onEnableControl }: {
 
     return (
         <div className="upside-setup upside-wizard">
-            <Content component="p" className="upside-setup__intro">
-                {_("This guide gets a UPS visible to UPSide — and, optionally, controllable. Pick this machine's role, then work through the steps; each can apply the change for you (with an admin prompt) or show the command.")}
-            </Content>
+            <div className="upside-setup__heading">
+                <Content component="p" className="upside-setup__intro">
+                    {_("This guide gets a UPS visible to UPSide — and, optionally, controllable. Pick this machine's role, then work through the steps; each can apply the change for you (with an admin prompt) or show the command.")}
+                </Content>
+                <a
+                    className="upside-setup__repo"
+                    href="https://github.com/deviationist/cockpit-upside"
+                    target="_blank" rel="noopener noreferrer"
+                    aria-label={_("UPSide on GitHub")} title={_("UPSide on GitHub")}
+                >
+                    <GithubMark className="upside-setup__github-icon" />
+                    <span>{`UPSide v${VERSION}`}</span>
+                </a>
+            </div>
             {error && <Alert variant="danger" isInline className="upside-setup__error" title={_("Something went wrong")}>{error}</Alert>}
 
             <Wizard
