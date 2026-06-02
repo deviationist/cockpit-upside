@@ -372,7 +372,9 @@ $upside-amber: #f59e0b;
     fill: currentcolor;
 }
 
-// Hamburger — hidden on wide screens, revealed ≤767px (see media query below).
+// Hamburger — hidden on wide screens, revealed ≤767px (right-most in the
+// cluster there). On mobile it's the overflow menu: section tabs + version +
+// GitHub. On desktop the tabs are inline and version/GitHub sit in the bar.
 .upside-masthead__burger {
     display: none;
     appearance: none;
@@ -419,17 +421,76 @@ $upside-amber: #f59e0b;
     }
 }
 
-// At ≤767px collapse the inline tabs into the hamburger.
+// The section tabs inside the dropdown stack vertically.
+.upside-masthead__menu-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+// version + GitHub row at the foot of the dropdown, set off from the tabs above.
+.upside-masthead__menu-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-block-start: 0.3rem;
+    padding-block-start: 0.5rem;
+    padding-inline: 0.3rem;
+    border-block-start: 1px solid rgb(255 255 255 / 10%);
+}
+
+// Verbose GitHub link in the dropdown: icon + label, padded for a tap target
+// (the bar's icon-only link stays compact). Kept small and regular-weight.
+.upside-masthead__menu-github {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.35rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 400;
+
+    &:hover { background: rgb(255 255 255 / 8%); }
+
+    .upside-masthead__github-icon {
+        inline-size: 1.05rem;
+        block-size: 1.05rem;
+    }
+}
+
+// Inline version + GitHub in the desktop bar (on mobile they move into the menu).
+.upside-masthead__meta-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+}
+
+// At ≤767px collapse the inline tabs + version/GitHub into the hamburger.
 @media (width <= 767px) {
     .upside-masthead__nav { display: none; }
-
-    // The right-cluster wrapper already carries the auto margin; just reveal the burger.
+    .upside-masthead__meta-inline { display: none; }
     .upside-masthead__burger { display: inline-flex; }
 }
 
 // Safety: if the viewport widens while the menu is open, don't leave it showing.
 @media (width >= 768px) {
     .upside-masthead__menu { display: none; }
+}
+
+// Compact desktop band (768–862px): between the mobile burger (≤767px) and a
+// comfortable wide layout, the full bar (brand + tagline + four tabs +
+// status/version/GitHub) overflows and wraps to a second line. Tighten the gaps,
+// tab padding/size and brand sizing so it stays on one row — the tagline stays
+// visible. 862px upper bound confirmed by the operator.
+@media (min-width: 768px) and (max-width: 862px) {
+    .upside-masthead { gap: 0.5rem 0.6rem; }
+    .upside-masthead__brand { gap: 0.5rem; }
+    .upside-logo { block-size: 1.9rem; }
+    .upside-masthead__name { font-size: 1.2rem; }
+    .upside-masthead__nav { margin-inline-start: 0; gap: 0.1rem; }
+    .upside-tab { padding-inline: 0.45rem; font-size: 0.85rem; }
+    .upside-masthead__right { gap: 0.5rem; }
 }
 
 // Status pills in a card title: give them room to breathe.

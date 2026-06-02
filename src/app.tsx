@@ -999,15 +999,6 @@ export const Application = () => {
                     ))}
                 </nav>
                 <div className="upside-masthead__right">
-                    <button
-                        type="button"
-                        className="upside-masthead__burger"
-                        aria-label={_("Menu")}
-                        aria-expanded={menuOpen}
-                        onClick={() => setMenuOpen(o => !o)}
-                    >
-                        <MenuIcon />
-                    </button>
                     {countdown &&
                         <CountdownPill
                             label={countdown.label}
@@ -1036,23 +1027,51 @@ export const Application = () => {
                                 {mode === "control" ? _("Control") : _("Monitor")}
                             </button>
                         )}
-                    <span className="upside-version" title={_("UPSide version")}>{`v${VERSION}`}</span>
-                    {github}
+                    {/* Inline on desktop; hidden on mobile, where they move into
+                        the hamburger dropdown below. */}
+                    <div className="upside-masthead__meta-inline">
+                        <span className="upside-version" title={_("UPSide version")}>{`v${VERSION}`}</span>
+                        {github}
+                    </div>
+                    {/* Hamburger — mobile only, right-most in the cluster. */}
+                    <button
+                        type="button"
+                        className="upside-masthead__burger"
+                        aria-label={_("Menu")}
+                        aria-expanded={menuOpen}
+                        onClick={() => setMenuOpen(o => !o)}
+                    >
+                        <MenuIcon />
+                    </button>
                 </div>
                 {menuOpen &&
-                    <nav className="upside-masthead__menu" aria-label={_("Sections")}>
-                        {NAV.map(item => (
-                            <button
-                                key={item.key}
-                                type="button"
-                                className={"upside-tab" + (section === item.key ? " upside-tab--active" : "")}
-                                aria-current={section === item.key ? "page" : undefined}
-                                onClick={() => go(item.key)}
+                    <div className="upside-masthead__menu">
+                        <nav className="upside-masthead__menu-nav" aria-label={_("Sections")}>
+                            {NAV.map(item => (
+                                <button
+                                    key={item.key}
+                                    type="button"
+                                    className={"upside-tab" + (section === item.key ? " upside-tab--active" : "")}
+                                    aria-current={section === item.key ? "page" : undefined}
+                                    onClick={() => go(item.key)}
+                                >
+                                    {item.label}
+                                </button>
+                            ))}
+                        </nav>
+                        <div className="upside-masthead__menu-meta">
+                            <span className="upside-version" title={_("UPSide version")}>{`v${VERSION}`}</span>
+                            <a
+                                className="upside-masthead__action upside-masthead__menu-github"
+                                href="https://github.com/deviationist/cockpit-upside"
+                                target="_blank" rel="noopener noreferrer"
+                                title={_("UPSide on GitHub")}
                             >
-                                {item.label}
-                            </button>
-                        ))}
-                    </nav>}
+                                <GithubMark className="upside-masthead__github-icon" />
+                                <span>{_("View on GitHub")}</span>
+                            </a>
+                        </div>
+                    </div>}
             </header>
             <PageSection hasBodyWrapper={false} className="upside-content">
                 {view}
