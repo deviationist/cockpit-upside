@@ -28,7 +28,8 @@ import cockpit from 'cockpit';
 import { page_status } from 'notifications';
 
 import { Controls } from './Controls';
-import { validateCreds } from './lib/control';
+import { listCommands, validateCreds } from './lib/control';
+import { ensureControlGrants } from './lib/control-user';
 import { Gauge } from './Gauge';
 import { Logo } from './Logo';
 import { Config } from './Config';
@@ -628,6 +629,16 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
                     else
                         clearNutCreds();
                     setAuthOpen(false);
+                    // Provision the control user for every command the GUI shows, so no
+                    // button dead-ends on ACCESS-DENIED. Best-effort: LOCAL upsd only (we
+                    // can't write a remote primary's upsd.users — grant those on it), and
+                    // needs admin (the privileged read no-ops silently without it).
+                    if (!remote) {
+                        try {
+                            const cmds = (await listCommands(upsId)).map(x => x.name);
+                            await ensureControlGrants(user, cmds);
+                        } catch { /* best-effort — buttons still work if already granted */ }
+                    }
                 }}
                 onForget={() => { setCreds(null); setRemembered(false); clearNutCreds(); setAuthOpen(false) }}
                 // The wizard writes the *local* upsd.users — meaningless against a

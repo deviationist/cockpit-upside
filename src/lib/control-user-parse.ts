@@ -188,3 +188,25 @@ export function setUpsmonRole(text: string | null | undefined, name: string, rol
 export function addSetAction(text: string | null | undefined, name: string): string {
     return addToBlock(text, name, "\tactions = SET", /^\s*actions\s*=.*\bSET\b/i);
 }
+
+/**
+ * Add an `instcmds = <cmd>` line for each of `cmds` the user doesn't already
+ * hold — skipping any it has, and a no-op entirely if the block already grants
+ * `instcmds = ALL`. Used to provision the control user for every command the
+ * GUI displays so no button dead-ends on ACCESS-DENIED. Password untouched.
+ */
+export function ensureInstcmds(text: string | null | undefined, name: string, cmds: string[]): string {
+    const g = parseUserBlock(text, name);
+    if (!g || g.allCmds)
+        return text ?? "";
+    const have = new Set(g.instcmds);
+    let out = text ?? "";
+    for (const c of cmds) {
+        if (have.has(c))
+            continue;
+        const esc = c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        out = addToBlock(out, name, `\tinstcmds = ${c}`, new RegExp(`^\\s*instcmds\\s*=\\s*"?${esc}"?\\s*$`, "i"));
+        have.add(c);
+    }
+    return out;
+}
