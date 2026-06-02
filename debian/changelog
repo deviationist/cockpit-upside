@@ -1,3 +1,11 @@
+cockpit-upside (1.0.2) noble; urgency=medium
+
+  * Metrics: a "Go to now" item in the timeframe dropdown jumps the window back
+    to the latest data after stepping into the past (or zooming), keeping the
+    chosen range.
+
+ -- Robert Sæther <robert4832@pm.me>  Tue, 02 Jun 2026 11:19:43 +0000
+
 cockpit-upside (1.0.1) noble; urgency=medium
 
   * Remote history: a secondary host (a remote NUT source) can now plot the
