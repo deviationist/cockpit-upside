@@ -566,7 +566,7 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode, 
                                 </Button>
                             </FlexItem>}
                         {/* Per-UPS menu: the sub-pages, gathered in one place (also on each sub-view). */}
-                        <FlexItem><UpsMenu ups={ups.ref.name} /></FlexItem>
+                        <FlexItem className="upside-detail__menu"><UpsMenu ups={ups.ref.name} /></FlexItem>
                     </Flex>
                 </FlexItem>
             </Flex>
