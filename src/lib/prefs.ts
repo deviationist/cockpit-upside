@@ -63,3 +63,29 @@ export function saveNutCreds(c: NutCreds): void {
 export function clearNutCreds(): void {
     removePref("nut-creds");
 }
+
+/**
+ * Remembered remote-history credentials (HTTP Basic for the pmproxy endpoint in
+ * config.historyUrl). Same storage rationale as NUT creds: UNENCRYPTED, opt-in
+ * "remember on this device", bounded by a least-privilege htpasswd user. Kept
+ * out of the file config (upside.json) so the password stays per-browser.
+ */
+export function loadHistoryCreds(): NutCreds | null {
+    const v = getPref("history-creds");
+    if (!v)
+        return null;
+    try {
+        const o = JSON.parse(v);
+        if (o && typeof o.user === "string" && typeof o.pass === "string")
+            return { user: o.user, pass: o.pass };
+    } catch { /* ignore malformed */ }
+    return null;
+}
+
+export function saveHistoryCreds(c: NutCreds): void {
+    setPref("history-creds", JSON.stringify(c));
+}
+
+export function clearHistoryCreds(): void {
+    removePref("history-creds");
+}

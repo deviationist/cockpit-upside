@@ -32,6 +32,8 @@ import cockpit from 'cockpit';
 import { MetricChart } from './MetricChart';
 import { UpsMenu } from './UpsMenu';
 import { ArchiveResult, loadArchive } from './lib/metrics';
+import { loadSeries } from './lib/series';
+import { loadHistoryCreds } from './lib/prefs';
 import { getPref, setPref } from './lib/prefs';
 
 // Remembered time window (per browser). Honoured on next visit if still valid.
@@ -63,10 +65,10 @@ const RANGES: Range[] = [
     { id: "6h", label: _("6 hours"), ms: 6 * 3600_000, intervalMs: 60_000 },
     { id: "24h", label: _("24 hours"), ms: 24 * 3600_000, intervalMs: 300_000 },
     { id: "7d", label: _("7 days"), ms: 7 * 24 * 3600_000, intervalMs: 1800_000 },
-    // Longer windows: interval coarsens so each stays ~700-740 points. Only shown
-    // when the configured retention actually keeps that much history (see
-    // visibleRanges); each extra day is another archive to read, so these get
-    // progressively slower.
+    // Longer windows: interval coarsens so each stays ~700-740 points. Deep
+    // windows are heavier (locally, each extra day is another archive pmrep
+    // reads), but they're always offered — a window with no data just renders
+    // the "no history for this range" notice.
     { id: "30d", label: _("1 month"), ms: 30 * 86400_000, intervalMs: 3600_000 },
     { id: "90d", label: _("3 months"), ms: 90 * 86400_000, intervalMs: 3 * 3600_000 },
     { id: "180d", label: _("6 months"), ms: 180 * 86400_000, intervalMs: 6 * 3600_000 },
@@ -86,13 +88,12 @@ function intervalForSpan(ms: number): number {
 
 const FETCH_LIMIT = 100000; // pmrep is bounded by the window; this is just the API field
 
-export const Metrics = ({ ups, title, archiveDir, retentionDays, locale }: { ups: string, title?: string, archiveDir?: string, retentionDays?: number, locale?: string }) => {
-    // Restore the last-used window from the per-browser pref — but only if it
-    // still exists and fits the configured retention; otherwise fall back to 6h.
+export const Metrics = ({ ups, title, archiveDir, historyUrl, locale }: { ups: string, title?: string, archiveDir?: string, historyUrl?: string, locale?: string }) => {
+    // Restore the last-used window from the per-browser pref if it still exists;
+    // otherwise fall back to 6h.
     const [rangeId, setRangeId] = useState(() => {
         const saved = getPref(RANGE_PREF) || "";
-        const r = RANGES.find(x => x.id === saved);
-        return r && r.ms <= (retentionDays ?? 90) * 86400_000 ? saved : "6h";
+        return RANGES.some(x => x.id === saved) ? saved : "6h";
     });
     // How far back the window is shifted from "now", in ms (0 = latest).
     const [offset, setOffset] = useState(0);
@@ -106,10 +107,10 @@ export const Metrics = ({ ups, title, archiveDir, retentionDays, locale }: { ups
 
     const range = RANGES.find(r => r.id === rangeId) || RANGES[3];
 
-    // Only offer windows that fit within the configured retention — no point
-    // showing "6 months" if we only keep 90 days of archives (default 90d).
-    const retentionMs = (retentionDays ?? 90) * 86400_000;
-    const visibleRanges = RANGES.filter(r => r.ms <= retentionMs);
+    // Offer every window (5 min … 1 year). A range with no data in it just
+    // renders the "no history for this range" notice, so there's no need to
+    // gate the options by retention — which is meaningless for a remote source.
+    const visibleRanges = RANGES;
 
     // Persist the chosen window (from the dropdown or zoom-step) for next time.
     useEffect(() => { setPref(RANGE_PREF, rangeId) }, [rangeId]);
@@ -187,13 +188,18 @@ export const Metrics = ({ ups, title, archiveDir, retentionDays, locale }: { ups
         // show 4 points instead of 5 — and the edges wouldn't sit on round ticks.
         const end = zoom ? zoom.end : Math.floor((Date.now() - offset) / intervalMs) * intervalMs;
         const start = zoom ? zoom.start : end - range.ms;
-        loadArchive(SERIES.map(s => metricName(s.key)), ups, {
-            startMs: start, endMs: end, intervalMs, limit: FETCH_LIMIT,
-        }, archiveDir)
-                .then(r => { if (!cancelled) { setResult(r); setWin({ start, end }); setLoading(false) } })
+        const names = SERIES.map(s => metricName(s.key));
+        const r = { startMs: start, endMs: end, intervalMs, limit: FETCH_LIMIT };
+        // Remote source (netclient): read the primary's history over pmproxy
+        // REST; otherwise the local pmrep archive. Both yield an ArchiveResult.
+        const fetch = historyUrl
+            ? loadSeries(historyUrl, loadHistoryCreds(), names, ups, r)
+            : loadArchive(names, ups, r, archiveDir);
+        fetch
+                .then(res => { if (!cancelled) { setResult(res); setWin({ start, end }); setLoading(false) } })
                 .catch((e: { message?: string }) => { if (!cancelled) { setError(e?.message || String(e)); setLoading(false) } });
         return () => { cancelled = true };
-    }, [ups, rangeId, offset, zoom, range.ms, range.intervalMs, archiveDir]);
+    }, [ups, rangeId, offset, zoom, range.ms, range.intervalMs, archiveDir, historyUrl]);
 
     const shown = result
         ? SERIES.filter(s => (result.points[metricName(s.key)]?.length ?? 0) >= 2)
@@ -237,8 +243,8 @@ export const Metrics = ({ ups, title, archiveDir, retentionDays, locale }: { ups
                         </Dropdown>
                         {zoom &&
                         <Button variant="link" onClick={() => setZoom(null)}>{_("Reset zoom")}</Button>}
-                        <Button variant="secondary" aria-label={_("Zoom in")} icon={<SearchPlusIcon />} isDisabled={rangeIdx <= 0} onClick={() => stepRange(-1)} />
                         <Button variant="secondary" aria-label={_("Zoom out")} icon={<SearchMinusIcon />} isDisabled={rangeIdx >= visibleRanges.length - 1} onClick={() => stepRange(1)} />
+                        <Button variant="secondary" aria-label={_("Zoom in")} icon={<SearchPlusIcon />} isDisabled={rangeIdx <= 0} onClick={() => stepRange(-1)} />
                         <Button variant="secondary" aria-label={_("Earlier")} icon={<AngleLeftIcon />} onClick={shiftBack} />
                         <Button variant="secondary" aria-label={_("Later")} icon={<AngleRightIcon />} isDisabled={!canForward} onClick={shiftForward} />
                         <Button variant="secondary" icon={<DownloadIcon />} isDisabled={!result || shown.length === 0} onClick={exportCsv}>

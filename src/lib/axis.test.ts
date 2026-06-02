@@ -9,7 +9,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { niceTicks, timeStep, timeTicks } from './axis.ts';
+import { axisBands, formatFullTimestamp, formatTimeTick, niceTicks, timeStep, timeTicks } from './axis.ts';
+
+const DAY = 86400_000;
 
 test("niceTicks: 0..9.3 → 0,2,4,6,8,10", () => {
     assert.deepEqual(niceTicks(0, 9.3, 5), [0, 2, 4, 6, 8, 10]);
@@ -56,4 +58,47 @@ test("timeTicks: aligned to the step boundary and within range", () => {
     assert.equal(ticks.every(t => t % step === 0), true); // boundary-aligned
     assert.equal(ticks.every(t => t >= start && t <= end), true);
     assert.equal(ticks.length >= 1, true);
+});
+
+test("timeTicks: day-and-coarser steps land on LOCAL midnight (no stray time)", () => {
+    // 30-day window → multi-day step; every tick must be local midnight, so a
+    // date label can't carry a time (the non-UTC-timezone bug we fixed).
+    const start = Date.UTC(2026, 4, 1, 9, 17); // arbitrary, not midnight
+    const ticks = timeTicks(start, start + 30 * DAY, 6);
+    assert.ok(ticks.length >= 2);
+    for (const t of ticks) {
+        const d = new Date(t);
+        assert.equal(d.getHours(), 0);
+        assert.equal(d.getMinutes(), 0);
+    }
+});
+
+test("formatTimeTick: label granularity follows the STEP", () => {
+    const ms = Date.UTC(2026, 5, 2, 14, 5);
+    assert.match(formatTimeTick(ms, 5 * 60_000, "en-US"), /\d{1,2}:\d{2}/);   // sub-day → time
+    const dayLbl = formatTimeTick(ms, 2 * DAY, "en-US");
+    assert.doesNotMatch(dayLbl, /\d{1,2}:\d{2}/);                              // day → date, no time
+    assert.match(dayLbl, /[A-Za-z]/);                                         // ...with a month name
+    const monLbl = formatTimeTick(ms, 30 * DAY, "en-US");
+    assert.doesNotMatch(monLbl, /\d{1,2}:\d{2}/);                             // month → "Jun"
+    assert.match(monLbl, /^[A-Za-z]+$/);                                      // no day number
+});
+
+test("axisBands: a leading marker at the window start, then coarser boundaries", () => {
+    // Sub-day window crossing one local midnight → day bands ("start" + the crossing).
+    const start = Date.UTC(2026, 5, 1, 22, 0);
+    const bands = axisBands(start, start + 6 * 3600_000, 5 * 60_000, "en-US");
+    assert.equal(bands[0].ms, start);                       // always a leading date
+    assert.ok(bands.length >= 2);                           // + the midnight crossing
+    assert.ok(bands.every(b => /[A-Za-z]/.test(b.label) && !/:/.test(b.label)));
+
+    // A window inside one day → just the leading marker.
+    const within = axisBands(start, start + 60 * 60_000, 5 * 60_000, "en-US");
+    assert.equal(within.length, 1);
+});
+
+test("formatFullTimestamp: always carries both date and time", () => {
+    const s = formatFullTimestamp(Date.UTC(2026, 5, 2, 14, 5), "en-US");
+    assert.match(s, /\d{1,2}:\d{2}/);  // time
+    assert.match(s, /[A-Za-z]/);       // month name
 });

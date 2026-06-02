@@ -19,7 +19,8 @@ import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/
 
 import cockpit from 'cockpit';
 
-import { Mode, UpsideConfig, saveConfig, useConfig } from './lib/config';
+import { Mode, UpsideConfig, isValidHistoryUrl, saveConfig, useConfig } from './lib/config';
+import { clearHistoryCreds, loadHistoryCreds, saveHistoryCreds } from './lib/prefs';
 import { HistorySetup } from './HistorySetup';
 
 const _ = cockpit.gettext;
@@ -35,6 +36,9 @@ export const Settings = ({ mode, modeLocked, onModeChange }: {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [saved, setSaved] = useState(false);
+    // Remote-history HTTP Basic creds live per-browser in prefs (not upside.json),
+    // mirroring the NUT control-creds handling.
+    const [histCreds, setHistCreds] = useState(() => loadHistoryCreds() ?? { user: "", pass: "" });
 
     useEffect(() => {
         if (!loading)
@@ -48,10 +52,20 @@ export const Settings = ({ mode, modeLocked, onModeChange }: {
         setDraft({ ...draft, ...patch });
         setSaved(false);
     };
+    const updateCreds = (patch: Partial<{ user: string, pass: string }>) => {
+        setHistCreds({ ...histCreds, ...patch });
+        setSaved(false);
+    };
 
     const onSave = () => {
         setSaving(true);
         setError(null);
+        // Remote-history creds are per-browser (no admin) — persist them with the
+        // config save: keep when a remote URL + user are set, else clear.
+        if (draft.historyUrl && histCreds.user)
+            saveHistoryCreds(histCreds);
+        else
+            clearHistoryCreds();
         saveConfig(draft)
                 .then(() => setSaved(true))
                 .catch((e: { message?: string }) => setError(e?.message || String(e)))
@@ -103,28 +117,72 @@ export const Settings = ({ mode, modeLocked, onModeChange }: {
                             </Content>
                         </FormGroup>
 
-                        <FormGroup label={_("Historical trends")} fieldId="upside-history">
-                            <Switch
-                            id="upside-history"
-                            isChecked={draft.history}
-                            onChange={(_ev, v) => update({ history: v })}
-                            label={_("Show the Trends section (reads PCP history)")}
-                            />
-                        </FormGroup>
+                        {/* Local-PCP history settings — only meaningful when reading the
+                            local upsd. A secondary has no local archive, so these are
+                            replaced by the remote-history source below. */}
+                        {!draft.nutHost && <>
+                            <FormGroup label={_("Historical trends")} fieldId="upside-history">
+                                <Switch
+                                id="upside-history"
+                                isChecked={draft.history}
+                                onChange={(_ev, v) => update({ history: v })}
+                                label={_("Show the Trends section (reads PCP history)")}
+                                />
+                            </FormGroup>
 
-                        <FormGroup label={_("Keep history for (days)")} fieldId="upside-retention">
-                            <TextInput
-                                id="upside-retention"
-                                type="number"
-                                min={1}
-                                max={3650}
-                                value={String(draft.historyRetentionDays)}
-                                onChange={(_ev, v) => update({ historyRetentionDays: Math.min(3650, Math.max(1, Math.round(Number(v) || 0))) })}
-                            />
-                            <Content component="small" className="pf-v6-u-mt-xs">
-                                {_("How long the dedicated NUT archive is kept (pruned daily host-side). Only applies when a dedicated archive is configured.")}
-                            </Content>
-                        </FormGroup>
+                            <FormGroup label={_("Keep history for (days)")} fieldId="upside-retention">
+                                <TextInput
+                                    id="upside-retention"
+                                    type="number"
+                                    min={1}
+                                    max={3650}
+                                    value={String(draft.historyRetentionDays)}
+                                    onChange={(_ev, v) => update({ historyRetentionDays: Math.min(3650, Math.max(1, Math.round(Number(v) || 0))) })}
+                                />
+                                <Content component="small" className="pf-v6-u-mt-xs">
+                                    {_("How long the dedicated NUT archive is kept (pruned daily host-side). Only applies when a dedicated archive is configured.")}
+                                </Content>
+                            </FormGroup>
+                        </>}
+
+                        {/* Remote history: a secondary reads the primary's history over a
+                            PCP pmproxy REST endpoint (TLS + optional HTTP Basic auth). */}
+                        {draft.nutHost && <>
+                            <FormGroup label={_("Remote history (pmproxy URL)")} fieldId="upside-historyurl">
+                                <TextInput
+                                    id="upside-historyurl"
+                                    value={draft.historyUrl ?? ""}
+                                    placeholder="https://pcp.example.com"
+                                    validated={draft.historyUrl && !isValidHistoryUrl(draft.historyUrl) ? "error" : "default"}
+                                    onChange={(_ev, v) => update({ historyUrl: v.trim() || undefined })}
+                                />
+                                <Content component="small" className="pf-v6-u-mt-xs">
+                                    {_("Base URL of the primary's PCP pmproxy time-series API (e.g. behind an authenticating reverse proxy). Set this to plot the remote UPS's history; leave blank for live values only.")}
+                                </Content>
+                            </FormGroup>
+
+                            {draft.historyUrl && <>
+                                <FormGroup label={_("History username")} fieldId="upside-histuser">
+                                    <TextInput
+                                        id="upside-histuser"
+                                        value={histCreds.user}
+                                        placeholder={_("(none — endpoint needs no auth)")}
+                                        onChange={(_ev, v) => updateCreds({ user: v })}
+                                    />
+                                </FormGroup>
+                                <FormGroup label={_("History password")} fieldId="upside-histpass">
+                                    <TextInput
+                                        id="upside-histpass"
+                                        type="password"
+                                        value={histCreds.pass}
+                                        onChange={(_ev, v) => updateCreds({ pass: v })}
+                                    />
+                                    <Content component="small" className="pf-v6-u-mt-xs">
+                                        {_("Stored on this device only (like the control credentials), sent as HTTP Basic auth over the connection. Leave both blank if the endpoint is unauthenticated.")}
+                                    </Content>
+                                </FormGroup>
+                            </>}
+                        </>}
 
                         <FormGroup label={_("Navigation status")} fieldId="upside-overview">
                             <Switch

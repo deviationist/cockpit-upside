@@ -1,3 +1,22 @@
+cockpit-upside (1.0.1) noble; urgency=medium
+
+  * Remote history: a secondary host (a remote NUT source) can now plot the
+    primary's history, read over the network from the primary's PCP pmproxy
+    time-series REST API — no local archive needed. Configure a "Remote history"
+    URL (+ optional HTTP Basic credentials) in Settings.
+  * Metrics: Grafana-style two-tier time axis (a primary time/date/month tick
+    row plus a day/month/year context band with boundary markers, all
+    locale-aware); every range up to 1 year is now selectable; the line breaks
+    across real data gaps instead of bridging them; gap-aware hover.
+  * Setup wizard shows the version + a GitHub link; the per-UPS menu is renamed
+    "Menu" (it's navigation, not just management).
+  * Fixes: dropdown borders no longer paint over the sticky masthead on scroll;
+    the "Protected hosts" card is correct on a secondary (the remote primary is
+    labelled as such, not "this host"); fix a hang reading the series API over
+    cockpit.http (a GET needs an explicit empty body).
+
+ -- Robert Sæther <robert4832@pm.me>  Tue, 02 Jun 2026 10:18:43 +0000
+
 cockpit-upside (1.0.0) noble; urgency=medium
 
   * Control: instant commands (upscmd, risk-tiered with a danger zone),

@@ -34,10 +34,20 @@ export interface UpsideConfig {
      * on a *secondary* host pointed at the primary's upsd (e.g. quim → xavi over
      * wg-trunk0). Unset → local upsd (the default). Reads (upsc) need no auth;
      * control still authenticates with a upsd.users credential on the remote.
-     * History (PCP) is always local to *this* host, so it's hidden when set —
-     * a secondary has no local archive of the remote UPS.
+     * History is local to *this* host; a secondary has no local archive of the
+     * remote UPS — so on a netclient, local history (Trends toggle, retention,
+     * the PCP setup card) is hidden, and `historyUrl` is offered instead.
      */
     nutHost?: string;
+    /**
+     * Remote history source: base URL of a PCP pmproxy time-series REST API
+     * (e.g. `https://pcp.example` or `http://host:44322`) to read UPS history
+     * from over the network. Only meaningful on a netclient (`nutHost` set),
+     * where there's no local archive — it's what lets a secondary plot the
+     * primary's history. The password (if the endpoint needs HTTP Basic auth)
+     * is NOT stored here — it lives per-browser in prefs (see loadHistoryCreds).
+     */
+    historyUrl?: string;
     /** Show the historical Trends section (reads PCP archives). */
     history: boolean;
     /** Contribute a UPS health card to Cockpit's System Overview page. */
@@ -139,6 +149,21 @@ export function isValidNutHost(v: string): boolean {
     return /^[A-Za-z0-9.-]+(?::\d{1,5})?$/.test(v);
 }
 
+/**
+ * A remote history endpoint: an http(s) URL with a valid host (+ optional port,
+ * path). Parsed by the WHATWG URL parser and constrained to http/https. Only
+ * ever handed to cockpit.http (address/port extracted) — never a shell string —
+ * but validate so a malformed value can't reach the channel layer.
+ */
+export function isValidHistoryUrl(v: string): boolean {
+    try {
+        const u = new URL(v);
+        return (u.protocol === "http:" || u.protocol === "https:") && !!u.hostname;
+    } catch {
+        return false;
+    }
+}
+
 /** A BCP-47 locale tag if Intl can parse it (and it's non-empty), else undefined. */
 function validLocale(v: unknown): string | undefined {
     if (typeof v !== "string" || !v.trim())
@@ -201,6 +226,9 @@ function sanitize(content: Partial<UpsideConfig> | null): UpsideConfig {
         mode: c.mode === "monitor" || c.mode === "control" ? c.mode : undefined,
         nutHost: typeof c.nutHost === "string" && isValidNutHost(c.nutHost)
             ? c.nutHost
+            : undefined,
+        historyUrl: typeof c.historyUrl === "string" && isValidHistoryUrl(c.historyUrl)
+            ? c.historyUrl
             : undefined,
         history: typeof c.history === "boolean" ? c.history : d.history,
         overviewCard: typeof c.overviewCard === "boolean" ? c.overviewCard : d.overviewCard,

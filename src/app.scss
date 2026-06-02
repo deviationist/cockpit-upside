@@ -670,6 +670,18 @@ $upside-amber: #f59e0b;
     margin-inline-start: auto;
 }
 
+// The per-UPS menu dropdown sits in normal-flow content that scrolls under the
+// sticky masthead (z-index 100). PF's MenuToggle is `position: relative` (to
+// anchor its border) and was painting OVER the masthead on scroll. Wrapping the
+// dropdown and giving the wrapper its own stacking context (z-index:0 < 100)
+// keeps the toggle border tucked under the bar. inline-block so the wrapper
+// shrinks to the toggle and doesn't disturb the header's flex/grid alignment.
+.upside-manage {
+    position: relative;
+    z-index: 0;
+    display: inline-block;
+}
+
 // Query the metrics page's own width (not the viewport) so the header reflows
 // on actual available space — tablet, narrow desktop window, or sidebar present
 // all behave correctly, not just by screen size.
@@ -732,6 +744,11 @@ $upside-amber: #f59e0b;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem;
+    // Own stacking context (< masthead's z-index 100) so the timeframe toggle's
+    // PF border can't paint over the sticky masthead on scroll — same fix as the
+    // per-UPS Menu dropdown (.upside-manage).
+    position: relative;
+    z-index: 0;
 }
 
 // One graph per row, full width — more horizontal resolution.
@@ -789,6 +806,22 @@ $upside-amber: #f59e0b;
 
 .upside-mchart__ylabel { text-anchor: end; }
 .upside-mchart__xlabel { text-anchor: middle; }
+
+// Secondary context tier (Grafana-style): faint full-height boundary lines and
+// the day/month/year labels sitting just to the right of each boundary.
+.upside-mchart__band-sep {
+    stroke: var(--pf-t--global--border--color--default, #e0e0e0);
+    stroke-width: 1;
+    stroke-dasharray: 2 3;
+    opacity: 0.6;
+}
+
+.upside-mchart__band {
+    fill: var(--pf-t--global--text--color--regular, #4f5255);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-anchor: middle;
+}
 
 .upside-mchart__cross {
     stroke: var(--pf-t--global--text--color--subtle, #6a6e73);
@@ -851,10 +884,43 @@ $upside-amber: #f59e0b;
 }
 
 // ---- Guided setup (Setup.tsx) ----
+// Intro paragraph + the repo/version badge, laid out side by side (the badge
+// drops below the text and right-aligns when there isn't room).
+.upside-setup__heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem 1.5rem;
+}
+
 .upside-setup__intro {
     max-inline-size: 56rem;
     margin-block-end: 1rem;
     color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
+// "GitHub-mark + UPSide vX.Y.Z" link beside the intro.
+.upside-setup__repo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex: 0 0 auto;
+    margin-inline-start: auto;
+    font-size: var(--pf-t--global--font--size--sm, 0.875rem);
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+    text-decoration: none;
+    white-space: nowrap;
+
+    &:hover {
+        color: var(--pf-t--global--text--color--link--default, #0066cc);
+    }
+}
+
+.upside-setup__github-icon {
+    inline-size: 1rem;
+    block-size: 1rem;
+    fill: currentColor;
 }
 
 // Lead-in / boundary hints inside wizard steps.
