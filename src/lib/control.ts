@@ -33,15 +33,19 @@ const LABELS: Record<string, string> = {
     "calibrate.stop": _("Stop calibration"),
     "bypass.start": _("Switch to bypass"),
     "bypass.stop": _("Leave bypass"),
-    "load.off": _("Turn load off"),
-    "load.on": _("Turn load on"),
-    "load.off.delay": _("Turn load off (delayed)"),
-    "load.on.delay": _("Turn load on (delayed)"),
-    "shutdown.return": _("Shut down, return when power is back"),
-    "shutdown.stayoff": _("Shut down and stay off"),
-    "shutdown.reboot": _("Shut down and reboot"),
-    "shutdown.reboot.graceful": _("Shut down and reboot (graceful)"),
-    "shutdown.stop": _("Cancel pending shutdown"),
+    // "load" is NUT's term for the equipment plugged into the UPS outlets — say
+    // that plainly. These cut/restore the UPS's OUTPUT power, so anything on it
+    // (servers, the router, …) loses/gains power; the shutdown.* sequence is also
+    // what NUT uses to power the protected hosts down.
+    "load.off": _("Cut power to connected equipment"),
+    "load.on": _("Restore power to connected equipment"),
+    "load.off.delay": _("Cut power to connected equipment (after a delay)"),
+    "load.on.delay": _("Restore power to connected equipment (after a delay)"),
+    "shutdown.return": _("Shut down the UPS — connected equipment powers back on when mains returns"),
+    "shutdown.stayoff": _("Shut down the UPS — connected equipment stays off"),
+    "shutdown.reboot": _("Shut down and reboot the UPS (power-cycles connected equipment)"),
+    "shutdown.reboot.graceful": _("Shut down and reboot the UPS, graceful (power-cycles connected equipment)"),
+    "shutdown.stop": _("Cancel a pending UPS shutdown"),
     "reset.input.minmax": _("Reset min/max input voltage"),
     "reset.watchdog": _("Reset watchdog"),
 };
