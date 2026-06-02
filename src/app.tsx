@@ -21,6 +21,7 @@ import { Tooltip } from "@patternfly/react-core/dist/esm/components/Tooltip/inde
 import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/index.js";
 import { Flex, FlexItem } from "@patternfly/react-core/dist/esm/layouts/Flex/index.js";
 import { Gallery } from "@patternfly/react-core/dist/esm/layouts/Gallery/index.js";
+import { ClockIcon } from "@patternfly/react-icons/dist/esm/icons/clock-icon.js";
 import { KeyIcon } from "@patternfly/react-icons/dist/esm/icons/key-icon.js";
 import { PencilAltIcon } from "@patternfly/react-icons/dist/esm/icons/pencil-alt-icon.js";
 
@@ -345,7 +346,7 @@ const Overview = ({ upses, error, descs, names, lastUpdate }: {
 
 /* ---- detail ---- */
 
-const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }: {
+const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode, onCountdown }: {
     upses: Ups[] | null,
     error: string | null,
     name: string,
@@ -354,6 +355,7 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
     descs: Record<string, string>,
     lastUpdate: number | null,
     mode: Mode,
+    onCountdown?: (label: string, seconds: number) => void,
 }) => {
     const [open, setOpen] = useState(false);
     const [renaming, setRenaming] = useState(false);
@@ -596,7 +598,7 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode }
             </Card>
 
             {mode === "control" &&
-                <Controls ups={upsId} creds={creds} vars={vars} onAuthNeeded={() => setAuthOpen(true)} />}
+                <Controls ups={upsId} creds={creds} vars={vars} onAuthNeeded={() => setAuthOpen(true)} onCountdown={onCountdown} />}
 
             {((!remote && config.history) || (remote && config.historyUrl)) &&
                 <Trends ups={ups.ref.name} archiveDir={config.historyArchiveDir}
@@ -754,6 +756,28 @@ function usePageLocation() {
     return location;
 }
 
+// Live countdown to a scheduled (delayed) control command, shown as a masthead
+// pill. Ticks once a second and calls onDone when it reaches zero.
+const CountdownPill = ({ label, endsAt, onDone }: { label: string, endsAt: number, onDone: () => void }) => {
+    const [now, setNow] = useState(() => Date.now());
+    useEffect(() => {
+        const id = window.setInterval(() => setNow(Date.now()), 1000);
+        return () => window.clearInterval(id);
+    }, []);
+    const remaining = Math.max(0, Math.round((endsAt - now) / 1000));
+    useEffect(() => {
+        if (remaining <= 0)
+            onDone();
+    }, [remaining, onDone]);
+    const mm = Math.floor(remaining / 60);
+    const ss = String(remaining % 60).padStart(2, "0");
+    return (
+        <Label color="orange" icon={<ClockIcon />} title={cockpit.format(_("$0 in $1:$2"), label, mm, ss)}>
+            {`${label} ${mm}:${ss}`}
+        </Label>
+    );
+};
+
 export const Application = () => {
     const location = usePageLocation();
     const { config } = useConfig();
@@ -762,6 +786,8 @@ export const Application = () => {
     const [descs, setDescs] = useState<Record<string, string>>({});
     const [lastUpdate, setLastUpdate] = useState<number | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
+    // A pending delayed control command, shown as a live countdown pill.
+    const [countdown, setCountdown] = useState<{ label: string, endsAt: number } | null>(null);
     // Per-browser mode fallback; the file config pins it when set (resolveMode).
     const [modePref, setModePref] = useState<Mode | null>(loadModePref);
     const obSince = useRef<Record<string, number>>({});
@@ -944,7 +970,8 @@ export const Application = () => {
             (u ? displayName(u, descs, config.names) : path[1]);
         view = <Notifications ups={path[1]} title={title} />;
     } else if (path[0] === "ups" && path[1])
-        view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} config={config} descs={descs} lastUpdate={lastUpdate} mode={mode} />;
+        view = <Detail upses={upses} error={error} name={path[1]} obSince={obSince.current} config={config} descs={descs} lastUpdate={lastUpdate} mode={mode}
+                       onCountdown={(label, seconds) => setCountdown({ label, endsAt: Date.now() + seconds * 1000 })} />;
     else if (path[0] === "settings")
         view = <Settings mode={mode} modeLocked={modeLocked} onModeChange={setMode} />;
     else if (path[0] === "setup-wizard")
@@ -981,6 +1008,12 @@ export const Application = () => {
                     >
                         <MenuIcon />
                     </button>
+                    {countdown &&
+                        <CountdownPill
+                            label={countdown.label}
+                            endsAt={countdown.endsAt}
+                            onDone={() => setCountdown(null)}
+                        />}
                     {modeLocked
                         ? (
                             <span

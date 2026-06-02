@@ -55,6 +55,43 @@ export function commandLabel(c: InstantCommand): string {
     return LABELS[c.name] || c.desc || c.name;
 }
 
+// Terse, action-first labels for the buttons themselves — the consequence is
+// spelled out as help text beside the button (see NOTES in Controls.tsx), so the
+// button only needs to name the action. Falls back to the full label.
+const SHORT_LABELS: Record<string, string> = {
+    "test.battery.start": _("Battery test"),
+    "test.battery.start.quick": _("Quick test"),
+    "test.battery.start.deep": _("Deep test"),
+    "test.battery.stop": _("Stop test"),
+    "test.panel.start": _("Panel test"),
+    "test.panel.stop": _("Stop panel test"),
+    "test.system.start": _("System test"),
+    "beeper.enable": _("Enable beeper"),
+    "beeper.disable": _("Disable beeper"),
+    "beeper.mute": _("Mute beeper"),
+    "beeper.toggle": _("Toggle beeper"),
+    "calibrate.start": _("Calibrate"),
+    "calibrate.stop": _("Stop calibration"),
+    "bypass.start": _("Enter bypass"),
+    "bypass.stop": _("Leave bypass"),
+    "load.off": _("Cut power"),
+    "load.on": _("Restore power"),
+    "load.off.delay": _("Cut power (delayed)"),
+    "load.on.delay": _("Restore power (delayed)"),
+    "shutdown.return": _("Shut down (auto-restart)"),
+    "shutdown.stayoff": _("Shut down (stay off)"),
+    "shutdown.reboot": _("Power-cycle"),
+    "shutdown.reboot.graceful": _("Power-cycle (graceful)"),
+    "shutdown.stop": _("Cancel shutdown"),
+    "reset.input.minmax": _("Reset min/max"),
+    "reset.watchdog": _("Reset watchdog"),
+};
+
+/** Terse action label for a command's button. Falls back to the full label. */
+export function commandShortLabel(c: InstantCommand): string {
+    return SHORT_LABELS[c.name] || commandLabel(c);
+}
+
 /** Instant commands UPSide surfaces (all but driver internals). `upscmd -l`
  *  needs no auth; the caller tiers them via tierOf for gating. */
 export async function listCommands(ups: string): Promise<InstantCommand[]> {
