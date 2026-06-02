@@ -180,8 +180,15 @@ npm run stylelint
 - **Remote NUT source** — set `"nutHost": "host[:port]"` (or pick *another host*
   in the wizard) to read/control a `upsd` over the network — running UPSide on a
   **secondary** pointed at the primary. Reads need no credentials; control
-  authenticates a user that exists on the primary. History is local to each host,
-  so Trends is hidden for a remote source.
+  authenticates a user that exists on the primary. A secondary can also plot the
+  primary's **history** — see *Remote history* below.
+- **Remote history** — a secondary has no local PCP archive, but it can read the
+  primary's history over the network from the primary's **PCP `pmproxy`
+  time-series REST API**. Set a **Remote history** URL in Settings (`historyUrl`,
+  e.g. `https://pcp.example` or `http://host:44322`), with optional HTTP Basic
+  credentials (stored per-browser, like the control creds) — and Trends/Metrics
+  plot the remote UPS just like a local one. It reuses `pmproxy` (the same series
+  store Cockpit's own metrics use); nothing is stored on the secondary.
 - **Overview** — a card per UPS (status badge, battery, runtime, load),
   capability-driven (only shows what the device reports).
 - **Detail view** per UPS — battery/load donut gauges, runtime, the full NUT
@@ -192,11 +199,15 @@ npm run stylelint
   alongside.
 - **Live updates** via `cockpit.spawn(upsc)` polling (NUT has no push model).
 - **Historical trends** from **PCP** — a small OpenMetrics scraper feeds NUT into
-  PCP (`pmlogger` archives it), read back with **`pmrep`** across multiple daily
-  archive volumes and charted on the detail page (hover crosshair, drag-to-zoom,
-  a **remembered** time window, locale-aware axes, CSV export, configurable
-  retention + an optional dedicated NUT-only archive). No embedded database; no
-  NUT PMDA needed.
+  PCP (`pmlogger` archives it), read back **locally** with **`pmrep`** across
+  multiple daily archive volumes, or **remotely** from a primary's **`pmproxy`
+  series REST API** (see *Remote history*). Charted on the detail page and a
+  dedicated Metrics page: a **two-tier time axis** (time/date tick labels plus a
+  day/month/year context band, locale-aware), ranges from **5 minutes to 1 year**,
+  a **Go to now**, hover crosshair, drag-to-zoom, a **remembered** window, CSV
+  export, configurable retention + an optional dedicated NUT-only archive — and
+  **gaps are drawn as gaps** (no line bridged across missing data). No embedded
+  database; no NUT PMDA needed.
 - **Navigation status** — a status icon next to UPSide in the Cockpit menu when a
   UPS needs attention (via `page_status`), opt-in.
 - **Settings** — monitor/control mode, feature toggles, electricity rate/currency,
@@ -220,19 +231,20 @@ UPS **configuration**. Done so far:
 - [x] Remote `upsd` support (`name@host`) — monitor/control a UPS on another host
 - [x] History spanning multiple `pmlogger` archive volumes
 - [x] Create/reuse of the least-privilege NUT control user
+- [x] **Event notifications** on power events (`upsmon` NOTIFY) via a pluggable
+      drop-in adapter (system-mailer default)
+- [x] **One-click "enable history"** — the wizard installs the PCP scraper + log rule
+- [x] **History on a secondary** — read the primary's history over its `pmproxy`
+      series REST API (`historyUrl`); no local archive or extra storage needed
 
 Future plans:
 
 - [ ] **Secondary onboarding (packaging)** — a `.deb` without `nut-server` so a
-      remote-source host installs lean. (Reading/controlling a remote `upsd` and
-      the netclient wizard role already work; this is the packaging polish.)
-- [ ] **History on a secondary** — optionally run a local OpenMetrics scraper +
-      `pmlogger` on a remote-source host so Trends works there too.
-- [ ] One-click "enable history" that installs the PCP scraper automatically
-- [ ] **`upsmon` shutdown sequencing** — currently out of scope (connectivity
-      only); a guided shutdown-config flow would complete the netserver/netclient
-      story.
-- [ ] Event notifications on power events (`upssched` / `NOTIFYCMD`)
+      remote-source host installs lean. (Reading/controlling a remote `upsd`, the
+      netclient wizard role, and remote history already work; this is packaging polish.)
+- [ ] **`upsmon` shutdown sequencing in the wizard** — shutdown config exists as
+      its own step/view; folding it into the netserver/netclient role flow would
+      complete that story.
 
 See **[ROADMAP.md](ROADMAP.md)** for the full control ladder (tiers A–D) and the
 principles — capability-driven, least-privilege, no stored secrets — that gate it.

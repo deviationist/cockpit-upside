@@ -40,12 +40,16 @@ It is based on the official
     per UPS, labelled `ups:<name>`), and a `log mandatory` rule in pmlogger's
     config archives it. (See the project memory / commit history for the exact
     files on the deployment host.)
-  - **Reading: `pmrep -o csv` via `cockpit.spawn`** (`lib/history.ts`), parsing
-    the CSV and picking the `ups:<name>` column. We first tried the `metrics1`
-    pcp-archive channel (`cockpit.metrics()`), but it returned nothing here
-    (`meta:0/data:0`) despite data being present — **abandoned**; `pmrep` is
-    reliable and matches the live `upsc` spawn pattern. Archives are
+  - **Reading (local): `pmrep -o csv` via `cockpit.spawn`** (`lib/metrics.ts`
+    `loadArchive`), parsing the CSV and picking the `ups:<name>` column. We first
+    tried the `metrics1` pcp-archive channel (`cockpit.metrics()`), but it returned
+    nothing here (`meta:0/data:0`) despite data being present — **abandoned**;
+    `pmrep` is reliable and matches the live `upsc` spawn pattern. Archives are
     world-readable, so no privileges needed.
+  - **Reading (remote / secondary): the `pmproxy` series REST API** over
+    `cockpit.http` (`lib/series.ts` `loadSeries` + pure `lib/series-parse.ts`),
+    producing the **same `ArchiveResult`** shape so `Metrics`/`Trends` are
+    source-agnostic. See the remote-history decision below.
   - **Do NOT embed a database** (sqlite/rrd). Reuse PCP — Cockpit's convention.
 - **Friendly names** (`displayName()` in `app.tsx`): custom (`config.names`) →
   NUT `desc` (read from `ups.conf` via `readDescriptions()`, privileged
@@ -54,9 +58,29 @@ It is based on the official
 - **Remote NUT source** (`config.nutHost`, `lib/nut.ts` `UpsRef`/`refId`): every
   NUT call is addressed by `name` (local) or `name@host` (remote `upsd`), so the
   same client works against another host — run UPSide on a **secondary**. When
-  `nutHost` is set the app reads `name@host`, hides Trends (history is local to
-  each host), and hides the create-user wizard (can't write a remote `upsd.users`
-  — remote control is authenticate-only). Validate-creds dials `host:port`.
+  `nutHost` is set the app reads `name@host` and hides the create-user wizard
+  (can't write a remote `upsd.users` — remote control is authenticate-only).
+  History on a secondary is off by default but **available** via a remote
+  `historyUrl` (see next). Validate-creds dials `host:port`.
+- **Remote history — `pmproxy` series API over `cockpit.http`** (`config.historyUrl`,
+  `lib/series.ts` + pure `lib/series-parse.ts`): a secondary reads the primary's
+  history from its PCP `pmproxy` time-series REST API (`/series/query` →
+  `/series/instances` → windowed `/series/values`), merged across instance-domain
+  generations and folded to the requested UPS, yielding the **same `ArchiveResult`**
+  the local `pmrep` reader returns — so `Metrics`/`Trends` just branch on
+  `historyUrl`. **Chosen over NFS-mounting the archive deliberately:** UPSide is
+  public, so the remote source must be a generic, standard mechanism (any
+  `pmproxy`), not a site-specific mount. Securing the endpoint is the operator's
+  job (TLS / Basic / a trusted link); the plugin sends optional HTTP Basic and the
+  password lives per-browser in prefs (like NUT control creds), never in the file
+  config. **`cockpit.http` gotcha:** a GET via `.request({...})` hangs unless you
+  pass `body: ""` (the runtime `get()` always does) — load-bearing in `getJson`.
+- **Metrics x-axis — step-driven, two-tier** (`lib/axis.ts`, `MetricChart.tsx`):
+  tick labels follow the tick STEP (time → date → month), day-and-coarser ticks
+  align to **local** midnight, and a secondary band marks day/month/year
+  boundaries (label centred per segment). The line/area **break across real gaps**
+  (> ~1.5× the median sample spacing) rather than bridging them, and the hover
+  stays silent in a gap. Pure helpers are unit-tested (`axis.test.ts`).
 - **Setup wizard — NUT `MODE`, as a PatternFly `Wizard`** (`Setup.tsx`): a
   role-branched wizard on its own route (`#/setup-wizard`). Step 1 picks the role
   (standalone / netserver / netclient); later `WizardStep`s are shown/hidden to
@@ -257,7 +281,7 @@ src/Controls.tsx    control-mode action card (risk-tiered + danger zone); NutAut
 src/Config.tsx      per-UPS writable-variable editor (upsrw; own #/ups/<name>/config route)
 src/Shutdown.tsx    per-UPS shutdown settings (upsmon; own #/ups/<name>/shutdown route)
 src/Notifications.tsx  per-UPS event-notification settings (upsmon NOTIFY; own #/ups/<name>/notifications route)
-src/Trends.tsx      PCP sparklines; src/Metrics.tsx full charts; Gauge/Chart/MetricChart (SVG); src/lib/axis.ts (ticks)
+src/Trends.tsx      PCP sparklines; src/Metrics.tsx full charts (ranges 5m–1y, Go-to-now); Gauge/Chart/MetricChart (SVG, two-tier x-axis, gap breaks); src/lib/axis.ts (ticks/bands/format, unit-tested)
 src/lib/nut*.ts     NUT client (nut.ts, UpsRef/refId — local or name@host) + pure parsing (nut-parse.ts)
 src/lib/setup*.ts   setup probes/apply incl. MODE/LISTEN/firewall + USB/SNMP scan + serial (setup.ts) + pure parsing & stanza builders (setup-parse.ts)
 src/lib/control*.ts control commands/tiers/validate (control.ts, control-parse.ts) + control-user create/reuse/grants (control-user.ts)
@@ -266,7 +290,8 @@ src/lib/upsmon-parse.ts  pure upsmon.conf parse + builders (setMonitorLine/setSh
 src/lib/notify-setup*.ts  event notifications: dispatcher + mail-adapter scripts (notify-setup-parse.ts) + install/detect/test (notify-setup.ts)
 src/lib/admin.ts    useAdmin (cockpit.permission) + requestAdmin (opens the shell escalation dialog)
 src/lib/history-setup*.ts  one-click PCP history: detect/enable (history-setup.ts, additive+idempotent) + scraper/pmlogger-rule pure parts (history-setup-parse.ts)
-src/lib/{config,derive,metrics,prefs}.ts   config (+ nutHost/mode), derived values, PCP reader (metrics.ts), localStorage prefs
+src/lib/{config,derive,metrics,prefs}.ts   config (+ nutHost/historyUrl/mode), derived values, local PCP reader (metrics.ts), localStorage prefs (NUT + history Basic creds)
+src/lib/series*.ts  remote history: pmproxy series REST reader over cockpit.http (series.ts) + pure URL/JSON parse & per-UPS fold (series-parse.ts)
 src/app.scss        app styles
 src/manifest.json   Cockpit manifest (sidebar label, required cockpit version)
 io.github.deviationist.upside.metainfo.xml   AppStream metadata

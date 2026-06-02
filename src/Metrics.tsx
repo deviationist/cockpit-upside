@@ -19,6 +19,7 @@ import { Button } from "@patternfly/react-core/dist/esm/components/Button/index.
 import { Card, CardBody, CardTitle } from "@patternfly/react-core/dist/esm/components/Card/index.js";
 import { Content } from "@patternfly/react-core/dist/esm/components/Content/index.js";
 import { Dropdown, DropdownItem, DropdownList } from "@patternfly/react-core/dist/esm/components/Dropdown/index.js";
+import { Divider } from "@patternfly/react-core/dist/esm/components/Divider/index.js";
 import { MenuToggle } from "@patternfly/react-core/dist/esm/components/MenuToggle/index.js";
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
 import { AngleLeftIcon } from "@patternfly/react-icons/dist/esm/icons/angle-left-icon.js";
@@ -138,6 +139,10 @@ export const Metrics = ({ ups, title, archiveDir, historyUrl, locale }: { ups: s
         }
     };
     const canForward = zoom ? zoom.end < Date.now() - 1000 : offset > 0;
+    // Jump the window back to the latest data (undo any Earlier-stepping / zoom),
+    // keeping the chosen range. Enabled only when not already showing "now".
+    const atNow = offset === 0 && !zoom;
+    const goToNow = () => { setOffset(0); setZoom(null); setTfOpen(false) };
 
     // Zoom in/out walk the preset timeframes (5 min ↔ 15 min ↔ 1h ↔ …). Stepping
     // drops any drag-zoom and keeps the offset so the view stays put in time.
@@ -234,6 +239,10 @@ export const Metrics = ({ ups, title, archiveDir, historyUrl, locale }: { ups: s
                         )}
                         >
                             <DropdownList>
+                                <DropdownItem key="now" isDisabled={atNow} onClick={goToNow}>
+                                    {_("Go to now")}
+                                </DropdownItem>
+                                <Divider />
                                 {visibleRanges.map(r => (
                                     <DropdownItem key={r.id} isSelected={!zoom && r.id === rangeId} onClick={() => pickRange(r.id)}>
                                         {r.label}
