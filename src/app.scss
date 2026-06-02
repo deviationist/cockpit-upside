@@ -168,6 +168,64 @@ $upside-amber: #f59e0b;
     gap: 0.5rem;
 }
 
+// Control panel: a responsive grid of equal-width, colour-coded action tiles.
+// Columns reflow with the viewport (auto-fill), so the panel stays organised at
+// any width. The grid is sorted by category, so the per-category colour makes
+// related commands cluster. Each tile's explanation is a hover/focus tooltip.
+.upside-cmd-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+    gap: 0.5rem;
+    margin-block-start: 0.25rem;
+}
+
+// Uniform tiles: fill the column and centre the label (left-aligned looked like
+// half-empty bars). Filled (primary) buttons read better against the light
+// background than outlines; recolour the fill per category/family via PF's own
+// primary-button custom props. `--cat` is set by the modifier classes below.
+.upside-cmd-grid .pf-v6-c-button.upside-cmd-btn {
+    inline-size: 100%;
+    justify-content: center;
+    --pf-v6-c-button--m-primary--BackgroundColor: var(--cat);
+    --pf-v6-c-button--m-primary--hover--BackgroundColor: color-mix(in srgb, var(--cat) 86%, black);
+    --pf-v6-c-button--m-primary--m-clicked--BackgroundColor: color-mix(in srgb, var(--cat) 78%, black);
+}
+
+// Danger-family dropdowns: same filled recolour for the primary menu toggle.
+.upside-cmd-grid .pf-v6-c-menu-toggle.upside-cmd-btn {
+    inline-size: 100%;
+    --pf-v6-c-menu-toggle--m-primary--BackgroundColor: var(--cat);
+    --pf-v6-c-menu-toggle--m-primary--hover--BackgroundColor: color-mix(in srgb, var(--cat) 86%, black);
+    --pf-v6-c-menu-toggle--m-primary--expanded--BackgroundColor: color-mix(in srgb, var(--cat) 78%, black);
+}
+
+.upside-cmd-btn--test      { --cat: #2563eb; } // muted UPS blue
+.upside-cmd-btn--beeper    { --cat: #d97706; } // amber / warning-muted
+.upside-cmd-btn--calibrate { --cat: #0e7490; } // muted teal
+.upside-cmd-btn--reset     { --cat: #64748b; } // slate
+.upside-cmd-btn--other     { --cat: #64748b; } // slate grey
+// Danger families
+.upside-cmd-btn--cut       { --cat: #dc2626; } // red — cut power
+.upside-cmd-btn--restore   { --cat: #2e7d32; } // muted success green — restore power
+.upside-cmd-btn--shutdown  { --cat: #ea580c; } // orange — shut down
+
+.upside-controls__hint {
+    display: block;
+    margin-block-start: 0.5rem;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
+// Danger-family dropdown menu: cap the width so the help descriptions wrap into a
+// tidy column instead of one very long line, and never exceed the viewport.
+.upside-cmd-menu.pf-v6-c-menu {
+    max-inline-size: min(24rem, calc(100vw - 2rem));
+}
+
+.upside-cmd-menu .pf-v6-c-menu__item-description {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
 .upside-controls__creds {
     display: block;
     margin-block-start: 0.75rem;
