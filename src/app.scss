@@ -168,6 +168,39 @@ $upside-amber: #f59e0b;
     gap: 0.5rem;
 }
 
+// Control panel: per-category cards laid out in a responsive grid that uses the
+// full width (one column on narrow, several on wide). Each card = a title + a
+// one-line description + its controls (buttons / the beeper switch).
+.upside-ctl-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 0.75rem;
+    margin-block-start: 0.25rem;
+}
+
+.upside-ctl-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 0.85rem 0.95rem;
+    border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+    border-radius: var(--pf-t--global--border--radius--medium, 12px);
+}
+
+.upside-ctl-card__title {
+    font-weight: var(--pf-t--global--font--weight--body--bold, 700);
+}
+
+.upside-ctl-card__desc {
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
+// Keep each card's controls pinned to the bottom so they line up across cards
+// whose descriptions wrap to different heights.
+.upside-ctl-card .upside-cmd-grid {
+    margin-block-start: auto;
+}
+
 // Control panel: a responsive grid of equal-width, colour-coded action tiles.
 // Columns reflow with the viewport (auto-fill), so the panel stays organised at
 // any width. The grid is sorted by category, so the per-category colour makes
