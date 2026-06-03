@@ -3,393 +3,417 @@
  *
  * Copyright (C) 2026 deviationist
  *
- * Control actions card, shown on the detail page only in control mode. Lists the
- * UPS's instant commands (upscmd -l, no auth) and runs them with the NUT creds
- * captured in the header (NutAuthModal); a click with no creds opens that dialog.
+ * Control actions panel (detail page, control mode). One Card with labelled
+ * bands: beeper, battery test, a conditional active-shutdown alert, and a
+ * collapsed danger zone. Everything is CAPABILITY-GATED by the UPS's supported
+ * instant commands (`upscmd -l`) — a control renders only if its command exists,
+ * never as a permanently-disabled button. Live state is polled from `upsc`.
  *
- * Commands are grouped by the risk tier from control-parse.ts:
- *   A      — one click (beeper, self-tests).
- *   B      — a confirmation dialog (calibrate/bypass/reset/abort-shutdown).
- *   danger — a collapsed "danger zone" + a dialog requiring an explicit
- *            acknowledgment; these cut power to the load. `.delay` commands take
- *            a seconds value.
+ * Beeper caveat: many `nutdrv_qx` UPSes (e.g. PowerWalker VI 1200 SH) expose
+ * only `beeper.toggle` and don't report `ups.beeper.status`. We never render a
+ * stateful Enabled/Disabled toggle whose state we can't read — it falls back to
+ * a single "Toggle beeper" button.
+ *
+ * Running an instant command still authenticates with a NUT user (upsd.users),
+ * captured in the header (NutAuthModal) — not OS superuser. Reads are anonymous.
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { Alert } from "@patternfly/react-core/dist/esm/components/Alert/index.js";
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, AlertActionCloseButton } from "@patternfly/react-core/dist/esm/components/Alert/index.js";
 import { Button } from "@patternfly/react-core/dist/esm/components/Button/index.js";
 import { Card, CardBody, CardTitle } from "@patternfly/react-core/dist/esm/components/Card/index.js";
-import { Checkbox } from "@patternfly/react-core/dist/esm/components/Checkbox/index.js";
 import { Content } from "@patternfly/react-core/dist/esm/components/Content/index.js";
-import { Dropdown, DropdownItem, DropdownList } from "@patternfly/react-core/dist/esm/components/Dropdown/index.js";
 import { ExpandableSection } from "@patternfly/react-core/dist/esm/components/ExpandableSection/index.js";
-import { MenuToggle } from "@patternfly/react-core/dist/esm/components/MenuToggle/index.js";
+import { FormSelect, FormSelectOption } from "@patternfly/react-core/dist/esm/components/FormSelect/index.js";
+import { Label } from "@patternfly/react-core/dist/esm/components/Label/index.js";
 import { Modal, ModalBody, ModalFooter, ModalHeader } from "@patternfly/react-core/dist/esm/components/Modal/index.js";
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
 import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/index.js";
-import { Tooltip } from "@patternfly/react-core/dist/esm/components/Tooltip/index.js";
+import { ToggleGroup, ToggleGroupItem } from "@patternfly/react-core/dist/esm/components/ToggleGroup/index.js";
+import { BoltIcon } from "@patternfly/react-icons/dist/esm/icons/bolt-icon.js";
+import { LockIcon } from "@patternfly/react-icons/dist/esm/icons/lock-icon.js";
+import { PlayIcon } from "@patternfly/react-icons/dist/esm/icons/play-icon.js";
+import { PowerOffIcon } from "@patternfly/react-icons/dist/esm/icons/power-off-icon.js";
+import { TimesCircleIcon } from "@patternfly/react-icons/dist/esm/icons/times-circle-icon.js";
+import { VolumeMuteIcon } from "@patternfly/react-icons/dist/esm/icons/volume-mute-icon.js";
+import { VolumeUpIcon } from "@patternfly/react-icons/dist/esm/icons/volume-up-icon.js";
 
 import cockpit from 'cockpit';
 
 import { NutCreds } from './lib/prefs';
-import { UpsVars } from './lib/nut';
-import { InstantCommand, commandLabel, commandShortLabel, listCommands, runCommand, takesDelaySeconds, tierOf } from './lib/control';
+import { UpsVars, formatRuntime, num, parseVars } from './lib/nut-parse';
+import { listCommands, runCommand } from './lib/control';
 
 const _ = cockpit.gettext;
+const msg = (e: unknown): string => (e instanceof Error ? e.message : (e as { message?: string })?.message || String(e));
 
-// Plain-language help shown beside each action's button (and reused in the
-// confirm/danger dialogs); falls back to the command's own NUT description.
-const NOTES: Record<string, string> = {
-    "test.battery.start": _("Runs the UPS's built-in battery self-test."),
-    "test.battery.start.quick": _("Runs a short battery self-test."),
-    "test.battery.start.deep": _("Runs a full battery self-test, discharging it further."),
-    "test.battery.stop": _("Stops a battery test in progress."),
-    "test.panel.start": _("Lights the front panel so you can check its indicators."),
-    "test.panel.stop": _("Ends the front-panel test."),
-    "test.system.start": _("Runs the UPS's overall system self-test."),
-    "beeper.enable": _("Lets the UPS sound its audible alarm."),
-    "beeper.disable": _("Silences the UPS's audible alarm."),
-    "beeper.mute": _("Silences the alarm until the next event."),
-    "beeper.toggle": _("Switches the audible alarm on or off."),
-    "calibrate.start": _("Recalibrates the runtime estimate by fully discharging the battery. It takes a while, and the battery stays low until it recharges."),
-    "calibrate.stop": _("Stops a calibration in progress."),
-    "bypass.start": _("Runs the load straight off mains — unprotected — until you leave bypass."),
-    "bypass.stop": _("Returns the load to UPS protection."),
-    "reset.input.minmax": _("Clears the recorded minimum and maximum input voltage."),
-    "reset.watchdog": _("Resets the UPS watchdog timer."),
-    "shutdown.stop": _("Cancels a shutdown that's currently counting down."),
-    "load.off": _("Immediately cuts power to the UPS outlets — like pulling the plug. It does NOT ask connected devices to shut down first (NUT's shutdown client does that)."),
-    "load.off.delay": _("Cuts power to the UPS outlets after the delay — like pulling the plug, with no shutdown request to connected devices."),
-    "load.on": _("Restores power to the UPS outlets."),
-    "load.on.delay": _("Restores power to the UPS outlets after the delay."),
-    "shutdown.return": _("Powers off the load now; it powers back on when mains returns."),
-    "shutdown.stayoff": _("Powers off the load and keeps it off until restored by hand."),
-    "shutdown.reboot": _("Powers the load off and back on."),
-    "shutdown.reboot.graceful": _("Gracefully powers the load off and back on."),
-};
-const noteFor = (c: InstantCommand): string =>
-    NOTES[c.name] || c.desc || _("This controls the connected equipment.");
-
-// Verb for the masthead countdown pill while a .delay command is pending.
-const countdownLabel = (name: string): string =>
-    name === "load.off.delay" ? _("Cutting power")
-        : name === "load.on.delay" ? _("Restoring power")
-            : _("Scheduled action");
-
-// Semantic categories for the non-danger commands, in display order. Each gets a
-// colour so related actions read as a group in the button grid. Power-cutting and
-// shutdown commands are handled separately by the danger zone (tierOf), so
-// they're intentionally absent here. Anything unmatched falls into "Other".
-const CATEGORIES: { key: string, title: string, match: (n: string) => boolean }[] = [
-    { key: "test", title: _("Tests"), match: n => n.startsWith("test.") },
-    { key: "beeper", title: _("Beeper"), match: n => n.startsWith("beeper.") },
-    { key: "calibrate", title: _("Calibration & bypass"), match: n => n.startsWith("calibrate.") || n.startsWith("bypass.") },
-    { key: "reset", title: _("Maintenance"), match: n => n.startsWith("reset.") },
+// Destructive power commands for the danger zone — each behind a confirmation
+// that names the consequence. `load.on` isn't destructive but lives here as the
+// counterpart to `load.off`.
+const DESTRUCTIVE: { cmd: string, label: string, desc: string, consequence: string }[] = [
+    { cmd: "shutdown.return", label: _("Shutdown + return"), desc: _("Power back on when mains returns"), consequence: _("The UPS powers off, then powers back on when mains power returns. Connected hosts lose power.") },
+    { cmd: "shutdown.stayoff", label: _("Shutdown + stay off"), desc: _("Stays off until manual restart"), consequence: _("The UPS powers off and stays off until switched on by hand. You'll need physical access to restart.") },
+    { cmd: "shutdown.reboot", label: _("Reboot"), desc: _("Power-cycle the load"), consequence: _("Powers the UPS load off and back on. Connected hosts lose power, then it returns.") },
+    { cmd: "shutdown.reboot.graceful", label: _("Reboot (graceful)"), desc: _("Power-cycle, gracefully"), consequence: _("Gracefully powers the UPS load off and back on (honouring the UPS's shutdown timing). Connected hosts lose power, then it returns.") },
+    { cmd: "load.off", label: _("Load off"), desc: _("Cut outlet power now"), consequence: _("Cuts the battery-backed outlets immediately. The host you're connected from may lose power.") },
+    { cmd: "load.on", label: _("Load on"), desc: _("Restore outlet power"), consequence: _("Re-energises the battery-backed outlets.") },
 ];
-const OTHER = { key: "other", title: _("Other actions") };
-const CATEGORY_ORDER = [...CATEGORIES.map(c => c.key), OTHER.key];
-const categoryOf = (name: string): string =>
-    CATEGORIES.find(c => c.match(name))?.key ?? OTHER.key;
 
-// Danger-zone commands grouped into colour-coded families. Each family's member
-// commands collapse into one dropdown so the operator picks the variant (e.g.
-// immediately vs after a delay, or the post-shutdown return behaviour). Members
-// are listed in menu order; only those the UPS actually exposes are shown.
-const DANGER_FAMILIES: { key: string, label: string, members: string[] }[] = [
-    { key: "cut", label: _("Cut power"), members: ["load.off", "load.off.delay"] },
-    { key: "restore", label: _("Restore power"), members: ["load.on", "load.on.delay"] },
-    { key: "shutdown", label: _("Shut down"), members: ["shutdown.return", "shutdown.stayoff", "shutdown.reboot", "shutdown.reboot.graceful"] },
-];
-// Short menu-item label for a family member (the choice within the dropdown).
-const MEMBER_LABELS: Record<string, string> = {
-    "load.off": _("Immediately"),
-    "load.off.delay": _("After a delay"),
-    "load.on": _("Immediately"),
-    "load.on.delay": _("After a delay"),
-    "shutdown.return": _("Auto-restart when power returns"),
-    "shutdown.stayoff": _("Stay off until restored by hand"),
-    "shutdown.reboot": _("Power-cycle the load"),
-    "shutdown.reboot.graceful": _("Power-cycle the load (graceful)"),
-};
-const familyKeyOf = (name: string): string | null =>
-    DANGER_FAMILIES.find(f => f.members.includes(name))?.key ?? null;
-
-export const Controls = ({ ups, creds, vars, onAuthNeeded, onCountdown }: {
-    ups: string,
-    creds: NutCreds | null,
-    vars?: UpsVars,
-    onAuthNeeded: () => void,
-    // Schedules a labelled countdown pill in the masthead (for .delay commands).
-    onCountdown?: (label: string, seconds: number) => void,
-}) => {
-    const [cmds, setCmds] = useState<InstantCommand[] | null>(null);
+/**
+ * Data layer: the supported instant-command set (capability gate, once on mount)
+ * + live UPS variables polled from `upsc` every ~2s.
+ */
+function useUpsControls(ups: string) {
+    const [commands, setCommands] = useState<Set<string>>(new Set());
+    const [vars, setVars] = useState<UpsVars>({});
     const [listErr, setListErr] = useState<string | null>(null);
-    const [busy, setBusy] = useState<string | null>(null);
-    const [feedback, setFeedback] = useState<{ ok: boolean, msg: string } | null>(null);
-    const [dangerOpen, setDangerOpen] = useState(false);
-    // Which danger-family dropdown is open (by family key), if any.
-    const [openFam, setOpenFam] = useState<string | null>(null);
-    // The command awaiting confirmation (tier B / danger), plus its dialog state.
-    const [pending, setPending] = useState<InstantCommand | null>(null);
-    const [ack, setAck] = useState(false);
-    const [delay, setDelay] = useState("60");
-    // After a beeper toggle, flip the shown state immediately (optimistic) rather
-    // than waiting up to 5s for the next poll to relabel.
-    const [optimisticBeeper, setOptimisticBeeper] = useState<string | null>(null);
-
-    const polledBeeper = vars?.["ups.beeper.status"];
-    const beeper = optimisticBeeper ?? polledBeeper;
+    const [loadingCmds, setLoadingCmds] = useState(true);
 
     useEffect(() => {
         let cancelled = false;
-        setCmds(null);
-        setListErr(null);
+        setLoadingCmds(true);
         listCommands(ups)
-                .then(c => { if (!cancelled) setCmds(c); })
-                .catch((e: { message?: string }) => { if (!cancelled) setListErr(e?.message || String(e)); });
+                .then(cs => { if (!cancelled) { setCommands(new Set(cs.map(c => c.name))); setListErr(null) } })
+                .catch(e => { if (!cancelled) setListErr(msg(e)) })
+                .finally(() => { if (!cancelled) setLoadingCmds(false) });
         return () => { cancelled = true };
     }, [ups]);
 
+    useEffect(() => {
+        let cancelled = false;
+        let timer: number | undefined;
+        const poll = async () => {
+            try {
+                const out: string = await cockpit.spawn(["upsc", ups], { err: "message" });
+                if (!cancelled)
+                    setVars(parseVars(out));
+            } catch { /* transient — keep the last good state */ } finally {
+                if (!cancelled)
+                    timer = window.setTimeout(poll, 2000);
+            }
+        };
+        poll();
+        return () => { cancelled = true; window.clearTimeout(timer) };
+    }, [ups]);
+
+    return { commands, vars, listErr, loadingCmds };
+}
+
+export const Controls = ({ ups, creds, onAuthNeeded }: {
+    ups: string,
+    creds: NutCreds | null,
+    onAuthNeeded: () => void,
+}) => {
+    const { commands, vars, listErr, loadingCmds } = useUpsControls(ups);
+    const [busy, setBusy] = useState<string | null>(null);
+    const [feedback, setFeedback] = useState<{ ok: boolean, msg: string } | null>(null);
+    const [confirm, setConfirm] = useState<{ cmd: string, label: string, consequence: string } | null>(null);
+    const [delay, setDelay] = useState("0");
+    const [dangerOpen, setDangerOpen] = useState(false);
+    const [testType, setTestType] = useState("");
+    // Optimistic beeper state — flip the shown value at once, reconcile on the
+    // next poll (and revert after a few seconds if the real value never changes,
+    // e.g. a no-op toggle on quirky firmware).
+    const [optimisticBeeper, setOptimisticBeeper] = useState<string | null>(null);
+    const polledBeeper = vars["ups.beeper.status"];
     useEffect(() => { setOptimisticBeeper(null) }, [polledBeeper]);
-
-    // Danger-tier commands collapse into colour-coded families (each a dropdown);
-    // everything else is a single grid, sorted by category so same-coloured
-    // (related) actions cluster. Danger commands outside any family render as
-    // standalone tiles.
-    const sections = useMemo(() => {
-        const normal: InstantCommand[] = [];
-        const danger: InstantCommand[] = [];
-        for (const c of cmds ?? []) {
-            const t = tierOf(c.name);
-            if (t === "hidden")
-                continue;
-            (t === "danger" ? danger : normal).push(c);
-        }
-        normal.sort((a, b) => CATEGORY_ORDER.indexOf(categoryOf(a.name)) - CATEGORY_ORDER.indexOf(categoryOf(b.name)));
-
-        const byName = new Map(danger.map(c => [c.name, c]));
-        const families = DANGER_FAMILIES
-                .map(f => ({ ...f, cmds: f.members.map(m => byName.get(m)).filter(Boolean) as InstantCommand[] }))
-                .filter(f => f.cmds.length > 0);
-        const loose = danger.filter(c => familyKeyOf(c.name) === null);
-        return { normal, families, loose };
-    }, [cmds]);
-
-    // The single executor. `value` is the seconds for a .delay command.
-    const exec = (name: string, value?: string) => {
-        if (!creds) {
-            onAuthNeeded();
+    useEffect(() => {
+        if (optimisticBeeper === null)
             return;
+        const t = window.setTimeout(() => setOptimisticBeeper(null), 5000);
+        return () => window.clearTimeout(t);
+    }, [optimisticBeeper]);
+
+    // After a test is started, watch ups.test.result. A UPS may report a terminal
+    // result (Done and passed/error…) — toast it. Or it may report "In progress"
+    // and then revert to "No test initiated" without a verdict (e.g. this
+    // PowerWalker — the pass/fail is only on its panel); detect that revert and
+    // say so. The timeout is a backstop if the var never moves at all.
+    const [testStartedAt, setTestStartedAt] = useState<number | null>(null);
+    const testSawProgress = useRef(false);
+    const polledTestResult = vars["ups.test.result"];
+    useEffect(() => {
+        if (testStartedAt === null)
+            return;
+        const r = polledTestResult || "";
+        if (/done|pass|fail|error|abort|warning/i.test(r)) {
+            setFeedback({ ok: /pass/i.test(r), msg: cockpit.format(_("Battery test: $0"), r) });
+            setTestStartedAt(null);
+        } else if (/progress|running/i.test(r)) {
+            testSawProgress.current = true;
+        } else if (testSawProgress.current) {
+            // Was running, now reverted with no verdict reported over USB.
+            setFeedback({ ok: true, msg: _("Battery test finished. This UPS doesn't report pass/fail over USB — check its front panel / LEDs.") });
+            setTestStartedAt(null);
         }
-        setBusy(name);
-        setFeedback(null);
-        setPending(null);
-        runCommand(ups, name, creds.user, creds.pass, value)
-                .then(out => {
-                    setFeedback({ ok: true, msg: out.trim() || _("Command sent.") });
-                    if (name === "beeper.toggle" && beeper)
-                        setOptimisticBeeper(beeper === "enabled" ? "disabled" : "enabled");
-                    // Delayed power commands: surface a live countdown to the moment
-                    // the UPS will act, as a pill in the masthead.
-                    const secs = value ? parseInt(value, 10) : NaN;
-                    if (takesDelaySeconds(name) && Number.isFinite(secs) && secs > 0 && onCountdown)
-                        onCountdown(countdownLabel(name), secs);
-                })
-                .catch((e: { message?: string }) => setFeedback({ ok: false, msg: e?.message || String(e) }))
+    }, [polledTestResult, testStartedAt]);
+    useEffect(() => {
+        if (testStartedAt === null)
+            return;
+        const t = window.setTimeout(() => {
+            setTestStartedAt(null);
+            setFeedback({ ok: true, msg: _("Battery test started, but no result was reported over USB — check the UPS's front panel / LEDs.") });
+        }, 120_000);
+        return () => window.clearTimeout(t);
+    }, [testStartedAt]);
+
+    const has = (c: string) => commands.has(c);
+
+    // Run an instant command (needs NUT creds). `value` is the seconds appended
+    // for a `.delay` command. The 2s poll refreshes state after.
+    const run = (cmd: string, value?: string, onSuccess?: () => void) => {
+        if (!creds) { onAuthNeeded(); return }
+        setBusy(cmd); setFeedback(null); setConfirm(null);
+        runCommand(ups, cmd, creds.user, creds.pass, value)
+                .then(out => { setFeedback({ ok: true, msg: out.trim() || _("Command sent.") }); onSuccess?.() })
+                .catch(e => setFeedback({ ok: false, msg: msg(e) }))
                 .finally(() => setBusy(null));
     };
 
-    // Tier A runs straight away; B/danger open the confirm dialog first.
-    const trigger = (c: InstantCommand) => {
-        if (!creds) {
-            onAuthNeeded();
-            return;
-        }
-        if (tierOf(c.name) === "A")
-            exec(c.name);
-        else {
-            setAck(false);
-            setDelay("60");
-            setPending(c);
-        }
-    };
+    // --- derived live state ---
+    const statusTokens = (vars["ups.status"] || "").split(/\s+/).filter(Boolean);
+    const shuttingDown = statusTokens.includes("FSD") || statusTokens.includes("LB");
+    const beeperStatus = optimisticBeeper ?? polledBeeper;
+    const beeperKnown = beeperStatus === "enabled" || beeperStatus === "disabled";
+    const testResult = vars["ups.test.result"];
+    const testRunning = testStartedAt !== null || /progress|running/i.test(testResult || "") || statusTokens.includes("TEST");
+    const charge = num(vars, "battery.charge");
+    const shutdownSecs = num(vars, "ups.timer.shutdown");
+    const shutdownIn = shutdownSecs !== undefined && shutdownSecs >= 0
+        ? `${Math.floor(shutdownSecs / 60)}:${String(Math.round(shutdownSecs % 60)).padStart(2, "0")}`
+        : null;
 
-    const labelFor = (c: InstantCommand): string => {
-        if (c.name === "beeper.toggle" && beeper === "disabled")
-            return _("Toggle beeper on");
-        if (c.name === "beeper.toggle" && beeper === "enabled")
-            return _("Toggle beeper off");
-        return commandShortLabel(c);
-    };
+    // --- beeper rendering decision (see file header caveat) ---
+    // Enabled/Disabled ToggleGroup ONLY when both beeper.enable AND beeper.disable
+    // exist — each segment then deterministically SETS that state. A toggle-only
+    // UPS can't be set to a chosen state (toggle just flips), so it gets a single
+    // Toggle button + a read-only On/Off badge reflecting ups.beeper.status.
+    const beeperToggleGroup = beeperKnown && has("beeper.enable") && has("beeper.disable");
+    const beeperButtons = ["beeper.enable", "beeper.disable", "beeper.mute"].filter(has);
+    const showBeeper = beeperToggleGroup || has("beeper.toggle") || beeperButtons.length > 0;
 
-    // Every action is one tile in a grid: a terse, colour-coded button whose help
-    // text lives in a hover/focus tooltip (keeps the panel compact). The colour
-    // groups related actions; danger-tier tiles are red.
-    const cmdTile = (c: InstantCommand, danger = false) => (
-        <Tooltip key={c.name} content={noteFor(c)} position="top">
-            <Button
-                variant={danger ? "danger" : "primary"}
-                size="sm"
-                className={"upside-cmd-btn" + (danger ? "" : " upside-cmd-btn--" + categoryOf(c.name))}
-                isDisabled={busy !== null}
-                isLoading={busy === c.name}
-                onClick={() => trigger(c)}
-                aria-label={`${labelFor(c)} — ${noteFor(c)}`}
-            >
-                {labelFor(c)}
-            </Button>
-        </Tooltip>
-    );
+    // --- battery test options ---
+    const testOptions = [
+        has("test.battery.start.quick") && { value: "test.battery.start.quick", label: _("Quick") },
+        has("test.battery.start.deep") && { value: "test.battery.start.deep", label: _("Deep") },
+    ].filter(Boolean) as { value: string, label: string }[];
+    const genericTest = testOptions.length === 0 && has("test.battery.start") ? "test.battery.start" : null;
+    const selectedTest = testOptions.some(o => o.value === testType) ? testType : (testOptions[0]?.value ?? genericTest ?? "");
+    const showTest = testOptions.length > 0 || !!genericTest;
 
-    // Dropdown menu label for a family member; for a .delay command it shows the
-    // delay that will be used (the dialog's current seconds value).
-    const memberLabel = (c: InstantCommand): string => {
-        const base = MEMBER_LABELS[c.name] || commandShortLabel(c);
-        return takesDelaySeconds(c.name) ? cockpit.format(_("$0 ($1 s)"), base, delay) : base;
-    };
+    const beeperLabel = (c: string) =>
+        c === "beeper.enable" ? _("Enable beeper") : c === "beeper.disable" ? _("Disable beeper") : _("Mute beeper");
+    const resultTone = !testResult ? "muted" : /pass/i.test(testResult) ? "pass" : /(error|fail|abort)/i.test(testResult) ? "fail" : "muted";
 
-    // A danger family: one colour-coded control. A single member renders as a
-    // plain button; multiple members collapse into a dropdown so the operator
-    // picks the variant (immediately / after a delay, or the return behaviour).
-    const dangerFamily = (fam: { key: string, label: string, cmds: InstantCommand[] }) => {
-        const cls = "upside-cmd-btn upside-cmd-btn--" + fam.key;
-        if (fam.cmds.length === 1) {
-            const c = fam.cmds[0];
-            return (
-                <Tooltip key={fam.key} content={noteFor(c)} position="top">
-                    <Button
-                        variant="primary" size="sm" className={cls}
-                        isDisabled={busy !== null} isLoading={busy === c.name}
-                        onClick={() => trigger(c)}
-                        aria-label={`${fam.label} — ${noteFor(c)}`}
-                    >
-                        {fam.label}
-                    </Button>
-                </Tooltip>
-            );
-        }
-        return (
-            <Dropdown
-                key={fam.key}
-                className="upside-cmd-menu"
-                isOpen={openFam === fam.key}
-                onOpenChange={(o: boolean) => setOpenFam(o ? fam.key : null)}
-                onSelect={() => setOpenFam(null)}
-                toggle={toggleRef => (
-                    <MenuToggle
-                        ref={toggleRef} variant="primary" size="sm" className={cls}
-                        isExpanded={openFam === fam.key} isDisabled={busy !== null}
-                        onClick={() => setOpenFam(o => (o === fam.key ? null : fam.key))}
-                    >
-                        {fam.label}
-                    </MenuToggle>
-                )}
-            >
-                <DropdownList>
-                    {fam.cmds.map(c => (
-                        <DropdownItem key={c.name} description={noteFor(c)} onClick={() => trigger(c)}>
-                            {memberLabel(c)}
-                        </DropdownItem>
-                    ))}
-                </DropdownList>
-            </Dropdown>
-        );
-    };
+    const supportedDestructive = DESTRUCTIVE.filter(d => has(d.cmd));
 
-    const pendingDanger = pending ? tierOf(pending.name) === "danger" : false;
-    const pendingDelay = pending ? takesDelaySeconds(pending.name) : false;
-    const delayValid = !pendingDelay || /^\d+$/.test(delay);
-    const confirmDisabled = (pendingDanger && !ack) || !delayValid;
+    // The pending confirm may offer a delay if the UPS has a `<cmd>.delay` variant
+    // (e.g. load.off.delay). 0 = run now; >0 runs the .delay command with seconds.
+    const delayCapable = confirm !== null && has(`${confirm.cmd}.delay`);
+    const delayValid = /^\d+$/.test(delay);
+    const delaySecs = delayValid ? parseInt(delay, 10) : 0;
+    const effectiveCmd = confirm
+        ? (delayCapable && delaySecs > 0 ? `${confirm.cmd}.delay` : confirm.cmd)
+        : undefined;
 
     return (
         <Card>
             <CardTitle>{_("Controls")}</CardTitle>
-            <CardBody>
+            <CardBody className="upside-ctl">
                 {listErr &&
                     <Alert variant="warning" isInline title={_("Could not list control commands")}>{listErr}</Alert>}
 
-                {cmds === null && !listErr && <Spinner size="md" aria-label={_("Loading controls")} />}
+                {loadingCmds && !listErr && <Spinner size="md" aria-label={_("Loading controls")} />}
 
-                {cmds && cmds.length === 0 &&
+                {!loadingCmds && !listErr && commands.size === 0 &&
                     <Content component="p">{_("This UPS exposes no control commands.")}</Content>}
 
-                {cmds && cmds.length > 0 &&
-                    <>
-                        {sections.normal.length > 0 &&
-                            <>
-                                <div className="upside-cmd-grid">
-                                    {sections.normal.map(c => cmdTile(c))}
+                {/* --- Settings → Audible alarm (beeper) --- */}
+                {showBeeper &&
+                    <section className="upside-ctl-section">
+                        <div className="upside-ctl-section__label">{_("Settings")}</div>
+                        <div className="upside-ctl-row">
+                            <div className="upside-ctl-row__text">
+                                <div className="upside-ctl-row__name">
+                                    {_("Audible alarm")}
+                                    {beeperKnown &&
+                                        <Label isCompact color={beeperStatus === "enabled" ? "green" : "grey"} className="pf-v6-u-ml-sm">
+                                            {beeperStatus === "enabled" ? _("On") : _("Off")}
+                                        </Label>}
                                 </div>
-                                <Content component="small" className="upside-controls__hint">
-                                    {_("Hover a button for what it does.")}
-                                </Content>
-                            </>}
-
-                        {(sections.families.length > 0 || sections.loose.length > 0) &&
-                            <ExpandableSection
-                                className="upside-controls__danger"
-                                toggleText={dangerOpen ? _("Hide danger zone") : _("Danger zone — power off / shutdown")}
-                                isExpanded={dangerOpen}
-                                onToggle={(_ev, v) => setDangerOpen(v)}
-                            >
-                                <Content component="small" className="upside-warn">
-                                    {_("These cut power to whatever is plugged into the UPS — abruptly, like pulling the plug, unless the connected hosts run NUT's shutdown client. Make sure you mean it.")}
-                                </Content>
-                                <div className="upside-cmd-grid upside-cmd-grid--danger">
-                                    {sections.families.map(f => dangerFamily(f))}
-                                    {sections.loose.map(c => cmdTile(c, true))}
+                                <div className="upside-ctl-row__desc">
+                                    {_("Beeper sounds on power events and faults.")}
                                 </div>
-                            </ExpandableSection>}
+                            </div>
+                            <div className="upside-ctl-row__control">
+                                {beeperToggleGroup
+                                    ? (
+                                        <ToggleGroup aria-label={_("Beeper")}>
+                                            <ToggleGroupItem
+                                                icon={<VolumeUpIcon />} text={_("Enabled")}
+                                                isSelected={beeperStatus === "enabled"} isDisabled={busy !== null}
+                                                onChange={() => { if (beeperStatus !== "enabled") run("beeper.enable", undefined, () => setOptimisticBeeper("enabled")) }}
+                                            />
+                                            <ToggleGroupItem
+                                                icon={<VolumeMuteIcon />} text={_("Disabled")}
+                                                isSelected={beeperStatus === "disabled"} isDisabled={busy !== null}
+                                                onChange={() => { if (beeperStatus !== "disabled") run("beeper.disable", undefined, () => setOptimisticBeeper("disabled")) }}
+                                            />
+                                        </ToggleGroup>
+                                    )
+                                    : has("beeper.toggle")
+                                        ? (
+                                            <Button
+                                                variant="secondary"
+                                                icon={beeperStatus === "enabled" ? <VolumeMuteIcon /> : <VolumeUpIcon />}
+                                                isDisabled={busy !== null} isLoading={busy === "beeper.toggle"}
+                                                onClick={() => run("beeper.toggle", undefined, () => { if (beeperKnown) setOptimisticBeeper(beeperStatus === "enabled" ? "disabled" : "enabled") })}
+                                            >
+                                                {beeperStatus === "enabled" ? _("Toggle beeper off") : beeperStatus === "disabled" ? _("Toggle beeper on") : _("Toggle beeper")}
+                                            </Button>
+                                        )
+                                        : beeperButtons.map(c => (
+                                            <Button key={c} variant="secondary" icon={<VolumeUpIcon />} isDisabled={busy !== null} isLoading={busy === c} onClick={() => run(c)}>
+                                                {beeperLabel(c)}
+                                            </Button>
+                                        ))}
+                            </div>
+                        </div>
+                    </section>}
 
-                        {!creds &&
-                            <Content component="small" className="upside-controls__creds">
-                                {_("Authenticate (the key button in the header) to run these.")}
-                            </Content>}
+                {/* --- Diagnostics → Battery test --- */}
+                {showTest &&
+                    <section className="upside-ctl-section">
+                        <div className="upside-ctl-section__label">{_("Diagnostics")}</div>
+                        <div className="upside-ctl-row">
+                            <div className="upside-ctl-row__text">
+                                <div className="upside-ctl-row__name">{_("Battery test")}</div>
+                                <div className="upside-ctl-row__desc">
+                                    {testStartedAt !== null
+                                        ? <span className="upside-test--muted">{_("Test in progress…")}</span>
+                                        : <>{_("Last test:")}{" "}<span className={`upside-test--${resultTone}`}>{testResult || _("not run yet")}</span></>}
+                                </div>
+                            </div>
+                            <div className="upside-ctl-row__control">
+                                {testOptions.length > 1 &&
+                                    <FormSelect
+                                        value={selectedTest} aria-label={_("Test type")}
+                                        isDisabled={busy !== null || testRunning}
+                                        onChange={(_ev, v) => setTestType(v)}
+                                        className="upside-ctl-select"
+                                    >
+                                        {testOptions.map(o => <FormSelectOption key={o.value} value={o.value} label={o.label} />)}
+                                    </FormSelect>}
+                                {testRunning && has("test.battery.stop")
+                                    ? (
+                                        <Button variant="danger" icon={<BoltIcon />} isDisabled={busy !== null} isLoading={busy === "test.battery.stop"} onClick={() => run("test.battery.stop")}>
+                                            {_("Stop test")}
+                                        </Button>
+                                    )
+                                    : (
+                                        <Button variant="secondary" icon={<PlayIcon />} isDisabled={busy !== null || testRunning} isLoading={busy === selectedTest} onClick={() => run(selectedTest, undefined, () => { testSawProgress.current = false; setTestStartedAt(Date.now()) })}>
+                                            {testRunning ? _("Test running…") : _("Run test")}
+                                        </Button>
+                                    )}
+                            </div>
+                        </div>
+                    </section>}
 
-                        {feedback &&
-                            <Alert
-                                variant={feedback.ok ? "success" : "danger"}
-                                isInline
-                                className="upside-controls__feedback"
-                                title={feedback.ok ? _("Done") : _("Command failed")}
-                            >
-                                {feedback.msg}
-                            </Alert>}
-                    </>}
+                {/* --- Active shutdown (conditional: only on FSD/LB) --- */}
+                {shuttingDown &&
+                    <Alert
+                        variant="warning" isInline className="upside-ctl-shutdown"
+                        title={statusTokens.includes("FSD") ? _("Shutdown scheduled") : _("Low battery — shutdown imminent")}
+                    >
+                        <div className="upside-ctl-shutdown__body">
+                            <span>
+                                {charge !== undefined && cockpit.format(_("Battery at $0%"), Math.round(charge))}
+                                {shutdownIn
+                                    ? ` · ${cockpit.format(_("powering off in $0"), shutdownIn)}`
+                                    : vars["battery.runtime"] ? ` · ${cockpit.format(_("about $0 left"), formatRuntime(vars["battery.runtime"]))}` : ""}
+                            </span>
+                            {has("shutdown.stop") &&
+                                <Button variant="secondary" isDanger icon={<TimesCircleIcon />} isDisabled={busy !== null} isLoading={busy === "shutdown.stop"} onClick={() => run("shutdown.stop")}>
+                                    {_("Cancel shutdown")}
+                                </Button>}
+                        </div>
+                    </Alert>}
+
+                {/* --- Danger zone --- */}
+                {supportedDestructive.length > 0 &&
+                    <ExpandableSection
+                        className="upside-ctl-danger"
+                        toggleContent={<span className="upside-ctl-danger__toggle"><LockIcon /> {_("Danger zone — power off / shutdown")}</span>}
+                        isExpanded={dangerOpen}
+                        onToggle={(_ev, v) => setDangerOpen(v)}
+                    >
+                        <div className="upside-dz-warn">
+                            {_("These commands cut power. Anything you run here can take down the host you're connected from.")}
+                        </div>
+                        <div className="upside-dz-grid">
+                            {supportedDestructive.map(d => (
+                                <button
+                                    key={d.cmd} type="button" className="upside-dz-action"
+                                    disabled={busy !== null}
+                                    onClick={() => { setDelay("0"); setConfirm(d) }}
+                                >
+                                    <span className="upside-dz-action__title"><PowerOffIcon /> {d.label}</span>
+                                    <span className="upside-dz-action__cmd">{d.cmd}</span>
+                                    <span className="upside-dz-action__desc">{d.desc}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </ExpandableSection>}
+
+                {!creds && commands.size > 0 &&
+                    <Content component="small" className="upside-ctl-creds">
+                        {_("Authenticate (the key button in the header) to run these.")}
+                    </Content>}
+
+                {feedback &&
+                    <Alert
+                        variant={feedback.ok ? "success" : "danger"} isInline className="upside-ctl-feedback"
+                        title={feedback.ok ? _("Done") : _("Command failed")}
+                        actionClose={<AlertActionCloseButton onClose={() => setFeedback(null)} />}
+                    >
+                        {feedback.msg}
+                    </Alert>}
             </CardBody>
 
-            <Modal variant="small" isOpen={pending !== null} onClose={() => setPending(null)} aria-label={_("Confirm control action")}>
-                <ModalHeader title={pending ? commandLabel(pending) : ""} titleIconVariant={pendingDanger ? "warning" : undefined} />
+            <Modal variant="small" isOpen={confirm !== null} onClose={() => setConfirm(null)} aria-label={_("Confirm power action")}>
+                <ModalHeader title={confirm?.label || ""} titleIconVariant="warning" />
                 <ModalBody>
-                    {pending && <Content component="p">{noteFor(pending)}</Content>}
-                    {pendingDelay &&
-                        <div className="upside-field">
-                            <label htmlFor="upside-cmd-delay">{_("Delay (seconds)")}</label>
+                    <Content component="p">{confirm?.consequence}</Content>
+                    {delayCapable &&
+                        <div className="upside-field pf-v6-u-mt-md">
+                            <label htmlFor="ctl-delay">{_("Delay (seconds)")}</label>
                             <TextInput
-                                id="upside-cmd-delay" type="number" min={0}
-                                value={delay} onChange={(_ev, v) => setDelay(v)}
+                                id="ctl-delay" type="number" min={0} value={delay}
+                                onChange={(_ev, v) => setDelay(v)}
                                 validated={delayValid ? "default" : "error"}
                                 aria-label={_("Delay in seconds")}
                             />
+                            <Content component="small" className="upside-ctl-row__desc pf-v6-u-mt-sm">
+                                {_("0 runs it now; a higher value waits that many seconds first.")}
+                            </Content>
                         </div>}
-                    {pendingDanger &&
-                        <Checkbox
-                            id="upside-cmd-ack"
-                            className="pf-v6-u-mt-md"
-                            isChecked={ack}
-                            onChange={(_ev, v) => setAck(v)}
-                            label={_("I understand this cuts power to the connected equipment.")}
-                        />}
+                    {effectiveCmd &&
+                        <Content component="p" className="pf-v6-u-mt-md">
+                            {_("Command:")}{" "}
+                            <code className="upside-cmd-inline">
+                                {`upscmd ${ups} ${effectiveCmd}${effectiveCmd.endsWith(".delay") ? ` ${delaySecs}` : ""}`}
+                            </code>
+                        </Content>}
                 </ModalBody>
                 <ModalFooter>
                     <Button
-                        variant={pendingDanger ? "danger" : "primary"}
-                        isDisabled={confirmDisabled}
-                        onClick={() => pending && exec(pending.name, pendingDelay ? delay : undefined)}
+                        variant="danger" isDisabled={!delayValid}
+                        isLoading={!!effectiveCmd && busy === effectiveCmd}
+                        onClick={() => effectiveCmd && run(effectiveCmd, delayCapable && delaySecs > 0 ? String(delaySecs) : undefined)}
                     >
-                        {pending ? commandShortLabel(pending) : _("Run")}
+                        {confirm?.label}{delayCapable && delaySecs > 0 ? cockpit.format(_(" in ${0}s"), delaySecs) : ""}
                     </Button>
-                    <Button variant="link" onClick={() => setPending(null)}>{_("Cancel")}</Button>
+                    <Button variant="link" onClick={() => setConfirm(null)}>{_("Cancel")}</Button>
                 </ModalFooter>
             </Modal>
         </Card>
