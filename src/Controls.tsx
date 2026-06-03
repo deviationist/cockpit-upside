@@ -141,7 +141,12 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
     useEffect(() => {
         if (testStartedAt === null)
             return;
-        const t = window.setTimeout(() => setTestStartedAt(null), 180_000);
+        const t = window.setTimeout(() => {
+            setTestStartedAt(null);
+            // No result came back in time — many UPSes only show the test outcome
+            // on their own front panel / LEDs and never report it over USB.
+            setFeedback({ ok: true, msg: _("Battery test ran, but this UPS doesn't report a result over USB — check its front panel / LEDs.") });
+        }, 120_000);
         return () => window.clearTimeout(t);
     }, [testStartedAt]);
 
