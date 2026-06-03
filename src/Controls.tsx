@@ -25,6 +25,7 @@ import { Card, CardBody, CardTitle } from "@patternfly/react-core/dist/esm/compo
 import { Content } from "@patternfly/react-core/dist/esm/components/Content/index.js";
 import { ExpandableSection } from "@patternfly/react-core/dist/esm/components/ExpandableSection/index.js";
 import { FormSelect, FormSelectOption } from "@patternfly/react-core/dist/esm/components/FormSelect/index.js";
+import { Label } from "@patternfly/react-core/dist/esm/components/Label/index.js";
 import { Modal, ModalBody, ModalFooter, ModalHeader } from "@patternfly/react-core/dist/esm/components/Modal/index.js";
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
 import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/index.js";
@@ -198,7 +199,13 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                         <div className="upside-ctl-section__label">{_("Settings")}</div>
                         <div className="upside-ctl-row">
                             <div className="upside-ctl-row__text">
-                                <div className="upside-ctl-row__name">{_("Audible alarm")}</div>
+                                <div className="upside-ctl-row__name">
+                                    {_("Audible alarm")}
+                                    {beeperKnown &&
+                                        <Label isCompact color={beeperStatus === "enabled" ? "green" : "grey"} className="pf-v6-u-ml-sm">
+                                            {beeperStatus === "enabled" ? _("On") : _("Off")}
+                                        </Label>}
+                                </div>
                                 <div className="upside-ctl-row__desc">
                                     {_("Beeper sounds on power events and faults.")}
                                 </div>
@@ -344,7 +351,7 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                                 validated={delayValid ? "default" : "error"}
                                 aria-label={_("Delay in seconds")}
                             />
-                            <Content component="small" className="upside-ctl-row__desc">
+                            <Content component="small" className="upside-ctl-row__desc pf-v6-u-mt-sm">
                                 {_("0 runs it now; a higher value waits that many seconds first.")}
                             </Content>
                         </div>}
