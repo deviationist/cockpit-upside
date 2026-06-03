@@ -18,12 +18,13 @@ import { Card, CardBody, CardTitle } from "@patternfly/react-core/dist/esm/compo
 import { Checkbox } from "@patternfly/react-core/dist/esm/components/Checkbox/index.js";
 import { Content } from "@patternfly/react-core/dist/esm/components/Content/index.js";
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
+import { Switch } from "@patternfly/react-core/dist/esm/components/Switch/index.js";
 import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/index.js";
 
 import cockpit from 'cockpit';
 
 import { detect } from './lib/setup';
-import { applyNotify, detectNotify, disableNotify, isValidRecipients, sendTest } from './lib/notify-setup';
+import { applyNotify, detectNotify, disableNotify, ensureNotifierCanMail, isValidRecipients, sendTest } from './lib/notify-setup';
 import { NOTIFY_EVENTS, NOTIFY_EVENTS_DEFAULT } from './lib/upsmon-parse';
 import { requestAdmin, useAdmin } from './lib/admin';
 import { UpsMenu } from './UpsMenu';
@@ -50,6 +51,8 @@ export const Notifications = ({ ups, title }: { ups: string, title?: string }) =
     const [enabled, setEnabled] = useState(false);
     const [savedRecipient, setSavedRecipient] = useState("");
     const [recipient, setRecipient] = useState("");
+    const [notifierUser, setNotifierUser] = useState("nut");
+    const [notifierCanMail, setNotifierCanMail] = useState(true);
     const [events, setEvents] = useState<Set<string>>(new Set(NOTIFY_EVENTS_DEFAULT));
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -63,6 +66,8 @@ export const Notifications = ({ ups, title }: { ups: string, title?: string }) =
         setEnabled(n.enabled);
         setSavedRecipient(n.recipient);
         setRecipient(n.recipient);
+        setNotifierUser(n.notifierUser);
+        setNotifierCanMail(n.notifierCanMail);
         if (n.events.length > 0)
             setEvents(new Set(n.events));
         setLoaded(true);
@@ -85,9 +90,11 @@ export const Notifications = ({ ups, title }: { ups: string, title?: string }) =
     };
 
     const recipientOk = isValidRecipients(recipient);
+    const canEnable = recipientOk && events.size > 0;
     const save = act(() => applyNotify(confDir, recipient, [...events]), _("Saved."));
     const disable = act(() => disableNotify(confDir), _("Notifications disabled."));
     const test = act(() => sendTest(confDir, ups), _("Test notification sent — check your inbox."));
+    const fixMail = act(() => ensureNotifierCanMail(confDir), _("Mailer permissions fixed."));
 
     const toggleEvent = (e: string, on: boolean) => {
         setEvents(prev => {
@@ -132,8 +139,31 @@ export const Notifications = ({ ups, title }: { ups: string, title?: string }) =
                                         {_("When the UPS changes state, UPSide emails you via the system mailer. This applies to every UPS this host monitors.")}
                                     </Content>
 
-                                    {enabled &&
-                                        <Alert variant="success" isInline isPlain className="pf-v6-u-mb-md" title={cockpit.format(_("Notifications are on — emailing $0."), savedRecipient)} />}
+                                    <div className="upside-field">
+                                        <Switch
+                                            id="nf-enabled"
+                                            label={_("Email notifications on")}
+                                            isChecked={enabled}
+                                            isDisabled={busy || (!enabled && !canEnable)}
+                                            onChange={(_ev, on) => (on ? save() : disable())}
+                                        />
+                                        <Content component="small" className="pf-v6-u-mt-xs">
+                                            {enabled
+                                                ? cockpit.format(_("On — emailing $0."), savedRecipient)
+                                                : _("Off — set a recipient and at least one event, then switch on.")}
+                                        </Content>
+                                    </div>
+
+                                    {enabled && !notifierCanMail &&
+                                        <Alert
+                                            variant="warning" isInline className="pf-v6-u-mb-md"
+                                            title={cockpit.format(_("The notifier user ($0) can't send mail"), notifierUser)}
+                                        >
+                                            <p>{cockpit.format(_("upsmon runs notifications as $0, which can't read the mailer config — so events won't actually email. This usually means adding $0 to the mailer's group."), notifierUser)}</p>
+                                            <Button variant="link" isInline onClick={fixMail} isDisabled={busy}>
+                                                {admin === true ? _("Fix permissions") : _("Fix permissions (needs admin)")}
+                                            </Button>
+                                        </Alert>}
 
                                     <div className="upside-field">
                                         <label htmlFor="nf-rcpt">{_("Send to")}</label>
@@ -159,14 +189,12 @@ export const Notifications = ({ ups, title }: { ups: string, title?: string }) =
                                     </div>
 
                                     <div className="upside-step__actions pf-v6-u-mt-md">
-                                        <Button variant="primary" onClick={save} isLoading={busy} isDisabled={busy || !recipientOk || events.size === 0}>
-                                            {admin === true ? _("Save") : _("Save (needs admin)")}
+                                        <Button variant="primary" onClick={save} isLoading={busy} isDisabled={busy || !canEnable}>
+                                            {admin === true ? _("Save changes") : _("Save changes (needs admin)")}
                                         </Button>
                                         <Button variant="secondary" onClick={test} isDisabled={busy || !savedRecipient}>
                                             {_("Send test")}
                                         </Button>
-                                        {enabled &&
-                                            <Button variant="link" isInline onClick={disable} isDisabled={busy}>{_("Disable notifications")}</Button>}
                                     </div>
 
                                     {note && !error &&

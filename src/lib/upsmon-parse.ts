@@ -240,6 +240,23 @@ export function parseNotify(text: string | null | undefined): { cmd: string | nu
     return { cmd, events };
 }
 
+/**
+ * The OS user upsmon runs NOTIFYCMD (and the shutdown) as — `RUN_AS_USER`.
+ * Returns null if unset (NUT then defaults it itself, typically `nut`); callers
+ * default to "nut". This is who must be able to use the system mailer.
+ */
+export function parseRunAsUser(text: string | null | undefined): string | null {
+    for (const raw of (text ?? "").split("\n")) {
+        const line = raw.trim();
+        if (!line || line.startsWith("#"))
+            continue;
+        const m = /^RUN_AS_USER\s+(\S+)/.exec(line);
+        if (m)
+            return m[1];
+    }
+    return null;
+}
+
 /** A SHUTDOWNCMD must be a non-empty command. */
 export function isValidShutdownCmd(s: string | null | undefined): boolean {
     return !!s && s.trim().length > 0 && !s.includes('"');
