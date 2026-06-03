@@ -161,6 +161,66 @@ $upside-amber: #f59e0b;
     color: var(--pf-t--global--text--color--subtle, #6a6e73);
 }
 
+// Controls panel (Controls.tsx) — labelled bands stacked in one card.
+.upside-ctl {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+}
+
+.upside-ctl-band {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.upside-ctl-band__title {
+    font-weight: var(--pf-t--global--font--weight--body--bold, 700);
+}
+
+.upside-ctl-band__desc {
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
+.upside-ctl-band__controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.upside-ctl-select {
+    inline-size: auto;
+    min-inline-size: 8rem;
+}
+
+// Battery-test result colouring.
+.upside-test--pass { color: var(--pf-t--global--text--color--status--success--default, #3e8635); }
+.upside-test--fail { color: var(--pf-t--global--text--color--status--danger--default, #c9190b); }
+.upside-test--muted { color: var(--pf-t--global--text--color--subtle, #6a6e73); }
+
+.upside-ctl-shutdown,
+.upside-ctl-feedback { margin-block: 0; }
+
+.upside-ctl-creds {
+    display: block;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
+// Danger zone: lock + label on the toggle, destructive buttons wrapping below.
+.upside-ctl-danger__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.upside-ctl-danger__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-block-start: 0.6rem;
+}
+
 // Control actions card (Controls.tsx).
 .upside-controls__actions {
     display: flex;
