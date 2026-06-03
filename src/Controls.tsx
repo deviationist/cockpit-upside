@@ -92,6 +92,15 @@ const CATEGORY_ORDER = [...CATEGORIES.map(c => c.key), OTHER.key];
 const categoryOf = (name: string): string =>
     CATEGORIES.find(c => c.match(name))?.key ?? OTHER.key;
 
+// Card title + one-line description per category, for the control-panel layout.
+const CATEGORY_META: Record<string, { title: string, desc: string }> = {
+    test: { title: _("Self-tests"), desc: _("Run the UPS's built-in tests.") },
+    beeper: { title: _("Beeper"), desc: _("The UPS's audible alarm.") },
+    calibrate: { title: _("Calibration & bypass"), desc: _("Recalibrate runtime, or run on bypass.") },
+    reset: { title: _("Maintenance"), desc: _("Reset counters and the watchdog.") },
+    other: { title: _("Other"), desc: _("Other control actions.") },
+};
+
 // Danger-zone commands grouped into colour-coded families. Each family's member
 // commands collapse into one dropdown so the operator picks the variant (e.g.
 // immediately vs after a delay, or the post-shutdown return behaviour). Members
@@ -313,9 +322,32 @@ export const Controls = ({ ups, creds, vars, onAuthNeeded, onCountdown }: {
     // toggle; otherwise it falls back to a normal tile in the grid.
     const beeperToggle = (cmds ?? []).find(c => c.name === "beeper.toggle");
     const showBeeperSwitch = !!beeperToggle && (beeper === "enabled" || beeper === "disabled" || beeper === "muted");
-    const normalTiles = showBeeperSwitch
-        ? sections.normal.filter(c => c.name !== "beeper.toggle")
-        : sections.normal;
+
+    // Group the non-danger commands into per-category cards (control-panel layout).
+    // The beeper card carries the Switch instead of the beeper.toggle button.
+    const cardGroups = CATEGORY_ORDER.map(key => {
+        const meta = CATEGORY_META[key] ?? CATEGORY_META.other;
+        const hasSwitch = key === "beeper" && showBeeperSwitch;
+        const cmds = sections.normal.filter(c =>
+            categoryOf(c.name) === key && !(hasSwitch && c.name === "beeper.toggle"));
+        return { key, title: meta.title, desc: meta.desc, cmds, hasSwitch };
+    }).filter(g => g.cmds.length > 0 || g.hasSwitch);
+
+    const beeperSwitch = (
+        <div
+            className="upside-cmd-beeper"
+            title={beeper === "muted" ? _("Muted until the next event.") : undefined}
+        >
+            <Switch
+                id="ctl-beeper"
+                className="upside-switch"
+                label={beeper === "muted" ? _("Toggle Beeper (muted)") : _("Toggle Beeper")}
+                isChecked={beeper !== "disabled"}
+                isDisabled={busy !== null}
+                onChange={() => toggleBeeper()}
+            />
+        </div>
+    );
 
     return (
         <Card>
@@ -331,24 +363,21 @@ export const Controls = ({ ups, creds, vars, onAuthNeeded, onCountdown }: {
 
                 {cmds && cmds.length > 0 &&
                     <>
-                        {(normalTiles.length > 0 || showBeeperSwitch) &&
+                        {cardGroups.length > 0 &&
                             <>
-                                <div className="upside-cmd-grid">
-                                    {showBeeperSwitch &&
-                                        <div
-                                            className="upside-cmd-beeper"
-                                            title={beeper === "muted" ? _("Muted until the next event.") : undefined}
-                                        >
-                                            <Switch
-                                                id="ctl-beeper"
-                                                className="upside-switch"
-                                                label={beeper === "muted" ? _("Toggle Beeper (muted)") : _("Toggle Beeper")}
-                                                isChecked={beeper !== "disabled"}
-                                                isDisabled={busy !== null}
-                                                onChange={() => toggleBeeper()}
-                                            />
-                                        </div>}
-                                    {normalTiles.map(c => cmdTile(c))}
+                                <div className="upside-ctl-cards">
+                                    {cardGroups.map(g => (
+                                        <section className="upside-ctl-card" key={g.key}>
+                                            <div className="upside-ctl-card__head">
+                                                <Content component="h4" className="upside-ctl-card__title">{g.title}</Content>
+                                                <Content component="small" className="upside-ctl-card__desc">{g.desc}</Content>
+                                            </div>
+                                            <div className="upside-cmd-grid">
+                                                {g.hasSwitch && beeperSwitch}
+                                                {g.cmds.map(c => cmdTile(c))}
+                                            </div>
+                                        </section>
+                                    ))}
                                 </div>
                                 <Content component="small" className="upside-controls__hint">
                                     {_("Hover a button for what it does.")}
