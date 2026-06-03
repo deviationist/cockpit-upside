@@ -215,6 +215,12 @@ $upside-amber: #f59e0b;
     color: var(--pf-t--global--text--color--subtle, #6a6e73);
 }
 
+// Give the notification toggles breathing room between the slider and its label
+// (PF's default ColumnGap runs them together here).
+.upside-switch {
+    --pf-v6-c-switch--ColumnGap: 0.75rem;
+}
+
 // Danger-family dropdown menu: cap the width so the help descriptions wrap into a
 // tidy column instead of one very long line, and never exceed the viewport.
 .upside-cmd-menu.pf-v6-c-menu {

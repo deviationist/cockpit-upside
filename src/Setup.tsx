@@ -985,6 +985,7 @@ const NotifyStep = ({ state, ups }: { state: SetupState, ups: string }) => {
                             <div className="upside-field">
                                 <Switch
                                     id="setup-nf-enabled"
+                                    className="upside-switch"
                                     label={_("Email notifications on")}
                                     isChecked={enabled}
                                     isDisabled={busy || (!enabled && !recipientOk)}
