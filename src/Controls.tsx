@@ -444,7 +444,7 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                         onClick={() => effectiveCmd && run(effectiveCmd, delayCapable && delaySecs > 0 ? String(delaySecs) : undefined)}
                     >
                         {/* eslint-disable-next-line no-template-curly-in-string -- cockpit.format placeholder, not a JS template literal; ${0} delimits the index from the trailing "s" */}
-                        {confirm?.label}{delayCapable && delaySecs > 0 ? cockpit.format(_(" in ${0}s"), delaySecs) : ""}
+                        {confirm?.label}{delayCapable ? (delaySecs > 0 ? cockpit.format(_(" in ${0}s"), delaySecs) : _(" immediately")) : ""}
                     </Button>
                     <Button variant="link" onClick={() => setConfirm(null)}>{_("Cancel")}</Button>
                 </ModalFooter>
