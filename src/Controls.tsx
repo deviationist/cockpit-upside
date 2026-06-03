@@ -342,7 +342,7 @@ export const Controls = ({ ups, creds, vars, onAuthNeeded, onCountdown }: {
                                             <Switch
                                                 id="ctl-beeper"
                                                 className="upside-switch"
-                                                label={beeper === "muted" ? _("Beeper (muted)") : _("Beeper")}
+                                                label={beeper === "muted" ? _("Toggle Beeper (muted)") : _("Toggle Beeper")}
                                                 isChecked={beeper !== "disabled"}
                                                 isDisabled={busy !== null}
                                                 onChange={() => toggleBeeper()}
