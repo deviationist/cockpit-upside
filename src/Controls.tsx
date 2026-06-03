@@ -124,6 +124,13 @@ const MEMBER_LABELS: Record<string, string> = {
 const familyKeyOf = (name: string): string | null =>
     DANGER_FAMILIES.find(f => f.members.includes(name))?.key ?? null;
 
+// One-line description per danger family, for the card layout.
+const DANGER_DESC: Record<string, string> = {
+    cut: _("Switch the UPS outlets off — like pulling the plug."),
+    restore: _("Switch the UPS outlets back on."),
+    shutdown: _("Run the UPS's shutdown sequence."),
+};
+
 export const Controls = ({ ups, creds, vars, onAuthNeeded, onCountdown }: {
     ups: string,
     creds: NutCreds | null,
@@ -334,19 +341,14 @@ export const Controls = ({ ups, creds, vars, onAuthNeeded, onCountdown }: {
     }).filter(g => g.cmds.length > 0 || g.hasSwitch);
 
     const beeperSwitch = (
-        <div
-            className="upside-cmd-beeper"
-            title={beeper === "muted" ? _("Muted until the next event.") : undefined}
-        >
-            <Switch
-                id="ctl-beeper"
-                className="upside-switch"
-                label={beeper === "muted" ? _("Toggle Beeper (muted)") : _("Toggle Beeper")}
-                isChecked={beeper !== "disabled"}
-                isDisabled={busy !== null}
-                onChange={() => toggleBeeper()}
-            />
-        </div>
+        <Switch
+            id="ctl-beeper"
+            className="upside-switch"
+            label={beeper === "muted" ? _("Toggle Beeper (muted)") : _("Toggle Beeper")}
+            isChecked={beeper !== "disabled"}
+            isDisabled={busy !== null}
+            onChange={() => toggleBeeper()}
+        />
     );
 
     return (
@@ -394,9 +396,24 @@ export const Controls = ({ ups, creds, vars, onAuthNeeded, onCountdown }: {
                                 <Content component="small" className="upside-warn">
                                     {_("These cut power to whatever is plugged into the UPS — abruptly, like pulling the plug, unless the connected hosts run NUT's shutdown client. Make sure you mean it.")}
                                 </Content>
-                                <div className="upside-cmd-grid upside-cmd-grid--danger">
-                                    {sections.families.map(f => dangerFamily(f))}
-                                    {sections.loose.map(c => cmdTile(c, true))}
+                                <div className="upside-ctl-cards">
+                                    {sections.families.map(f => (
+                                        <section className="upside-ctl-card upside-ctl-card--danger" key={f.key}>
+                                            <div className="upside-ctl-card__head">
+                                                <Content component="h4" className="upside-ctl-card__title">{f.label}</Content>
+                                                <Content component="small" className="upside-ctl-card__desc">{DANGER_DESC[f.key]}</Content>
+                                            </div>
+                                            <div className="upside-cmd-grid">{dangerFamily(f)}</div>
+                                        </section>
+                                    ))}
+                                    {sections.loose.length > 0 &&
+                                        <section className="upside-ctl-card upside-ctl-card--danger">
+                                            <div className="upside-ctl-card__head">
+                                                <Content component="h4" className="upside-ctl-card__title">{_("Other")}</Content>
+                                                <Content component="small" className="upside-ctl-card__desc">{_("Other power commands.")}</Content>
+                                            </div>
+                                            <div className="upside-cmd-grid">{sections.loose.map(c => cmdTile(c, true))}</div>
+                                        </section>}
                                 </div>
                             </ExpandableSection>}
 
