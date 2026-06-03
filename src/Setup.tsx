@@ -47,7 +47,8 @@ import {
     snmpScanDisabled, startServices, suggestCidr, usbScanDisabled,
     applyUpsmon, startMonitor,
 } from './lib/setup';
-import { DEFAULT_POWERDOWN_FLAG, DEFAULT_SHUTDOWNCMD, UpsmonType, isValidShutdownCmd } from './lib/upsmon-parse';
+import { DEFAULT_POWERDOWN_FLAG, DEFAULT_SHUTDOWNCMD, NOTIFY_EVENTS_DEFAULT, UpsmonType, isValidShutdownCmd } from './lib/upsmon-parse';
+import { applyNotify, detectNotify, disableNotify, ensureNotifierCanMail, isValidRecipients, sendTest } from './lib/notify-setup';
 import { Mode, isValidNutHost, saveConfig, useConfig } from './lib/config';
 import { listUps, refId } from './lib/nut';
 import { validateCreds } from './lib/control';
@@ -927,6 +928,108 @@ const ShutdownStep = ({ role, state, busy, run, system }: {
     );
 };
 
+/* ---- Notifications step: email on power events (all roles, optional) ---- */
+const NotifyStep = ({ state, ups }: { state: SetupState, ups: string }) => {
+    const admin = useAdmin();
+    const [loaded, setLoaded] = useState(false);
+    const [mailerOk, setMailerOk] = useState(true);
+    const [enabled, setEnabled] = useState(false);
+    const [savedRecipient, setSavedRecipient] = useState("");
+    const [recipient, setRecipient] = useState("");
+    const [notifier, setNotifier] = useState("nut");
+    const [canMail, setCanMail] = useState(true);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [note, setNote] = useState<string | null>(null);
+    const [pending, setPending] = useState<boolean | null>(null);
+
+    const load = useCallback(async () => {
+        const n = await detectNotify(state.confDir);
+        setMailerOk(n.mailerPresent);
+        setEnabled(n.enabled);
+        setSavedRecipient(n.recipient);
+        setRecipient(r => r || n.recipient);
+        setNotifier(n.notifierUser);
+        setCanMail(n.notifierCanMail);
+        setLoaded(true);
+    }, [state.confDir]);
+    useEffect(() => { load().catch(e => setError(msg(e))) }, [load]);
+
+    const act = (fn: () => Promise<unknown>, ok: string) => () => {
+        if (admin !== true) { requestAdmin(); return }
+        setBusy(true); setError(null); setNote(null);
+        Promise.resolve(fn()).then(() => { setNote(ok); return load() })
+                .catch(e => setError(msg(e))).finally(() => setBusy(false));
+    };
+    const recipientOk = isValidRecipients(recipient);
+    const test = act(() => sendTest(state.confDir, ups), _("Test sent — check your inbox."));
+    const fix = act(() => ensureNotifierCanMail(state.confDir), _("Mailer permissions fixed."));
+    // Optimistic enable/disable toggle (slider moves at once; reconciles on reload).
+    const toggle = (on: boolean) => {
+        if (admin !== true) { requestAdmin(); return }
+        setPending(on); setBusy(true); setError(null); setNote(null);
+        (on ? applyNotify(state.confDir, recipient, [...NOTIFY_EVENTS_DEFAULT]) : disableNotify(state.confDir))
+                .then(() => { setNote(on ? _("Notifications enabled.") : _("Notifications disabled.")); return load() })
+                .catch(e => setError(msg(e)))
+                .finally(() => { setBusy(false); setPending(null) });
+    };
+
+    return (
+        <div className="upside-step">
+            <Content component="h3">{_("Email on power events")}</Content>
+            <Content component="p">
+                {_("Optional. Get an email when the UPS changes state (on battery, low battery, back online, …). You can also set this up later, and fine-tune which events, from the Notifications page.")}
+            </Content>
+            {!loaded
+                ? <Spinner aria-label={_("Loading")} />
+                : !mailerOk
+                    ? (
+                        <Alert variant="info" isInline title={_("No system mailer installed")}>
+                            {_("Email needs a system mailer (e.g. msmtp with msmtp-mta). Install one, then enable notifications here or from the Notifications page.")}
+                        </Alert>
+                    )
+                    : (
+                        <>
+                            <div className="upside-field">
+                                <Switch
+                                    id="setup-nf-enabled"
+                                    className="upside-switch"
+                                    label={_("Email notifications on")}
+                                    isChecked={pending !== null ? pending : enabled}
+                                    isDisabled={busy || (!enabled && !recipientOk)}
+                                    onChange={(_ev, on) => toggle(on)}
+                                />
+                                <Content component="small" className="pf-v6-u-mt-xs">
+                                    {enabled ? cockpit.format(_("On — emailing $0."), savedRecipient) : _("Off — enter a recipient, then switch on.")}
+                                </Content>
+                            </div>
+                            <div className="upside-field">
+                                <label htmlFor="setup-nf-rcpt">{_("Send to")}</label>
+                                <TextInput
+                                    id="setup-nf-rcpt" value={recipient} type="text"
+                                    onChange={(_ev, v) => { setRecipient(v); setNote(null) }}
+                                    validated={recipient && !recipientOk ? "error" : "default"}
+                                    placeholder="ops@example.com" aria-label={_("Notification recipients")}
+                                />
+                            </div>
+                            {enabled && !canMail &&
+                                <Alert variant="warning" isInline className="pf-v6-u-mt-sm"
+                                       title={cockpit.format(_("The notifier user ($0) can't send mail"), notifier)}>
+                                    <p>{cockpit.format(_("upsmon runs notifications as $0, which can't read the mailer config. Fix grants it access."), notifier)}</p>
+                                    <Button variant="link" isInline onClick={fix} isDisabled={busy}>{_("Fix permissions")}</Button>
+                                </Alert>}
+                            <div className="upside-step__actions">
+                                <Button variant="secondary" onClick={test} isDisabled={busy || !savedRecipient}>{_("Send test")}</Button>
+                                {admin !== true &&
+                                    <Content component="small">{_("Enabling needs admin.")}</Content>}
+                            </div>
+                            {note && !error && <Alert variant="success" isInline className="pf-v6-u-mt-sm" title={note} />}
+                        </>)}
+            {error && <Alert variant="danger" isInline className="pf-v6-u-mt-sm" title={_("Could not update notifications.")}>{error}</Alert>}
+        </div>
+    );
+};
+
 export const Setup = ({ onDone, mode, modeLocked, onEnableControl }: {
     onDone?: () => void, mode: Mode, modeLocked: boolean, onEnableControl: () => void,
 }) => {
@@ -1037,6 +1140,9 @@ export const Setup = ({ onDone, mode, modeLocked, onEnableControl }: {
     steps.push(
         <WizardStep key="shutdown" name={_("Shutdown")} id="shutdown">
             <ShutdownStep role={role} state={state} busy={busy} run={run} system={monitorSystem} />
+        </WizardStep>,
+        <WizardStep key="notify" name={_("Notifications")} id="notify">
+            <NotifyStep state={state} ups={controlUpsId} />
         </WizardStep>,
         <WizardStep key="control" name={_("Control actions")} id="control" footer={{ nextButtonText: _("Finish") }}>
             <ControlStep upsId={controlUpsId} canCreate={role !== "netclient"} mode={mode} modeLocked={modeLocked} onEnableControl={onEnableControl} />
