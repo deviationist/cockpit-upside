@@ -215,6 +215,20 @@ $upside-amber: #f59e0b;
     color: var(--pf-t--global--text--color--subtle, #6a6e73);
 }
 
+// Beeper control as a grid tile — a pill matching the action buttons, with the
+// on/off Switch inside (it's a state, not a one-shot). Purple ties it to the
+// beeper grouping. Fills its grid cell and stretches to the row height.
+.upside-cmd-beeper {
+    inline-size: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding-inline: 0.75rem;
+    border: 1px solid #6829c2;
+    border-radius: 999px;
+}
+
 // Give the notification toggles breathing room between the slider and its label.
 // The cockpit-bundled PF switch lays these out as `display: block` (not grid),
 // so its ColumnGap is inert — space the label with a real margin instead.
