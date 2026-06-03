@@ -55,7 +55,7 @@ const DESTRUCTIVE: { cmd: string, label: string, desc: string, consequence: stri
     { cmd: "shutdown.stayoff", label: _("Shutdown + stay off"), desc: _("Stays off until manual restart"), consequence: _("The UPS powers off and stays off until switched on by hand. You'll need physical access to restart.") },
     { cmd: "shutdown.reboot", label: _("Reboot"), desc: _("Power-cycle the load"), consequence: _("Powers the UPS load off and back on. Connected hosts lose power, then it returns.") },
     { cmd: "shutdown.reboot.graceful", label: _("Reboot (graceful)"), desc: _("Power-cycle, gracefully"), consequence: _("Gracefully powers the UPS load off and back on (honouring the UPS's shutdown timing). Connected hosts lose power, then it returns.") },
-    { cmd: "load.off", label: _("Load off"), desc: _("Cut outlet power now"), consequence: _("Cuts the battery-backed outlets immediately. The host you're connected from may lose power.") },
+    { cmd: "load.off", label: _("Load off"), desc: _("Cut outlet power"), consequence: _("Cuts the battery-backed outlets. The host you're connected from may lose power.") },
     { cmd: "load.on", label: _("Load on"), desc: _("Restore outlet power"), consequence: _("Re-energises the battery-backed outlets.") },
 ];
 
