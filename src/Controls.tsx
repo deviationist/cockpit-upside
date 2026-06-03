@@ -53,6 +53,8 @@ const msg = (e: unknown): string => (e instanceof Error ? e.message : (e as { me
 const DESTRUCTIVE: { cmd: string, label: string, desc: string, consequence: string }[] = [
     { cmd: "shutdown.return", label: _("Shutdown + return"), desc: _("Power back on when mains returns"), consequence: _("The UPS powers off, then powers back on when mains power returns. Connected hosts lose power.") },
     { cmd: "shutdown.stayoff", label: _("Shutdown + stay off"), desc: _("Stays off until manual restart"), consequence: _("The UPS powers off and stays off until switched on by hand. You'll need physical access to restart.") },
+    { cmd: "shutdown.reboot", label: _("Reboot"), desc: _("Power-cycle the load"), consequence: _("Powers the UPS load off and back on. Connected hosts lose power, then it returns.") },
+    { cmd: "shutdown.reboot.graceful", label: _("Reboot (graceful)"), desc: _("Power-cycle, gracefully"), consequence: _("Gracefully powers the UPS load off and back on (honouring the UPS's shutdown timing). Connected hosts lose power, then it returns.") },
     { cmd: "load.off", label: _("Load off"), desc: _("Cut outlet power now"), consequence: _("Cuts the battery-backed outlets immediately. The host you're connected from may lose power.") },
     { cmd: "load.on", label: _("Load on"), desc: _("Restore outlet power"), consequence: _("Re-energises the battery-backed outlets.") },
 ];
