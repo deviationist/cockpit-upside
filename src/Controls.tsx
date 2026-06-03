@@ -132,7 +132,14 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
         : null;
 
     // --- beeper rendering decision (see file header caveat) ---
-    const beeperToggleGroup = has("beeper.enable") && has("beeper.disable") && beeperKnown;
+    // When the on/off state IS readable, show an Enabled/Disabled ToggleGroup that
+    // makes the state obvious — driven by beeper.enable/disable if present, else by
+    // beeper.toggle. Only fall back to a plain Toggle button when the state can't
+    // be read (never show a stateful control whose state we can't trust).
+    const canChangeBeeper = (has("beeper.enable") && has("beeper.disable")) || has("beeper.toggle");
+    const beeperToggleGroup = beeperKnown && canChangeBeeper;
+    const beeperEnableCmd = has("beeper.enable") ? "beeper.enable" : "beeper.toggle";
+    const beeperDisableCmd = has("beeper.disable") ? "beeper.disable" : "beeper.toggle";
     const beeperButtons = ["beeper.enable", "beeper.disable", "beeper.mute"].filter(has);
     const showBeeper = beeperToggleGroup || has("beeper.toggle") || beeperButtons.length > 0;
 
@@ -172,7 +179,6 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                                 <div className="upside-ctl-row__name">{_("Audible alarm")}</div>
                                 <div className="upside-ctl-row__desc">
                                     {_("Beeper sounds on power events and faults.")}
-                                    {beeperKnown && ` ${cockpit.format(_("Currently $0."), beeperStatus === "enabled" ? _("enabled") : _("disabled"))}`}
                                 </div>
                             </div>
                             <div className="upside-ctl-row__control">
@@ -182,12 +188,12 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                                             <ToggleGroupItem
                                                 icon={<VolumeUpIcon />} text={_("Enabled")}
                                                 isSelected={beeperStatus === "enabled"} isDisabled={busy !== null}
-                                                onChange={() => { if (beeperStatus !== "enabled") run("beeper.enable") }}
+                                                onChange={() => { if (beeperStatus !== "enabled") run(beeperEnableCmd) }}
                                             />
                                             <ToggleGroupItem
                                                 text={_("Disabled")}
                                                 isSelected={beeperStatus === "disabled"} isDisabled={busy !== null}
-                                                onChange={() => { if (beeperStatus !== "disabled") run("beeper.disable") }}
+                                                onChange={() => { if (beeperStatus !== "disabled") run(beeperDisableCmd) }}
                                             />
                                         </ToggleGroup>
                                     )
