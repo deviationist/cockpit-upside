@@ -331,23 +331,23 @@ export const Controls = ({ ups, creds, vars, onAuthNeeded, onCountdown }: {
 
                 {cmds && cmds.length > 0 &&
                     <>
-                        {showBeeperSwitch &&
-                            <div className="upside-field upside-beeper">
-                                <Switch
-                                    id="ctl-beeper"
-                                    className="upside-switch"
-                                    label={_("Beeper")}
-                                    isChecked={beeper !== "disabled"}
-                                    isDisabled={busy !== null}
-                                    onChange={() => toggleBeeper()}
-                                />
-                                {beeper === "muted" &&
-                                    <Content component="small" className="pf-v6-u-mt-xs">{_("Muted until the next event.")}</Content>}
-                            </div>}
-
-                        {normalTiles.length > 0 &&
+                        {(normalTiles.length > 0 || showBeeperSwitch) &&
                             <>
                                 <div className="upside-cmd-grid">
+                                    {showBeeperSwitch &&
+                                        <div
+                                            className="upside-cmd-beeper"
+                                            title={beeper === "muted" ? _("Muted until the next event.") : undefined}
+                                        >
+                                            <Switch
+                                                id="ctl-beeper"
+                                                className="upside-switch"
+                                                label={beeper === "muted" ? _("Beeper (muted)") : _("Beeper")}
+                                                isChecked={beeper !== "disabled"}
+                                                isDisabled={busy !== null}
+                                                onChange={() => toggleBeeper()}
+                                            />
+                                        </div>}
                                     {normalTiles.map(c => cmdTile(c))}
                                 </div>
                                 <Content component="small" className="upside-controls__hint">
