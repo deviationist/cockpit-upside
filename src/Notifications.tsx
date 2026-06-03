@@ -142,6 +142,7 @@ export const Notifications = ({ ups, title }: { ups: string, title?: string }) =
                                     <div className="upside-field">
                                         <Switch
                                             id="nf-enabled"
+                                            className="upside-switch"
                                             label={_("Email notifications on")}
                                             isChecked={enabled}
                                             isDisabled={busy || (!enabled && !canEnable)}
