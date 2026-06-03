@@ -50,11 +50,11 @@ const msg = (e: unknown): string => (e instanceof Error ? e.message : (e as { me
 // Destructive power commands for the danger zone — each behind a confirmation
 // that names the consequence. `load.on` isn't destructive but lives here as the
 // counterpart to `load.off`.
-const DESTRUCTIVE: { cmd: string, label: string, consequence: string }[] = [
-    { cmd: "shutdown.return", label: _("Shut down (auto-restart)"), consequence: _("Powers off the UPS load now; it powers back on when mains power returns. The host you're connected from will lose power.") },
-    { cmd: "shutdown.stayoff", label: _("Shut down (stay off)"), consequence: _("Powers off the UPS load and keeps it off until restored by hand. The host you're connected from will lose power and stay off.") },
-    { cmd: "load.off", label: _("Cut power"), consequence: _("Immediately cuts power to the UPS outlets — like pulling the plug on everything attached, including the host you're connected from.") },
-    { cmd: "load.on", label: _("Restore power"), consequence: _("Restores power to the UPS outlets.") },
+const DESTRUCTIVE: { cmd: string, label: string, desc: string, consequence: string }[] = [
+    { cmd: "shutdown.return", label: _("Shutdown + return"), desc: _("Power back on when mains returns"), consequence: _("The UPS powers off, then powers back on when mains power returns. Connected hosts lose power.") },
+    { cmd: "shutdown.stayoff", label: _("Shutdown + stay off"), desc: _("Stays off until manual restart"), consequence: _("The UPS powers off and stays off until switched on by hand. You'll need physical access to restart.") },
+    { cmd: "load.off", label: _("Load off"), desc: _("Cut outlet power now"), consequence: _("Cuts the battery-backed outlets immediately. The host you're connected from may lose power.") },
+    { cmd: "load.on", label: _("Load on"), desc: _("Restore outlet power"), consequence: _("Re-energises the battery-backed outlets.") },
 ];
 
 /**
@@ -311,14 +311,20 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                         isExpanded={dangerOpen}
                         onToggle={(_ev, v) => setDangerOpen(v)}
                     >
-                        <Content component="small" className="upside-warn">
-                            {_("These cut power to whatever is plugged into the UPS, including the host you're connected from. Each asks you to confirm.")}
-                        </Content>
-                        <div className="upside-ctl-danger__actions">
+                        <div className="upside-dz-warn">
+                            {_("These commands cut power. Anything you run here can take down the host you're connected from.")}
+                        </div>
+                        <div className="upside-dz-grid">
                             {supportedDestructive.map(d => (
-                                <Button key={d.cmd} variant="danger" icon={<PowerOffIcon />} isDisabled={busy !== null} isLoading={busy === d.cmd || busy === `${d.cmd}.delay`} onClick={() => { setDelay("0"); setConfirm(d) }}>
-                                    {d.label}
-                                </Button>
+                                <button
+                                    key={d.cmd} type="button" className="upside-dz-action"
+                                    disabled={busy !== null}
+                                    onClick={() => { setDelay("0"); setConfirm(d) }}
+                                >
+                                    <span className="upside-dz-action__title"><PowerOffIcon /> {d.label}</span>
+                                    <span className="upside-dz-action__cmd">{d.cmd}</span>
+                                    <span className="upside-dz-action__desc">{d.desc}</span>
+                                </button>
                             ))}
                         </div>
                     </ExpandableSection>}
@@ -355,6 +361,13 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                                 {_("0 runs it now; a higher value waits that many seconds first.")}
                             </Content>
                         </div>}
+                    {effectiveCmd &&
+                        <Content component="p" className="pf-v6-u-mt-md">
+                            {_("Command:")}{" "}
+                            <code className="upside-cmd-inline">
+                                {`upscmd ${ups} ${effectiveCmd}${effectiveCmd.endsWith(".delay") ? ` ${delaySecs}` : ""}`}
+                            </code>
+                        </Content>}
                 </ModalBody>
                 <ModalFooter>
                     <Button
