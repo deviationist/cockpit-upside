@@ -259,6 +259,76 @@ $upside-amber: #f59e0b;
     margin-block-start: 0.6rem;
 }
 
+// Danger zone v4: a red-tinted caution box + a grid of action cards (title +
+// raw command + one-line description), each opening a confirm.
+.upside-dz-warn {
+    font-size: 0.85rem;
+    color: var(--pf-t--global--text--color--regular, #151515);
+    background: color-mix(in srgb, var(--pf-t--global--color--status--danger--default, #c9190b) 7%, transparent);
+    border: 1px solid var(--pf-t--global--border--color--status--danger--default, #c9190b);
+    border-radius: var(--pf-t--global--border--radius--small, 6px);
+    padding: 0.6rem 0.85rem;
+    margin-block: 0.6rem 0.85rem;
+}
+
+.upside-dz-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: 0.6rem;
+}
+
+.upside-dz-action {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+    text-align: start;
+    cursor: pointer;
+    font: inherit;
+    padding: 0.7rem 0.85rem;
+    background: transparent;
+    border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+    border-radius: var(--pf-t--global--border--radius--small, 6px);
+    transition: border-color 0.12s, background 0.12s;
+
+    &:hover:not(:disabled) {
+        border-color: var(--pf-t--global--border--color--status--danger--default, #c9190b);
+        background: color-mix(in srgb, var(--pf-t--global--color--status--danger--default, #c9190b) 6%, transparent);
+    }
+
+    &:disabled {
+        opacity: 0.55;
+        cursor: default;
+    }
+}
+
+.upside-dz-action__title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: var(--pf-t--global--font--weight--body--bold, 600);
+    color: var(--pf-t--global--text--color--status--danger--default, #c9190b);
+}
+
+.upside-dz-action__cmd {
+    font-family: var(--pf-t--global--font--family--mono, ui-monospace, monospace);
+    font-size: 0.75rem;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
+.upside-dz-action__desc {
+    font-size: 0.8rem;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
+.upside-cmd-inline {
+    font-family: var(--pf-t--global--font--family--mono, ui-monospace, monospace);
+    font-size: 0.85rem;
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--pf-t--global--text--color--subtle, #6a6e73) 12%, transparent);
+}
+
 // Control actions card (Controls.tsx).
 .upside-controls__actions {
     display: flex;
