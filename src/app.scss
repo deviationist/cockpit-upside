@@ -168,25 +168,58 @@ $upside-amber: #f59e0b;
     gap: 1.1rem;
 }
 
-.upside-ctl-band {
+// A control band: a small section label + a row of [name + description] on the
+// left and the control on the right (wraps under on narrow screens).
+.upside-ctl-section {
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: 0.5rem;
 }
 
-.upside-ctl-band__title {
-    font-weight: var(--pf-t--global--font--weight--body--bold, 700);
-}
-
-.upside-ctl-band__desc {
+.upside-ctl-section__label {
+    font-size: var(--pf-t--global--font--size--sm, 0.8rem);
+    font-weight: var(--pf-t--global--font--weight--body--bold, 600);
     color: var(--pf-t--global--text--color--subtle, #6a6e73);
 }
 
-.upside-ctl-band__controls {
+.upside-ctl-row {
     display: flex;
+    align-items: center;
+    justify-content: space-between;
     flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+}
+
+.upside-ctl-row__text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    flex: 1 1 14rem;
+}
+
+.upside-ctl-row__name {
+    font-size: 0.95rem;
+}
+
+.upside-ctl-row__desc {
+    font-size: 0.85rem;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
+.upside-ctl-row__control {
+    display: inline-flex;
     align-items: center;
     gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+// Shutdown alert: detail + Cancel button on one row.
+.upside-ctl-shutdown__body {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
 }
 
 .upside-ctl-select {
@@ -207,7 +240,12 @@ $upside-amber: #f59e0b;
     color: var(--pf-t--global--text--color--subtle, #6a6e73);
 }
 
-// Danger zone: lock + label on the toggle, destructive buttons wrapping below.
+// Danger zone: a top divider, lock + label on the toggle, buttons wrapping below.
+.upside-ctl-danger {
+    border-block-start: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+    padding-block-start: 0.5rem;
+}
+
 .upside-ctl-danger__toggle {
     display: inline-flex;
     align-items: center;
