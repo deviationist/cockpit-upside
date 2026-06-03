@@ -26,6 +26,7 @@ import { ExpandableSection } from "@patternfly/react-core/dist/esm/components/Ex
 import { MenuToggle } from "@patternfly/react-core/dist/esm/components/MenuToggle/index.js";
 import { Modal, ModalBody, ModalFooter, ModalHeader } from "@patternfly/react-core/dist/esm/components/Modal/index.js";
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
+import { Switch } from "@patternfly/react-core/dist/esm/components/Switch/index.js";
 import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/index.js";
 import { Tooltip } from "@patternfly/react-core/dist/esm/components/Tooltip/index.js";
 
@@ -187,8 +188,6 @@ export const Controls = ({ ups, creds, vars, onAuthNeeded, onCountdown }: {
         runCommand(ups, name, creds.user, creds.pass, value)
                 .then(out => {
                     setFeedback({ ok: true, msg: out.trim() || _("Command sent.") });
-                    if (name === "beeper.toggle" && beeper)
-                        setOptimisticBeeper(beeper === "enabled" ? "disabled" : "enabled");
                     // Delayed power commands: surface a live countdown to the moment
                     // the UPS will act, as a pill in the masthead.
                     const secs = value ? parseInt(value, 10) : NaN;
@@ -220,6 +219,15 @@ export const Controls = ({ ups, creds, vars, onAuthNeeded, onCountdown }: {
         if (c.name === "beeper.toggle" && beeper === "enabled")
             return _("Toggle beeper off");
         return commandShortLabel(c);
+    };
+
+    // The beeper is a state, not a one-shot, so it's shown as a Switch. Flip
+    // optimistically for instant feedback; the next poll reconciles (and corrects
+    // it if the command failed).
+    const toggleBeeper = () => {
+        if (!creds) { onAuthNeeded(); return }
+        setOptimisticBeeper(beeper === "disabled" ? "enabled" : "disabled");
+        exec("beeper.toggle");
     };
 
     // Every action is one tile in a grid: a terse, colour-coded button whose help
@@ -301,6 +309,14 @@ export const Controls = ({ ups, creds, vars, onAuthNeeded, onCountdown }: {
     const delayValid = !pendingDelay || /^\d+$/.test(delay);
     const confirmDisabled = (pendingDanger && !ack) || !delayValid;
 
+    // Beeper: render as a Switch when the UPS reports its state and exposes the
+    // toggle; otherwise it falls back to a normal tile in the grid.
+    const beeperToggle = (cmds ?? []).find(c => c.name === "beeper.toggle");
+    const showBeeperSwitch = !!beeperToggle && (beeper === "enabled" || beeper === "disabled" || beeper === "muted");
+    const normalTiles = showBeeperSwitch
+        ? sections.normal.filter(c => c.name !== "beeper.toggle")
+        : sections.normal;
+
     return (
         <Card>
             <CardTitle>{_("Controls")}</CardTitle>
@@ -315,10 +331,24 @@ export const Controls = ({ ups, creds, vars, onAuthNeeded, onCountdown }: {
 
                 {cmds && cmds.length > 0 &&
                     <>
-                        {sections.normal.length > 0 &&
+                        {showBeeperSwitch &&
+                            <div className="upside-field upside-beeper">
+                                <Switch
+                                    id="ctl-beeper"
+                                    className="upside-switch"
+                                    label={_("Beeper")}
+                                    isChecked={beeper !== "disabled"}
+                                    isDisabled={busy !== null}
+                                    onChange={() => toggleBeeper()}
+                                />
+                                {beeper === "muted" &&
+                                    <Content component="small" className="pf-v6-u-mt-xs">{_("Muted until the next event.")}</Content>}
+                            </div>}
+
+                        {normalTiles.length > 0 &&
                             <>
                                 <div className="upside-cmd-grid">
-                                    {sections.normal.map(c => cmdTile(c))}
+                                    {normalTiles.map(c => cmdTile(c))}
                                 </div>
                                 <Content component="small" className="upside-controls__hint">
                                     {_("Hover a button for what it does.")}
