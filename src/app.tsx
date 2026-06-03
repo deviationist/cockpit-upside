@@ -457,13 +457,8 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode, 
 
     return (
         <div className="upside-detail">
-            <Flex
-                className="upside-detail__head"
-                alignItems={{ default: "alignItemsCenter" }}
-                spaceItems={{ default: "spaceItemsLg" }}
-                flexWrap={{ default: "wrap" }}
-            >
-                <FlexItem>
+            <div className="upside-detail__head">
+                <div className="upside-detail__crumb">
                     <Flex spaceItems={{ default: "spaceItemsSm" }} alignItems={{ default: "alignItemsCenter" }}>
                         <FlexItem>
                             <Breadcrumb>
@@ -548,28 +543,24 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode, 
                                 )}
                         </FlexItem>
                     </Flex>
-                </FlexItem>
-                <FlexItem align={{ default: "alignRight" }}>
-                    <Flex alignItems={{ default: "alignItemsCenter" }} spaceItems={{ default: "spaceItemsMd" }}>
-                        <FlexItem><PollIndicator lastUpdate={lastUpdate} /></FlexItem>
-                        <FlexItem><StatusLabels status={status} /></FlexItem>
-                        {mode === "control" &&
-                            <FlexItem>
-                                <Button
-                                    variant="link"
-                                    isInline
-                                    icon={<KeyIcon />}
-                                    onClick={() => setAuthOpen(true)}
-                                    title={creds ? cockpit.format(_("Authenticated as $0"), creds.user) : _("Authenticate to NUT")}
-                                >
-                                    {creds ? creds.user : _("Authenticate")}
-                                </Button>
-                            </FlexItem>}
-                        {/* Per-UPS menu: the sub-pages, gathered in one place (also on each sub-view). */}
-                        <FlexItem className="upside-detail__menu"><UpsMenu ups={ups.ref.name} /></FlexItem>
-                    </Flex>
-                </FlexItem>
-            </Flex>
+                </div>
+                <div className="upside-detail__bar">
+                    <PollIndicator lastUpdate={lastUpdate} />
+                    <StatusLabels status={status} />
+                    {mode === "control" &&
+                        <Button
+                            variant="link"
+                            isInline
+                            icon={<KeyIcon />}
+                            onClick={() => setAuthOpen(true)}
+                            title={creds ? cockpit.format(_("Authenticated as $0"), creds.user) : _("Authenticate to NUT")}
+                        >
+                            {creds ? creds.user : _("Authenticate")}
+                        </Button>}
+                </div>
+                {/* Per-UPS menu: the sub-pages, gathered in one place (also on each sub-view). */}
+                <div className="upside-detail__menu"><UpsMenu ups={ups.ref.name} /></div>
+            </div>
 
             <Card>
                 <CardBody>
