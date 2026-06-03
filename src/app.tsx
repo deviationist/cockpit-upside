@@ -598,7 +598,7 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode, 
             </Card>
 
             {mode === "control" &&
-                <Controls ups={upsId} creds={creds} vars={vars} onAuthNeeded={() => setAuthOpen(true)} onCountdown={onCountdown} />}
+                <Controls ups={upsId} creds={creds} onAuthNeeded={() => setAuthOpen(true)} />}
 
             {((!remote && config.history) || (remote && config.historyUrl)) &&
                 <Trends ups={ups.ref.name} archiveDir={config.historyArchiveDir}
