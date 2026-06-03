@@ -161,11 +161,217 @@ $upside-amber: #f59e0b;
     color: var(--pf-t--global--text--color--subtle, #6a6e73);
 }
 
+// Controls panel (Controls.tsx) — labelled bands stacked in one card.
+.upside-ctl {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+}
+
+// A control band: a small section label + a row of [name + description] on the
+// left and the control on the right (wraps under on narrow screens).
+.upside-ctl-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.upside-ctl-section__label {
+    font-size: var(--pf-t--global--font--size--sm, 0.8rem);
+    font-weight: var(--pf-t--global--font--weight--body--bold, 600);
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
+.upside-ctl-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+}
+
+.upside-ctl-row__text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    flex: 1 1 14rem;
+}
+
+.upside-ctl-row__name {
+    font-size: 0.95rem;
+}
+
+.upside-ctl-row__desc {
+    font-size: 0.85rem;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
+.upside-ctl-row__control {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+// Shutdown alert: detail + Cancel button on one row.
+.upside-ctl-shutdown__body {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+}
+
+.upside-ctl-select {
+    inline-size: auto;
+    min-inline-size: 8rem;
+}
+
+// Battery-test result colouring.
+.upside-test--pass { color: var(--pf-t--global--text--color--status--success--default, #3e8635); }
+.upside-test--fail { color: var(--pf-t--global--text--color--status--danger--default, #c9190b); }
+.upside-test--muted { color: var(--pf-t--global--text--color--subtle, #6a6e73); }
+
+.upside-ctl-shutdown,
+.upside-ctl-feedback { margin-block: 0; }
+
+.upside-ctl-creds {
+    display: block;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
+// Danger zone: a top divider, lock + label on the toggle, buttons wrapping below.
+.upside-ctl-danger {
+    border-block-start: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+    padding-block-start: 0.5rem;
+}
+
+.upside-ctl-danger__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.upside-ctl-danger__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-block-start: 0.6rem;
+}
+
+// Danger zone v4: a red-tinted caution box + a grid of action cards (title +
+// raw command + one-line description), each opening a confirm.
+.upside-dz-warn {
+    font-size: 0.85rem;
+    color: var(--pf-t--global--text--color--regular, #151515);
+    background: color-mix(in srgb, var(--pf-t--global--color--status--danger--default, #c9190b) 7%, transparent);
+    border: 1px solid var(--pf-t--global--border--color--status--danger--default, #c9190b);
+    border-radius: var(--pf-t--global--border--radius--small, 6px);
+    padding: 0.6rem 0.85rem;
+    margin-block: 0.6rem 0.85rem;
+}
+
+.upside-dz-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: 0.6rem;
+}
+
+.upside-dz-action {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+    text-align: start;
+    cursor: pointer;
+    font: inherit;
+    padding: 0.7rem 0.85rem;
+    background: transparent;
+    border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+    border-radius: var(--pf-t--global--border--radius--small, 6px);
+    transition: border-color 0.12s, background 0.12s;
+
+    &:hover:not(:disabled) {
+        border-color: var(--pf-t--global--border--color--status--danger--default, #c9190b);
+        background: color-mix(in srgb, var(--pf-t--global--color--status--danger--default, #c9190b) 6%, transparent);
+    }
+
+    &:disabled {
+        opacity: 0.55;
+        cursor: default;
+    }
+}
+
+.upside-dz-action__title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: var(--pf-t--global--font--weight--body--bold, 600);
+    color: var(--pf-t--global--text--color--status--danger--default, #c9190b);
+}
+
+.upside-dz-action__cmd {
+    font-family: var(--pf-t--global--font--family--mono, ui-monospace, monospace);
+    font-size: 0.75rem;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
+.upside-dz-action__desc {
+    font-size: 0.8rem;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
+.upside-cmd-inline {
+    font-family: var(--pf-t--global--font--family--mono, ui-monospace, monospace);
+    font-size: 0.85rem;
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--pf-t--global--text--color--subtle, #6a6e73) 12%, transparent);
+}
+
 // Control actions card (Controls.tsx).
 .upside-controls__actions {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
+}
+
+// Control panel: per-category cards laid out in a responsive grid that uses the
+// full width (one column on narrow, several on wide). Each card = a title + a
+// one-line description + its controls (buttons / the beeper switch).
+.upside-ctl-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 0.75rem;
+    margin-block-start: 0.25rem;
+}
+
+.upside-ctl-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 0.85rem 0.95rem;
+    border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+    border-radius: var(--pf-t--global--border--radius--medium, 12px);
+}
+
+// Danger-zone cards get a red edge to set them apart from the routine ones.
+.upside-ctl-card--danger {
+    border-color: var(--pf-t--global--border--color--status--danger--default, #c9190b);
+}
+
+.upside-ctl-card__title {
+    font-weight: var(--pf-t--global--font--weight--body--bold, 700);
+}
+
+.upside-ctl-card__desc {
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
+// Keep each card's controls pinned to the bottom so they line up across cards
+// whose descriptions wrap to different heights.
+.upside-ctl-card .upside-cmd-grid {
+    margin-block-start: auto;
 }
 
 // Control panel: a responsive grid of equal-width, colour-coded action tiles.
