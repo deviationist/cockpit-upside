@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
-    buildUpsmonConf, hasPowerDownFlag, isValidMinSupplies, isValidShutdownCmd,
+    buildUpsmonConf, clearAllNotifyExec, hasPowerDownFlag, isValidMinSupplies, isValidShutdownCmd,
     parseNotify, parseRunAsUser, parseUpsmonConf, setMinSupplies, setMonitorLine, setNotifyCmd,
     setNotifyFlagExec, setPowerDownFlag, setShutdownCmd,
 } from './upsmon-parse.ts';
@@ -108,6 +108,22 @@ test("parseRunAsUser: reads RUN_AS_USER, null when unset, ignores comments", () 
     assert.equal(parseRunAsUser("# RUN_AS_USER ghost\nMINSUPPLIES 1\n"), null);
     assert.equal(parseRunAsUser(""), null);
     assert.equal(parseRunAsUser(null), null);
+});
+
+test("clearAllNotifyExec: strips EXEC from every NOTIFYFLAG, incl. foreign", () => {
+    const conf = [
+        'NOTIFYCMD "/etc/nut/upside-notify"',
+        "NOTIFYFLAG ONBATT SYSLOG+WALL+EXEC",
+        "NOTIFYFLAG NOCOMM SYSLOG+WALL+EXEC", // foreign, not in NOTIFY_EVENTS
+        "NOTIFYFLAG FSD EXEC",                // EXEC-only → falls back to IGNORE
+        "# NOTIFYFLAG ONLINE SYSLOG+EXEC",    // commented — untouched
+    ].join("\n");
+    const out = clearAllNotifyExec(conf);
+    assert.deepEqual(parseNotify(out).events, []);          // nothing EXEC-flagged
+    assert.match(out, /NOTIFYCMD "\/etc\/nut\/upside-notify"/); // NOTIFYCMD kept
+    assert.match(out, /NOTIFYFLAG NOCOMM SYSLOG\+WALL$/m);   // foreign flag de-EXEC'd
+    assert.match(out, /NOTIFYFLAG FSD IGNORE$/m);            // EXEC-only → IGNORE
+    assert.match(out, /# NOTIFYFLAG ONLINE SYSLOG\+EXEC/);   // comment preserved
 });
 
 test("parseNotify: reads NOTIFYCMD + only EXEC-flagged events", () => {

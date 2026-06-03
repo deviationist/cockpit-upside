@@ -17,8 +17,8 @@
 import cockpit from 'cockpit';
 
 import { DISPATCHER, MAIL_ADAPTER, groupReadable, notifyPaths, userCanRead } from './notify-setup-parse';
-import { applyUpsmonNotify, readUpsmon } from './setup';
-import { parseNotify, parseRunAsUser } from './upsmon-parse';
+import { applyUpsmonNotify, disableUpsmonNotify, readUpsmon } from './setup';
+import { NOTIFY_EVENTS, parseNotify, parseRunAsUser } from './upsmon-parse';
 
 export * from './notify-setup-parse';
 
@@ -146,13 +146,17 @@ export async function detectNotify(confDir: string): Promise<NotifyState> {
     const installed = (await sh(`test -x ${p.dispatcher} && test -x ${p.mailAdapter} && echo y`)) === "y";
     const recipient = ((await readTry(p.recipient)) ?? "").trim();
     const { cmd, events } = parseNotify(await readUpsmon(confDir));
+    // Scope to UPSide's managed events — a distro/admin may EXEC-flag others
+    // (e.g. NOCOMM/NOPARENT); surfacing those would pollute the UI's event set
+    // and break enabling (applyNotify only writes managed events).
+    const managed = events.filter(e => (NOTIFY_EVENTS as readonly string[]).includes(e));
     const user = await notifierUser(confDir);
     return {
         installed,
         mailerPresent: await mailerPresent(),
         recipient,
-        events,
-        enabled: !!cmd && cmd.includes("upside-notify") && events.length > 0,
+        events: managed,
+        enabled: !!cmd && cmd.includes("upside-notify") && managed.length > 0,
         notifierUser: user,
         notifierCanMail: (await inspectMailPerm(user)).readable,
     };
@@ -187,10 +191,10 @@ export async function applyNotify(confDir: string, recipient: string, events: st
     await applyUpsmonNotify(confDir, { notifyCmd: p.dispatcher, events });
 }
 
-/** Disable notifications: clear EXEC from every event (NOTIFYCMD won't fire). */
+/** Disable notifications: clear EXEC from every NOTIFYFLAG (NOTIFYCMD won't fire
+ *  for any event, including foreign flags the managed-event loop would miss). */
 export async function disableNotify(confDir: string): Promise<void> {
-    const p = notifyPaths(confDir);
-    await applyUpsmonNotify(confDir, { notifyCmd: p.dispatcher, events: [] });
+    await disableUpsmonNotify(confDir);
 }
 
 /**

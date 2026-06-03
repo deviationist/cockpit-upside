@@ -941,6 +941,7 @@ const NotifyStep = ({ state, ups }: { state: SetupState, ups: string }) => {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [note, setNote] = useState<string | null>(null);
+    const [pending, setPending] = useState<boolean | null>(null);
 
     const load = useCallback(async () => {
         const n = await detectNotify(state.confDir);
@@ -961,10 +962,17 @@ const NotifyStep = ({ state, ups }: { state: SetupState, ups: string }) => {
                 .catch(e => setError(msg(e))).finally(() => setBusy(false));
     };
     const recipientOk = isValidRecipients(recipient);
-    const enable = act(() => applyNotify(state.confDir, recipient, [...NOTIFY_EVENTS_DEFAULT]), _("Notifications enabled."));
-    const disable = act(() => disableNotify(state.confDir), _("Notifications disabled."));
     const test = act(() => sendTest(state.confDir, ups), _("Test sent — check your inbox."));
     const fix = act(() => ensureNotifierCanMail(state.confDir), _("Mailer permissions fixed."));
+    // Optimistic enable/disable toggle (slider moves at once; reconciles on reload).
+    const toggle = (on: boolean) => {
+        if (admin !== true) { requestAdmin(); return }
+        setPending(on); setBusy(true); setError(null); setNote(null);
+        (on ? applyNotify(state.confDir, recipient, [...NOTIFY_EVENTS_DEFAULT]) : disableNotify(state.confDir))
+                .then(() => { setNote(on ? _("Notifications enabled.") : _("Notifications disabled.")); return load() })
+                .catch(e => setError(msg(e)))
+                .finally(() => { setBusy(false); setPending(null) });
+    };
 
     return (
         <div className="upside-step">
@@ -987,9 +995,9 @@ const NotifyStep = ({ state, ups }: { state: SetupState, ups: string }) => {
                                     id="setup-nf-enabled"
                                     className="upside-switch"
                                     label={_("Email notifications on")}
-                                    isChecked={enabled}
+                                    isChecked={pending !== null ? pending : enabled}
                                     isDisabled={busy || (!enabled && !recipientOk)}
-                                    onChange={(_ev, on) => (on ? enable() : disable())}
+                                    onChange={(_ev, on) => toggle(on)}
                                 />
                                 <Content component="small" className="pf-v6-u-mt-xs">
                                     {enabled ? cockpit.format(_("On — emailing $0."), savedRecipient) : _("Off — enter a recipient, then switch on.")}

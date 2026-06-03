@@ -222,6 +222,12 @@ $upside-amber: #f59e0b;
     margin-inline-start: 0.625rem;
 }
 
+// "Unsaved changes" hint beside the Save button.
+.upside-unsaved {
+    align-self: center;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
 // Danger-family dropdown menu: cap the width so the help descriptions wrap into a
 // tidy column instead of one very long line, and never exceed the viewport.
 .upside-cmd-menu.pf-v6-c-menu {
