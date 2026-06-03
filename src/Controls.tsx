@@ -30,6 +30,7 @@ import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/inde
 import { ToggleGroup, ToggleGroupItem } from "@patternfly/react-core/dist/esm/components/ToggleGroup/index.js";
 import { BoltIcon } from "@patternfly/react-icons/dist/esm/icons/bolt-icon.js";
 import { LockIcon } from "@patternfly/react-icons/dist/esm/icons/lock-icon.js";
+import { PlayIcon } from "@patternfly/react-icons/dist/esm/icons/play-icon.js";
 import { PowerOffIcon } from "@patternfly/react-icons/dist/esm/icons/power-off-icon.js";
 import { TimesCircleIcon } from "@patternfly/react-icons/dist/esm/icons/times-circle-icon.js";
 import { VolumeUpIcon } from "@patternfly/react-icons/dist/esm/icons/volume-up-icon.js";
@@ -125,6 +126,10 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
     const testResult = vars["ups.test.result"];
     const testRunning = /progress|running/i.test(testResult || "") || statusTokens.includes("TEST");
     const charge = num(vars, "battery.charge");
+    const shutdownSecs = num(vars, "ups.timer.shutdown");
+    const shutdownIn = shutdownSecs !== undefined && shutdownSecs >= 0
+        ? `${Math.floor(shutdownSecs / 60)}:${String(Math.round(shutdownSecs % 60)).padStart(2, "0")}`
+        : null;
 
     // --- beeper rendering decision (see file header caveat) ---
     const beeperToggleGroup = has("beeper.enable") && has("beeper.disable") && beeperKnown;
@@ -158,92 +163,104 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                 {!loadingCmds && !listErr && commands.size === 0 &&
                     <Content component="p">{_("This UPS exposes no control commands.")}</Content>}
 
-                {/* --- Audible alarm (beeper) --- */}
+                {/* --- Settings → Audible alarm (beeper) --- */}
                 {showBeeper &&
-                    <section className="upside-ctl-band">
-                        <Content component="h4" className="upside-ctl-band__title">{_("Settings — Audible alarm")}</Content>
-                        <div className="upside-ctl-band__controls">
-                            {beeperToggleGroup
-                                ? (
-                                    <ToggleGroup aria-label={_("Beeper")}>
-                                        <ToggleGroupItem
-                                            icon={<VolumeUpIcon />} text={_("Enabled")}
-                                            isSelected={beeperStatus === "enabled"} isDisabled={busy !== null}
-                                            onChange={() => { if (beeperStatus !== "enabled") run("beeper.enable") }}
-                                        />
-                                        <ToggleGroupItem
-                                            text={_("Disabled")}
-                                            isSelected={beeperStatus === "disabled"} isDisabled={busy !== null}
-                                            onChange={() => { if (beeperStatus !== "disabled") run("beeper.disable") }}
-                                        />
-                                    </ToggleGroup>
-                                )
-                                : has("beeper.toggle")
+                    <section className="upside-ctl-section">
+                        <div className="upside-ctl-section__label">{_("Settings")}</div>
+                        <div className="upside-ctl-row">
+                            <div className="upside-ctl-row__text">
+                                <div className="upside-ctl-row__name">{_("Audible alarm")}</div>
+                                <div className="upside-ctl-row__desc">
+                                    {_("Beeper sounds on power events and faults.")}
+                                    {beeperKnown && ` ${cockpit.format(_("Currently $0."), beeperStatus === "enabled" ? _("enabled") : _("disabled"))}`}
+                                </div>
+                            </div>
+                            <div className="upside-ctl-row__control">
+                                {beeperToggleGroup
                                     ? (
-                                        <Button variant="secondary" icon={<VolumeUpIcon />} isDisabled={busy !== null} isLoading={busy === "beeper.toggle"} onClick={() => run("beeper.toggle")}>
-                                            {_("Toggle beeper")}
+                                        <ToggleGroup aria-label={_("Beeper")}>
+                                            <ToggleGroupItem
+                                                icon={<VolumeUpIcon />} text={_("Enabled")}
+                                                isSelected={beeperStatus === "enabled"} isDisabled={busy !== null}
+                                                onChange={() => { if (beeperStatus !== "enabled") run("beeper.enable") }}
+                                            />
+                                            <ToggleGroupItem
+                                                text={_("Disabled")}
+                                                isSelected={beeperStatus === "disabled"} isDisabled={busy !== null}
+                                                onChange={() => { if (beeperStatus !== "disabled") run("beeper.disable") }}
+                                            />
+                                        </ToggleGroup>
+                                    )
+                                    : has("beeper.toggle")
+                                        ? (
+                                            <Button variant="secondary" icon={<VolumeUpIcon />} isDisabled={busy !== null} isLoading={busy === "beeper.toggle"} onClick={() => run("beeper.toggle")}>
+                                                {_("Toggle beeper")}
+                                            </Button>
+                                        )
+                                        : beeperButtons.map(c => (
+                                            <Button key={c} variant="secondary" icon={<VolumeUpIcon />} isDisabled={busy !== null} isLoading={busy === c} onClick={() => run(c)}>
+                                                {beeperLabel(c)}
+                                            </Button>
+                                        ))}
+                            </div>
+                        </div>
+                    </section>}
+
+                {/* --- Diagnostics → Battery test --- */}
+                {showTest &&
+                    <section className="upside-ctl-section">
+                        <div className="upside-ctl-section__label">{_("Diagnostics")}</div>
+                        <div className="upside-ctl-row">
+                            <div className="upside-ctl-row__text">
+                                <div className="upside-ctl-row__name">{_("Battery test")}</div>
+                                <div className="upside-ctl-row__desc">
+                                    {_("Last test:")}{" "}
+                                    <span className={`upside-test--${resultTone}`}>{testResult || _("not run yet")}</span>
+                                </div>
+                            </div>
+                            <div className="upside-ctl-row__control">
+                                {testOptions.length > 1 &&
+                                    <FormSelect
+                                        value={selectedTest} aria-label={_("Test type")}
+                                        isDisabled={busy !== null || testRunning}
+                                        onChange={(_ev, v) => setTestType(v)}
+                                        className="upside-ctl-select"
+                                    >
+                                        {testOptions.map(o => <FormSelectOption key={o.value} value={o.value} label={o.label} />)}
+                                    </FormSelect>}
+                                {testRunning && has("test.battery.stop")
+                                    ? (
+                                        <Button variant="danger" icon={<BoltIcon />} isDisabled={busy !== null} isLoading={busy === "test.battery.stop"} onClick={() => run("test.battery.stop")}>
+                                            {_("Stop test")}
                                         </Button>
                                     )
-                                    : beeperButtons.map(c => (
-                                        <Button key={c} variant="secondary" icon={<VolumeUpIcon />} isDisabled={busy !== null} isLoading={busy === c} onClick={() => run(c)}>
-                                            {beeperLabel(c)}
+                                    : (
+                                        <Button variant="secondary" icon={<PlayIcon />} isDisabled={busy !== null || testRunning} isLoading={busy === selectedTest} onClick={() => run(selectedTest)}>
+                                            {testRunning ? _("Test running…") : _("Run test")}
                                         </Button>
-                                    ))}
+                                    )}
+                            </div>
                         </div>
-                        <Content component="small" className="upside-ctl-band__desc">
-                            {beeperKnown
-                                ? cockpit.format(_("The UPS's audible alarm — currently $0."), beeperStatus === "enabled" ? _("enabled") : _("disabled"))
-                                : _("The UPS's audible alarm. This device doesn't report its on/off state, so this just toggles it.")}
-                        </Content>
                     </section>}
 
-                {/* --- Battery test --- */}
-                {showTest &&
-                    <section className="upside-ctl-band">
-                        <Content component="h4" className="upside-ctl-band__title">{_("Diagnostics — Battery test")}</Content>
-                        <div className="upside-ctl-band__controls">
-                            {testOptions.length > 1 &&
-                                <FormSelect
-                                    value={selectedTest} aria-label={_("Test type")}
-                                    isDisabled={busy !== null || testRunning}
-                                    onChange={(_ev, v) => setTestType(v)}
-                                    className="upside-ctl-select"
-                                >
-                                    {testOptions.map(o => <FormSelectOption key={o.value} value={o.value} label={o.label} />)}
-                                </FormSelect>}
-                            {testRunning && has("test.battery.stop")
-                                ? (
-                                    <Button variant="danger" icon={<BoltIcon />} isDisabled={busy !== null} isLoading={busy === "test.battery.stop"} onClick={() => run("test.battery.stop")}>
-                                        {_("Stop test")}
-                                    </Button>
-                                )
-                                : (
-                                    <Button variant="secondary" icon={<BoltIcon />} isDisabled={busy !== null || testRunning} isLoading={busy === selectedTest} onClick={() => run(selectedTest)}>
-                                        {testRunning ? _("Test running…") : _("Run test")}
-                                    </Button>
-                                )}
-                        </div>
-                        <Content component="small" className="upside-ctl-band__desc">
-                            {_("Checks the battery can carry the load.")}{" "}
-                            {_("Last test:")}{" "}
-                            <span className={`upside-test--${resultTone}`}>{testResult || _("unknown")}</span>
-                        </Content>
-                    </section>}
-
-                {/* --- Active shutdown (conditional) --- */}
+                {/* --- Active shutdown (conditional: only on FSD/LB) --- */}
                 {shuttingDown &&
                     <Alert
-                        variant="danger" isInline className="upside-ctl-shutdown"
-                        title={statusTokens.includes("FSD") ? _("Shutdown in progress") : _("Low battery — shutdown imminent")}
+                        variant="warning" isInline className="upside-ctl-shutdown"
+                        title={statusTokens.includes("FSD") ? _("Shutdown scheduled") : _("Low battery — shutdown imminent")}
                     >
-                        <p>
-                            {charge !== undefined && cockpit.format(_("Battery at $0%."), Math.round(charge))}
-                            {vars["battery.runtime"] && ` ${cockpit.format(_("About $0 left."), formatRuntime(vars["battery.runtime"]))}`}
-                        </p>
-                        {has("shutdown.stop") &&
-                            <Button variant="danger" icon={<TimesCircleIcon />} className="pf-v6-u-mt-sm" isDisabled={busy !== null} isLoading={busy === "shutdown.stop"} onClick={() => run("shutdown.stop")}>
-                                {_("Cancel shutdown")}
-                            </Button>}
+                        <div className="upside-ctl-shutdown__body">
+                            <span>
+                                {charge !== undefined && cockpit.format(_("Battery at $0%"), Math.round(charge))}
+                                {shutdownIn
+                                    ? ` · ${cockpit.format(_("powering off in $0"), shutdownIn)}`
+                                    : vars["battery.runtime"] ? ` · ${cockpit.format(_("about $0 left"), formatRuntime(vars["battery.runtime"]))}` : ""}
+                            </span>
+                            {has("shutdown.stop") &&
+                                <Button variant="secondary" isDanger icon={<TimesCircleIcon />} isDisabled={busy !== null} isLoading={busy === "shutdown.stop"} onClick={() => run("shutdown.stop")}>
+                                    {_("Cancel shutdown")}
+                                </Button>}
+                        </div>
                     </Alert>}
 
                 {/* --- Danger zone --- */}
