@@ -18,7 +18,7 @@
  * captured in the header (NutAuthModal) — not OS superuser. Reads are anonymous.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, AlertActionCloseButton } from "@patternfly/react-core/dist/esm/components/Alert/index.js";
 import { Button } from "@patternfly/react-core/dist/esm/components/Button/index.js";
 import { Card, CardBody, CardTitle } from "@patternfly/react-core/dist/esm/components/Card/index.js";
@@ -124,17 +124,26 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
         return () => window.clearTimeout(t);
     }, [optimisticBeeper]);
 
-    // After a test is started, watch ups.test.result for the outcome and toast it
-    // when it lands. Works on UPSes that report a result; ones that never update
-    // the var (some usbhid-ups models) just time out with no result.
+    // After a test is started, watch ups.test.result. A UPS may report a terminal
+    // result (Done and passed/error…) — toast it. Or it may report "In progress"
+    // and then revert to "No test initiated" without a verdict (e.g. this
+    // PowerWalker — the pass/fail is only on its panel); detect that revert and
+    // say so. The timeout is a backstop if the var never moves at all.
     const [testStartedAt, setTestStartedAt] = useState<number | null>(null);
+    const testSawProgress = useRef(false);
     const polledTestResult = vars["ups.test.result"];
     useEffect(() => {
         if (testStartedAt === null)
             return;
-        // Terminal result reported → surface it and stop watching.
-        if (/done|pass|fail|error|abort|warning/i.test(polledTestResult || "")) {
-            setFeedback({ ok: /pass/i.test(polledTestResult || ""), msg: cockpit.format(_("Battery test: $0"), polledTestResult) });
+        const r = polledTestResult || "";
+        if (/done|pass|fail|error|abort|warning/i.test(r)) {
+            setFeedback({ ok: /pass/i.test(r), msg: cockpit.format(_("Battery test: $0"), r) });
+            setTestStartedAt(null);
+        } else if (/progress|running/i.test(r)) {
+            testSawProgress.current = true;
+        } else if (testSawProgress.current) {
+            // Was running, now reverted with no verdict reported over USB.
+            setFeedback({ ok: true, msg: _("Battery test finished. This UPS doesn't report pass/fail over USB — check its front panel / LEDs.") });
             setTestStartedAt(null);
         }
     }, [polledTestResult, testStartedAt]);
@@ -143,9 +152,7 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
             return;
         const t = window.setTimeout(() => {
             setTestStartedAt(null);
-            // No result came back in time — many UPSes only show the test outcome
-            // on their own front panel / LEDs and never report it over USB.
-            setFeedback({ ok: true, msg: _("Battery test ran, but this UPS doesn't report a result over USB — check its front panel / LEDs.") });
+            setFeedback({ ok: true, msg: _("Battery test started, but no result was reported over USB — check the UPS's front panel / LEDs.") });
         }, 120_000);
         return () => window.clearTimeout(t);
     }, [testStartedAt]);
@@ -304,7 +311,7 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                                         </Button>
                                     )
                                     : (
-                                        <Button variant="secondary" icon={<PlayIcon />} isDisabled={busy !== null || testRunning} isLoading={busy === selectedTest} onClick={() => run(selectedTest, undefined, () => setTestStartedAt(Date.now()))}>
+                                        <Button variant="secondary" icon={<PlayIcon />} isDisabled={busy !== null || testRunning} isLoading={busy === selectedTest} onClick={() => run(selectedTest, undefined, () => { testSawProgress.current = false; setTestStartedAt(Date.now()) })}>
                                             {testRunning ? _("Test running…") : _("Run test")}
                                         </Button>
                                     )}
@@ -404,7 +411,7 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                         isLoading={!!effectiveCmd && busy === effectiveCmd}
                         onClick={() => effectiveCmd && run(effectiveCmd, delayCapable && delaySecs > 0 ? String(delaySecs) : undefined)}
                     >
-                        {confirm?.label}{delayCapable && delaySecs > 0 ? cockpit.format(_(" in $0s"), delaySecs) : ""}
+                        {confirm?.label}{delayCapable && delaySecs > 0 ? cockpit.format(_(" in ${0}s"), delaySecs) : ""}
                     </Button>
                     <Button variant="link" onClick={() => setConfirm(null)}>{_("Cancel")}</Button>
                 </ModalFooter>
