@@ -1,3 +1,25 @@
+cockpit-upside (1.0.3) noble; urgency=medium
+
+  * Controls: redesigned panel. Capability-gated actions (only commands the UPS
+    actually supports are shown), an action-card "danger zone" listing each raw
+    NUT command behind a per-action confirmation with an optional delay, and a
+    beeper toggle. The confirm button reads "… immediately" or "… in Ns" to
+    match the delay field (empty = run now).
+  * Controls: battery self-test shows a live status (running / idle) and surfaces
+    the result — including the common case of a UPS that reports no pass/fail
+    over USB. Per-section feedback so a result can't hide under an expanded
+    danger zone.
+  * Notifications: a Notifications step in the setup wizard; outbound mail is
+    sent (and its prerequisites ensured) as the upsmon RUN_AS_USER notifier.
+  * Masthead: mobile overflow menu + compact desktop band; a "Dashboard" home
+    link in the per-UPS menu.
+  * Dashboard header now reflows on small screens (breadcrumb + menu on top, the
+    status/auth row left-aligned below), matching the metrics header.
+  * Preferences (mode, remembered credentials, ranges) persist across a Cockpit
+    logout. Danger-zone expand state is remembered per browser.
+
+ -- Robert Sæther <robert4832@pm.me>  Wed, 03 Jun 2026 22:34:28 +0000
+
 cockpit-upside (1.0.2) noble; urgency=medium
 
   * Metrics: a "Go to now" item in the timeframe dropdown jumps the window back
