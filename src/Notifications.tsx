@@ -48,11 +48,13 @@ export const Notifications = ({ ups, title }: { ups: string, title?: string }) =
     const [confDir, setConfDir] = useState("/etc/nut");
     const [loaded, setLoaded] = useState(false);
     const [mailerPresent, setMailerPresent] = useState(true);
-    const [enabled, setEnabled] = useState(false);
+    const [savedEnabled, setSavedEnabled] = useState(false);
+    const [enabledIntent, setEnabledIntent] = useState(false);
     const [savedRecipient, setSavedRecipient] = useState("");
     const [recipient, setRecipient] = useState("");
     const [notifierUser, setNotifierUser] = useState("nut");
     const [notifierCanMail, setNotifierCanMail] = useState(true);
+    const [savedEvents, setSavedEvents] = useState<Set<string>>(new Set());
     const [events, setEvents] = useState<Set<string>>(new Set(NOTIFY_EVENTS_DEFAULT));
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -63,13 +65,14 @@ export const Notifications = ({ ups, title }: { ups: string, title?: string }) =
         setConfDir(state.confDir);
         const n = await detectNotify(state.confDir);
         setMailerPresent(n.mailerPresent);
-        setEnabled(n.enabled);
+        setSavedEnabled(n.enabled);
+        setEnabledIntent(n.enabled);
         setSavedRecipient(n.recipient);
         setRecipient(n.recipient);
         setNotifierUser(n.notifierUser);
         setNotifierCanMail(n.notifierCanMail);
-        if (n.events.length > 0)
-            setEvents(new Set(n.events));
+        setSavedEvents(new Set(n.events));
+        setEvents(new Set(n.events.length > 0 ? n.events : NOTIFY_EVENTS_DEFAULT));
         setLoaded(true);
     }, []);
 
@@ -91,10 +94,17 @@ export const Notifications = ({ ups, title }: { ups: string, title?: string }) =
 
     const recipientOk = isValidRecipients(recipient);
     const canEnable = recipientOk && events.size > 0;
-    const save = act(() => applyNotify(confDir, recipient, [...events]), _("Saved."));
-    const disable = act(() => disableNotify(confDir), _("Notifications disabled."));
+    const setEq = (a: Set<string>, b: Set<string>) => a.size === b.size && [...a].every(x => b.has(x));
+    // The card is a form — nothing applies until Save. "dirty" = the form differs
+    // from what's saved (flipping on/off, or editing the recipient / events).
+    const dirty = enabledIntent !== savedEnabled
+        || (enabledIntent && (recipient !== savedRecipient || !setEq(events, savedEvents)));
     const test = act(() => sendTest(confDir, ups), _("Test notification sent — check your inbox."));
     const fixMail = act(() => ensureNotifierCanMail(confDir), _("Mailer permissions fixed."));
+    // Save commits the whole form at once: enable (recipient + events) or disable.
+    const save = act(
+        () => (enabledIntent ? applyNotify(confDir, recipient, [...events]) : disableNotify(confDir)),
+        enabledIntent ? _("Notifications enabled.") : _("Notifications disabled."));
 
     const toggleEvent = (e: string, on: boolean) => {
         setEvents(prev => {
@@ -143,19 +153,23 @@ export const Notifications = ({ ups, title }: { ups: string, title?: string }) =
                                         <Switch
                                             id="nf-enabled"
                                             className="upside-switch"
-                                            label={_("Email notifications on")}
-                                            isChecked={enabled}
-                                            isDisabled={busy || (!enabled && !canEnable)}
-                                            onChange={(_ev, on) => (on ? save() : disable())}
+                                            label={_("Email notifications")}
+                                            isChecked={enabledIntent}
+                                            isDisabled={busy}
+                                            onChange={(_ev, on) => { setEnabledIntent(on); setNote(null) }}
                                         />
                                         <Content component="small" className="pf-v6-u-mt-xs">
-                                            {enabled
-                                                ? cockpit.format(_("On — emailing $0."), savedRecipient)
-                                                : _("Off — set a recipient and at least one event, then switch on.")}
+                                            {!enabledIntent
+                                                ? (savedEnabled ? _("Will turn off when you save.") : _("No emails on power events."))
+                                                : !recipientOk
+                                                    ? _("Enter a recipient below, then save.")
+                                                    : dirty
+                                                        ? _("Save to apply.")
+                                                        : cockpit.format(_("On — emailing $0."), savedRecipient)}
                                         </Content>
                                     </div>
 
-                                    {enabled && !notifierCanMail &&
+                                    {savedEnabled && !notifierCanMail &&
                                         <Alert
                                             variant="warning" isInline className="pf-v6-u-mb-md"
                                             title={cockpit.format(_("The notifier user ($0) can't send mail"), notifierUser)}
@@ -190,12 +204,15 @@ export const Notifications = ({ ups, title }: { ups: string, title?: string }) =
                                     </div>
 
                                     <div className="upside-step__actions pf-v6-u-mt-md">
-                                        <Button variant="primary" onClick={save} isLoading={busy} isDisabled={busy || !canEnable}>
-                                            {admin === true ? _("Save changes") : _("Save changes (needs admin)")}
+                                        <Button variant="primary" onClick={save} isLoading={busy}
+                                                isDisabled={busy || !dirty || (enabledIntent && !canEnable)}>
+                                            {admin === true ? _("Save") : _("Save (needs admin)")}
                                         </Button>
-                                        <Button variant="secondary" onClick={test} isDisabled={busy || !savedRecipient}>
+                                        <Button variant="secondary" onClick={test} isDisabled={busy || !savedRecipient || dirty}>
                                             {_("Send test")}
                                         </Button>
+                                        {dirty &&
+                                            <Content component="small" className="upside-unsaved">{_("Unsaved changes")}</Content>}
                                     </div>
 
                                     {note && !error &&
