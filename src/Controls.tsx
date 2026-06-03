@@ -40,7 +40,7 @@ import { VolumeUpIcon } from "@patternfly/react-icons/dist/esm/icons/volume-up-i
 
 import cockpit from 'cockpit';
 
-import { NutCreds } from './lib/prefs';
+import { NutCreds, getPref, setPref } from './lib/prefs';
 import { UpsVars, formatRuntime, num, parseVars } from './lib/nut-parse';
 import { listCommands, runCommand } from './lib/control';
 
@@ -55,7 +55,7 @@ const DESTRUCTIVE: { cmd: string, label: string, desc: string, consequence: stri
     { cmd: "shutdown.stayoff", label: _("Shutdown + stay off"), desc: _("Stays off until manual restart"), consequence: _("The UPS powers off and stays off until switched on by hand. You'll need physical access to restart.") },
     { cmd: "shutdown.reboot", label: _("Reboot"), desc: _("Power-cycle the load"), consequence: _("Powers the UPS load off and back on. Connected hosts lose power, then it returns.") },
     { cmd: "shutdown.reboot.graceful", label: _("Reboot (graceful)"), desc: _("Power-cycle, gracefully"), consequence: _("Gracefully powers the UPS load off and back on (honouring the UPS's shutdown timing). Connected hosts lose power, then it returns.") },
-    { cmd: "load.off", label: _("Load off"), desc: _("Cut outlet power now"), consequence: _("Cuts the battery-backed outlets immediately. The host you're connected from may lose power.") },
+    { cmd: "load.off", label: _("Load off"), desc: _("Cut outlet power"), consequence: _("Cuts the battery-backed outlets. The host you're connected from may lose power.") },
     { cmd: "load.on", label: _("Load on"), desc: _("Restore outlet power"), consequence: _("Re-energises the battery-backed outlets.") },
 ];
 
@@ -109,8 +109,15 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
     const [feedback, setFeedback] = useState<{ ok: boolean, msg: string } | null>(null);
     const [confirm, setConfirm] = useState<{ cmd: string, label: string, consequence: string } | null>(null);
     const [delay, setDelay] = useState("0");
-    const [dangerOpen, setDangerOpen] = useState(false);
+    // Danger-zone expand state persists per-browser so it survives reloads.
+    const [dangerOpen, setDangerOpen] = useState(() => getPref("danger-open") === "1");
     const [testType, setTestType] = useState("");
+    // Two feedback areas. `topFeedback` covers the non-destructive sections
+    // (Audible alarm + Battery test) and renders above the danger-zone divider,
+    // next to those controls. `feedback` (below) is the danger-zone result —
+    // rendered under the danger zone. Split so an expanded danger zone can't push
+    // a beeper/test result below the fold.
+    const [topFeedback, setTopFeedback] = useState<{ ok: boolean, msg: string } | null>(null);
     // Optimistic beeper state — flip the shown value at once, reconcile on the
     // next poll (and revert after a few seconds if the real value never changes,
     // e.g. a no-op toggle on quirky firmware).
@@ -137,13 +144,13 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
             return;
         const r = polledTestResult || "";
         if (/done|pass|fail|error|abort|warning/i.test(r)) {
-            setFeedback({ ok: /pass/i.test(r), msg: cockpit.format(_("Battery test: $0"), r) });
+            setTopFeedback({ ok: /pass/i.test(r), msg: cockpit.format(_("Battery test: $0"), r) });
             setTestStartedAt(null);
         } else if (/progress|running/i.test(r)) {
             testSawProgress.current = true;
         } else if (testSawProgress.current) {
             // Was running, now reverted with no verdict reported over USB.
-            setFeedback({ ok: true, msg: _("Battery test finished. This UPS doesn't report pass/fail over USB — check its front panel / LEDs.") });
+            setTopFeedback({ ok: true, msg: _("Battery test finished. This UPS doesn't report pass/fail over USB — check its front panel / LEDs.") });
             setTestStartedAt(null);
         }
     }, [polledTestResult, testStartedAt]);
@@ -152,7 +159,7 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
             return;
         const t = window.setTimeout(() => {
             setTestStartedAt(null);
-            setFeedback({ ok: true, msg: _("Battery test started, but no result was reported over USB — check the UPS's front panel / LEDs.") });
+            setTopFeedback({ ok: true, msg: _("Battery test started, but no result was reported over USB — check the UPS's front panel / LEDs.") });
         }, 120_000);
         return () => window.clearTimeout(t);
     }, [testStartedAt]);
@@ -161,12 +168,12 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
 
     // Run an instant command (needs NUT creds). `value` is the seconds appended
     // for a `.delay` command. The 2s poll refreshes state after.
-    const run = (cmd: string, value?: string, onSuccess?: () => void) => {
+    const run = (cmd: string, value?: string, onSuccess?: () => void, sink = setFeedback) => {
         if (!creds) { onAuthNeeded(); return }
-        setBusy(cmd); setFeedback(null); setConfirm(null);
+        setBusy(cmd); sink(null); setConfirm(null);
         runCommand(ups, cmd, creds.user, creds.pass, value)
-                .then(out => { setFeedback({ ok: true, msg: out.trim() || _("Command sent.") }); onSuccess?.() })
-                .catch(e => setFeedback({ ok: false, msg: msg(e) }))
+                .then(out => { sink({ ok: true, msg: out.trim() || _("Command sent.") }); onSuccess?.() })
+                .catch(e => sink({ ok: false, msg: msg(e) }))
                 .finally(() => setBusy(null));
     };
 
@@ -204,14 +211,27 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
     const beeperLabel = (c: string) =>
         c === "beeper.enable" ? _("Enable beeper") : c === "beeper.disable" ? _("Disable beeper") : _("Mute beeper");
     const resultTone = !testResult ? "muted" : /pass/i.test(testResult) ? "pass" : /(error|fail|abort)/i.test(testResult) ? "fail" : "muted";
+    // `ups.test.result` is a live status, not stored history: it sits at "No test
+    // initiated" at rest and reverts there after a run (this UPS never writes a
+    // verdict over USB). So show it as a self-test *status* — idle / running — and
+    // surface any real verdict if one ever appears, rather than a bogus "last test".
+    // One status vocabulary regardless of source. `testRunning` already folds in
+    // both our own just-started flag AND the UPS's raw "In progress"/TEST status,
+    // so a running test always reads "running…" — never the UPS's "In progress"
+    // wording leaking through. At rest the UPS says "No test initiated" → "idle".
+    // A real verdict (if this UPS ever reported one) shows verbatim.
+    const testIdle = !testResult || /no test initiated|unknown|n\/a/i.test(testResult);
+    const testStatusText = testRunning ? _("running…") : testIdle ? _("idle") : testResult;
+    const testStatusTone = testRunning || testIdle ? "muted" : resultTone;
 
     const supportedDestructive = DESTRUCTIVE.filter(d => has(d.cmd));
 
     // The pending confirm may offer a delay if the UPS has a `<cmd>.delay` variant
-    // (e.g. load.off.delay). 0 = run now; >0 runs the .delay command with seconds.
+    // (e.g. load.off.delay). Empty or 0 = run now; >0 runs the .delay command with
+    // seconds. Empty is allowed and treated as "now" so the user needn't type 0.
     const delayCapable = confirm !== null && has(`${confirm.cmd}.delay`);
-    const delayValid = /^\d+$/.test(delay);
-    const delaySecs = delayValid ? parseInt(delay, 10) : 0;
+    const delayValid = delay === "" || /^\d+$/.test(delay);
+    const delaySecs = /^\d+$/.test(delay) ? parseInt(delay, 10) : 0;
     const effectiveCmd = confirm
         ? (delayCapable && delaySecs > 0 ? `${confirm.cmd}.delay` : confirm.cmd)
         : undefined;
@@ -252,12 +272,12 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                                             <ToggleGroupItem
                                                 icon={<VolumeUpIcon />} text={_("Enabled")}
                                                 isSelected={beeperStatus === "enabled"} isDisabled={busy !== null}
-                                                onChange={() => { if (beeperStatus !== "enabled") run("beeper.enable", undefined, () => setOptimisticBeeper("enabled")) }}
+                                                onChange={() => { if (beeperStatus !== "enabled") run("beeper.enable", undefined, () => setOptimisticBeeper("enabled"), setTopFeedback) }}
                                             />
                                             <ToggleGroupItem
                                                 icon={<VolumeMuteIcon />} text={_("Disabled")}
                                                 isSelected={beeperStatus === "disabled"} isDisabled={busy !== null}
-                                                onChange={() => { if (beeperStatus !== "disabled") run("beeper.disable", undefined, () => setOptimisticBeeper("disabled")) }}
+                                                onChange={() => { if (beeperStatus !== "disabled") run("beeper.disable", undefined, () => setOptimisticBeeper("disabled"), setTopFeedback) }}
                                             />
                                         </ToggleGroup>
                                     )
@@ -267,13 +287,13 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                                                 variant="secondary"
                                                 icon={beeperStatus === "enabled" ? <VolumeMuteIcon /> : <VolumeUpIcon />}
                                                 isDisabled={busy !== null} isLoading={busy === "beeper.toggle"}
-                                                onClick={() => run("beeper.toggle", undefined, () => { if (beeperKnown) setOptimisticBeeper(beeperStatus === "enabled" ? "disabled" : "enabled") })}
+                                                onClick={() => run("beeper.toggle", undefined, () => { if (beeperKnown) setOptimisticBeeper(beeperStatus === "enabled" ? "disabled" : "enabled") }, setTopFeedback)}
                                             >
                                                 {beeperStatus === "enabled" ? _("Toggle beeper off") : beeperStatus === "disabled" ? _("Toggle beeper on") : _("Toggle beeper")}
                                             </Button>
                                         )
                                         : beeperButtons.map(c => (
-                                            <Button key={c} variant="secondary" icon={<VolumeUpIcon />} isDisabled={busy !== null} isLoading={busy === c} onClick={() => run(c)}>
+                                            <Button key={c} variant="secondary" icon={<VolumeUpIcon />} isDisabled={busy !== null} isLoading={busy === c} onClick={() => run(c, undefined, undefined, setTopFeedback)}>
                                                 {beeperLabel(c)}
                                             </Button>
                                         ))}
@@ -289,9 +309,7 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                             <div className="upside-ctl-row__text">
                                 <div className="upside-ctl-row__name">{_("Battery test")}</div>
                                 <div className="upside-ctl-row__desc">
-                                    {testStartedAt !== null
-                                        ? <span className="upside-test--muted">{_("Test in progress…")}</span>
-                                        : <>{_("Last test:")}{" "}<span className={`upside-test--${resultTone}`}>{testResult || _("not run yet")}</span></>}
+                                    {_("Self-test:")}{" "}<span className={`upside-test--${testStatusTone}`}>{testStatusText}</span>
                                 </div>
                             </div>
                             <div className="upside-ctl-row__control">
@@ -306,12 +324,12 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                                     </FormSelect>}
                                 {testRunning && has("test.battery.stop")
                                     ? (
-                                        <Button variant="danger" icon={<BoltIcon />} isDisabled={busy !== null} isLoading={busy === "test.battery.stop"} onClick={() => run("test.battery.stop")}>
+                                        <Button variant="danger" icon={<BoltIcon />} isDisabled={busy !== null} isLoading={busy === "test.battery.stop"} onClick={() => run("test.battery.stop", undefined, undefined, setTopFeedback)}>
                                             {_("Stop test")}
                                         </Button>
                                     )
                                     : (
-                                        <Button variant="secondary" icon={<PlayIcon />} isDisabled={busy !== null || testRunning} isLoading={busy === selectedTest} onClick={() => run(selectedTest, undefined, () => { testSawProgress.current = false; setTestStartedAt(Date.now()) })}>
+                                        <Button variant="secondary" icon={<PlayIcon />} isDisabled={busy !== null || testRunning} isLoading={busy === selectedTest} onClick={() => run(selectedTest, undefined, () => { testSawProgress.current = false; setTestStartedAt(Date.now()) }, setTopFeedback)}>
                                             {testRunning ? _("Test running…") : _("Run test")}
                                         </Button>
                                     )}
@@ -339,13 +357,24 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                         </div>
                     </Alert>}
 
+                {/* Feedback for the non-destructive sections (beeper + test), above
+                    the danger-zone divider so an expanded danger zone can't hide it. */}
+                {topFeedback &&
+                    <Alert
+                        variant={topFeedback.ok ? "success" : "danger"} isInline className="upside-ctl-feedback"
+                        title={topFeedback.ok ? _("Done") : _("Command failed")}
+                        actionClose={<AlertActionCloseButton onClose={() => setTopFeedback(null)} />}
+                    >
+                        {topFeedback.msg}
+                    </Alert>}
+
                 {/* --- Danger zone --- */}
                 {supportedDestructive.length > 0 &&
                     <ExpandableSection
                         className="upside-ctl-danger"
                         toggleContent={<span className="upside-ctl-danger__toggle"><LockIcon /> {_("Danger zone — power off / shutdown")}</span>}
                         isExpanded={dangerOpen}
-                        onToggle={(_ev, v) => setDangerOpen(v)}
+                        onToggle={(_ev, v) => { setDangerOpen(v); setPref("danger-open", v ? "1" : "0") }}
                     >
                         <div className="upside-dz-warn">
                             {_("These commands cut power. Anything you run here can take down the host you're connected from.")}
@@ -370,6 +399,8 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                         {_("Authenticate (the key button in the header) to run these.")}
                     </Content>}
 
+                {/* Danger-zone result — rendered below the danger zone (the bottom
+                    section of the card), where the destructive actions live. */}
                 {feedback &&
                     <Alert
                         variant={feedback.ok ? "success" : "danger"} isInline className="upside-ctl-feedback"
@@ -391,10 +422,11 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                                 id="ctl-delay" type="number" min={0} value={delay}
                                 onChange={(_ev, v) => setDelay(v)}
                                 validated={delayValid ? "default" : "error"}
+                                placeholder={_("now")}
                                 aria-label={_("Delay in seconds")}
                             />
                             <Content component="small" className="upside-ctl-row__desc pf-v6-u-mt-sm">
-                                {_("0 runs it now; a higher value waits that many seconds first.")}
+                                {_("Empty or 0 runs it now; a higher value waits that many seconds first.")}
                             </Content>
                         </div>}
                     {effectiveCmd &&
@@ -411,7 +443,8 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                         isLoading={!!effectiveCmd && busy === effectiveCmd}
                         onClick={() => effectiveCmd && run(effectiveCmd, delayCapable && delaySecs > 0 ? String(delaySecs) : undefined)}
                     >
-                        {confirm?.label}{delayCapable && delaySecs > 0 ? cockpit.format(_(" in ${0}s"), delaySecs) : ""}
+                        {/* eslint-disable-next-line no-template-curly-in-string -- cockpit.format placeholder, not a JS template literal; ${0} delimits the index from the trailing "s" */}
+                        {confirm?.label}{delayCapable ? (delaySecs > 0 ? cockpit.format(_(" in ${0}s"), delaySecs) : _(" immediately")) : ""}
                     </Button>
                     <Button variant="link" onClick={() => setConfirm(null)}>{_("Cancel")}</Button>
                 </ModalFooter>
