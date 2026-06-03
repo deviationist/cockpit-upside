@@ -881,6 +881,9 @@ $upside-amber: #f59e0b;
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    // Query the detail page's own width (not the viewport) so the header reflows
+    // on actual available space — same approach as the metrics page.
+    container-type: inline-size;
 }
 
 // "Configure settings →" link row on the detail page.
@@ -899,10 +902,52 @@ $upside-amber: #f59e0b;
     margin-block-start: 1.25rem;
 }
 
-// PatternFly's spaceItems sets a symmetric gap, which wastes vertical space
-// when a row wraps. Keep the (larger) column gap but shrink the row gap.
+// Detail-page header mirrors the metrics header: a reflowing grid. Mobile-first
+// (and any width too tight for one row): two rows — breadcrumb + menu up top,
+// the status/auth bar on a row below. Collapses to a single row at 64rem.
 .upside-detail__head {
-    row-gap: var(--pf-t--global--spacer--sm);
+    display: grid;
+    align-items: center;
+    column-gap: 1rem;
+    row-gap: 0.5rem;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+        "crumb menu"
+        "bar   bar";
+
+    > .upside-detail__crumb { grid-area: crumb; }
+    > .upside-detail__bar { grid-area: bar; justify-self: end; }
+    > .upside-detail__menu { grid-area: menu; }
+}
+
+// The status/auth cluster (poll indicator + status labels + Authenticate).
+.upside-detail__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+}
+
+// Single row once there's room for breadcrumb + bar + menu side by side, with the
+// thin left divider on the menu — same 64rem breakpoint as the metrics header.
+@container (width >= 64rem) {
+    .upside-detail__head {
+        grid-template-columns: auto 1fr auto;
+        grid-template-areas: "crumb bar menu";
+
+        > .upside-detail__menu {
+            padding-inline-start: 1rem;
+            border-inline-start: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+        }
+    }
+}
+
+// On phones, left-align the wrapped status/auth bar rather than pushing it right —
+// reads better hugging the breadcrumb's edge, matching the metrics filter row.
+@media (width <= 767px) {
+    .upside-detail__head > .upside-detail__bar {
+        justify-self: start;
+    }
 }
 
 .upside-gauges {
@@ -1008,12 +1053,8 @@ $upside-amber: #f59e0b;
     margin-inline-start: auto;
 }
 
-// Detail-page header: set the per-UPS menu off from the status/auth cluster with
-// the same thin vertical divider the metrics header uses.
-.upside-detail__menu {
-    padding-inline-start: 1rem;
-    border-inline-start: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
-}
+// (Detail-page menu divider is applied only in the single-row layout — see the
+// 64rem container query in the header block above.)
 
 // The per-UPS menu dropdown sits in normal-flow content that scrolls under the
 // sticky masthead (z-index 100). PF's MenuToggle is `position: relative` (to
