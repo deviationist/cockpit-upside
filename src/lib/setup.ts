@@ -18,7 +18,7 @@
 import cockpit from 'cockpit';
 
 import { NutMode, addListen, appendStanza, parseConfSections, parseListen, parseMode, removeStanza, setModeText } from './setup-parse';
-import { NOTIFY_EVENTS, UpsmonFields, buildUpsmonConf, setMinSupplies, setNotifyCmd, setNotifyFlagExec, setPowerDownFlag, setShutdownCmd } from './upsmon-parse';
+import { NOTIFY_EVENTS, UpsmonFields, buildUpsmonConf, clearAllNotifyExec, setMinSupplies, setNotifyCmd, setNotifyFlagExec, setPowerDownFlag, setShutdownCmd } from './upsmon-parse';
 
 export * from './setup-parse';
 
@@ -401,6 +401,17 @@ export async function applyUpsmonNotify(confDir: string, opts: { notifyCmd: stri
     next = setNotifyCmd(next, opts.notifyCmd);
     for (const e of NOTIFY_EVENTS)
         next = setNotifyFlagExec(next, e, opts.events.includes(e));
+    return writeUpsmonFile(confDir, next);
+}
+
+/**
+ * Disable notifications: clear EXEC from EVERY NOTIFYFLAG (including foreign
+ * ones a distro/admin set, which applyUpsmonNotify's managed-event loop would
+ * miss — that left notifications stuck "on"). NOTIFYCMD is kept so re-enabling
+ * is a one-click flip. Same secure write + reload.
+ */
+export async function disableUpsmonNotify(confDir: string): Promise<string> {
+    const next = clearAllNotifyExec((await readTry(`${confDir}/upsmon.conf`)) ?? "");
     return writeUpsmonFile(confDir, next);
 }
 

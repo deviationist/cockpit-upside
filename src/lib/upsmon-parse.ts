@@ -220,6 +220,26 @@ export function setNotifyFlagExec(text: string | null | undefined, event: string
     return out;
 }
 
+/**
+ * Strip EXEC from EVERY NOTIFYFLAG line (not just UPSide's managed events), so
+ * disabling notifications truly stops the dispatcher from firing. Foreign flags
+ * a distro/admin set — e.g. `NOTIFYFLAG NOCOMM SYSLOG+WALL+EXEC` — would
+ * otherwise survive and keep notifications "on". Keeps the other flags
+ * (SYSLOG/WALL); if EXEC was the only flag, falls back to IGNORE so the line
+ * stays valid. NOTIFYCMD is left untouched.
+ */
+export function clearAllNotifyExec(text: string | null | undefined): string {
+    return (text ?? "").split("\n").map(line => {
+        if (line.trim().startsWith("#"))
+            return line;
+        const m = /^(\s*NOTIFYFLAG\s+\S+\s+)(\S+)(.*)$/.exec(line);
+        if (!m)
+            return line;
+        const flags = m[2].split("+").filter(f => f.toUpperCase() !== "EXEC");
+        return m[1] + (flags.length ? flags.join("+") : "IGNORE") + m[3];
+    }).join("\n");
+}
+
 /** Read NOTIFYCMD + the events that have EXEC set, from upsmon.conf text. */
 export function parseNotify(text: string | null | undefined): { cmd: string | null, events: string[] } {
     let cmd: string | null = null;
@@ -238,6 +258,23 @@ export function parseNotify(text: string | null | undefined): { cmd: string | nu
             events.push(f[1]);
     }
     return { cmd, events };
+}
+
+/**
+ * The OS user upsmon runs NOTIFYCMD (and the shutdown) as — `RUN_AS_USER`.
+ * Returns null if unset (NUT then defaults it itself, typically `nut`); callers
+ * default to "nut". This is who must be able to use the system mailer.
+ */
+export function parseRunAsUser(text: string | null | undefined): string | null {
+    for (const raw of (text ?? "").split("\n")) {
+        const line = raw.trim();
+        if (!line || line.startsWith("#"))
+            continue;
+        const m = /^RUN_AS_USER\s+(\S+)/.exec(line);
+        if (m)
+            return m[1];
+    }
+    return null;
 }
 
 /** A SHUTDOWNCMD must be a non-empty command. */
