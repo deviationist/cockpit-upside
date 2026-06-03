@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { DISPATCHER, MAIL_ADAPTER, isValidRecipients, notifyPaths } from './notify-setup-parse.ts';
+import { DISPATCHER, MAIL_ADAPTER, groupReadable, isValidRecipients, notifyPaths, userCanRead } from './notify-setup-parse.ts';
 
 test("notifyPaths: derives the four files from the NUT config dir", () => {
     assert.deepEqual(notifyPaths("/etc/nut"), {
@@ -33,6 +33,29 @@ test("MAIL_ADAPTER: reads (never sources) the recipient and mails via sendmail",
     assert.match(MAIL_ADAPTER, /head -n1 .*upside-notify\.recipient/);
     assert.doesNotMatch(MAIL_ADAPTER, /^\s*\.\s+["$]/m); // no `. file` sourcing
     assert.match(MAIL_ADAPTER, /sendmail -t/);
+});
+
+test("userCanRead: the /etc/msmtprc gate (0640 root:msmtp)", () => {
+    // nut not in msmtp → can't read the 0640 root:msmtp config (the silent bug).
+    assert.equal(userCanRead("640", "root", "msmtp", "nut", ["nut"]), false);
+    // nut added to msmtp → group-read applies.
+    assert.equal(userCanRead("640", "root", "msmtp", "nut", ["nut", "msmtp"]), true);
+    // world-readable → anyone.
+    assert.equal(userCanRead("644", "root", "msmtp", "nut", ["nut"]), true);
+    // owner-read only, and the user is the owner.
+    assert.equal(userCanRead("600", "nut", "nut", "nut", ["nut"]), true);
+    // 0600 root:root → nobody but root.
+    assert.equal(userCanRead("600", "root", "root", "nut", ["nut"]), false);
+    // leading-zero / 4-digit modes normalise.
+    assert.equal(userCanRead("0640", "root", "msmtp", "nut", ["msmtp"]), true);
+    assert.equal(userCanRead("0644", "root", "x", "nut", []), true);
+});
+
+test("groupReadable: group-read bit on the mode", () => {
+    assert.equal(groupReadable("640"), true);
+    assert.equal(groupReadable("600"), false);
+    assert.equal(groupReadable("0604"), false);
+    assert.equal(groupReadable("660"), true);
 });
 
 test("isValidRecipients: one or more comma-separated emails", () => {

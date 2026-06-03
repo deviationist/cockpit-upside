@@ -142,6 +142,19 @@ It is based on the official
   which events fire. The recipient is **validated + read, never sourced** by the
   adapter (no shell injection). Notifications are upsmon-global (host-wide), so
   the per-UPS view says so; arming is admin-gated with a Send-test.
+  - **GOTCHA — notifications run as `RUN_AS_USER`, not root.** upsmon executes
+    `NOTIFYCMD` as its `RUN_AS_USER` (typically `nut`), so the mail adapter sends
+    **as that user**. The trap: a system mailer like msmtp reads `/etc/msmtprc`
+    (often `0640 root:msmtp`), which `nut` can't read unless it's in the `msmtp`
+    group — so events fire but mail silently fails, while a *root* test still
+    works. Two consequences baked into the code, keep them: (1) `sendTest()` runs
+    the dispatcher via `runuser -u <RUN_AS_USER>` so it reproduces the real path
+    (do NOT revert it to a root spawn — that hides the gap); (2) `applyNotify()`
+    calls `ensureNotifierCanMail()` (adds the notifier to the mailer config's
+    group + restarts `nut-monitor`, since a reload won't re-init groups), and
+    `detectNotify()` surfaces `notifierCanMail` so the UI can warn + offer a Fix.
+    `parseRunAsUser()` (upsmon-parse.ts) is how we learn the user; default `nut`.
+    Tests must exercise the **notifier user**, never assume root can stand in.
 
 ## Build / lint / test
 

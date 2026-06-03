@@ -11,7 +11,7 @@ import { test } from 'node:test';
 
 import {
     buildUpsmonConf, hasPowerDownFlag, isValidMinSupplies, isValidShutdownCmd,
-    parseNotify, parseUpsmonConf, setMinSupplies, setMonitorLine, setNotifyCmd,
+    parseNotify, parseRunAsUser, parseUpsmonConf, setMinSupplies, setMonitorLine, setNotifyCmd,
     setNotifyFlagExec, setPowerDownFlag, setShutdownCmd,
 } from './upsmon-parse.ts';
 
@@ -100,6 +100,14 @@ test("setNotifyCmd / setNotifyFlagExec: enable adds EXEC, disable reverts, idemp
     assert.doesNotMatch(t, /NOTIFYFLAG ONBATT/);
     // Disabling an absent event is a no-op.
     assert.doesNotMatch(setNotifyFlagExec(t, "LOWBATT", false), /NOTIFYFLAG LOWBATT/);
+});
+
+test("parseRunAsUser: reads RUN_AS_USER, null when unset, ignores comments", () => {
+    assert.equal(parseRunAsUser("# c\nRUN_AS_USER nut\nPOLLFREQ 5\n"), "nut");
+    assert.equal(parseRunAsUser("RUN_AS_USER nutmon\n"), "nutmon");
+    assert.equal(parseRunAsUser("# RUN_AS_USER ghost\nMINSUPPLIES 1\n"), null);
+    assert.equal(parseRunAsUser(""), null);
+    assert.equal(parseRunAsUser(null), null);
 });
 
 test("parseNotify: reads NOTIFYCMD + only EXEC-flagged events", () => {
