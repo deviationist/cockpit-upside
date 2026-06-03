@@ -35,6 +35,7 @@ import { LockIcon } from "@patternfly/react-icons/dist/esm/icons/lock-icon.js";
 import { PlayIcon } from "@patternfly/react-icons/dist/esm/icons/play-icon.js";
 import { PowerOffIcon } from "@patternfly/react-icons/dist/esm/icons/power-off-icon.js";
 import { TimesCircleIcon } from "@patternfly/react-icons/dist/esm/icons/times-circle-icon.js";
+import { VolumeMuteIcon } from "@patternfly/react-icons/dist/esm/icons/volume-mute-icon.js";
 import { VolumeUpIcon } from "@patternfly/react-icons/dist/esm/icons/volume-up-icon.js";
 
 import cockpit from 'cockpit';
@@ -108,16 +109,28 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
     const [delay, setDelay] = useState("0");
     const [dangerOpen, setDangerOpen] = useState(false);
     const [testType, setTestType] = useState("");
+    // Optimistic beeper state — flip the shown value at once, reconcile on the
+    // next poll (and revert after a few seconds if the real value never changes,
+    // e.g. a no-op toggle on quirky firmware).
+    const [optimisticBeeper, setOptimisticBeeper] = useState<string | null>(null);
+    const polledBeeper = vars["ups.beeper.status"];
+    useEffect(() => { setOptimisticBeeper(null) }, [polledBeeper]);
+    useEffect(() => {
+        if (optimisticBeeper === null)
+            return;
+        const t = window.setTimeout(() => setOptimisticBeeper(null), 5000);
+        return () => window.clearTimeout(t);
+    }, [optimisticBeeper]);
 
     const has = (c: string) => commands.has(c);
 
     // Run an instant command (needs NUT creds). `value` is the seconds appended
     // for a `.delay` command. The 2s poll refreshes state after.
-    const run = (cmd: string, value?: string) => {
+    const run = (cmd: string, value?: string, onSuccess?: () => void) => {
         if (!creds) { onAuthNeeded(); return }
         setBusy(cmd); setFeedback(null); setConfirm(null);
         runCommand(ups, cmd, creds.user, creds.pass, value)
-                .then(out => setFeedback({ ok: true, msg: out.trim() || _("Command sent.") }))
+                .then(out => { setFeedback({ ok: true, msg: out.trim() || _("Command sent.") }); onSuccess?.() })
                 .catch(e => setFeedback({ ok: false, msg: msg(e) }))
                 .finally(() => setBusy(null));
     };
@@ -125,7 +138,7 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
     // --- derived live state ---
     const statusTokens = (vars["ups.status"] || "").split(/\s+/).filter(Boolean);
     const shuttingDown = statusTokens.includes("FSD") || statusTokens.includes("LB");
-    const beeperStatus = vars["ups.beeper.status"];
+    const beeperStatus = optimisticBeeper ?? polledBeeper;
     const beeperKnown = beeperStatus === "enabled" || beeperStatus === "disabled";
     const testResult = vars["ups.test.result"];
     const testRunning = /progress|running/i.test(testResult || "") || statusTokens.includes("TEST");
@@ -198,12 +211,12 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                                             <ToggleGroupItem
                                                 icon={<VolumeUpIcon />} text={_("Enabled")}
                                                 isSelected={beeperStatus === "enabled"} isDisabled={busy !== null}
-                                                onChange={() => { if (beeperStatus !== "enabled") run("beeper.enable") }}
+                                                onChange={() => { if (beeperStatus !== "enabled") run("beeper.enable", undefined, () => setOptimisticBeeper("enabled")) }}
                                             />
                                             <ToggleGroupItem
-                                                text={_("Disabled")}
+                                                icon={<VolumeMuteIcon />} text={_("Disabled")}
                                                 isSelected={beeperStatus === "disabled"} isDisabled={busy !== null}
-                                                onChange={() => { if (beeperStatus !== "disabled") run("beeper.disable") }}
+                                                onChange={() => { if (beeperStatus !== "disabled") run("beeper.disable", undefined, () => setOptimisticBeeper("disabled")) }}
                                             />
                                         </ToggleGroup>
                                     )
@@ -211,10 +224,15 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                                         ? (
                                             <>
                                                 {beeperKnown &&
-                                                    <Label color={beeperStatus === "enabled" ? "green" : "grey"}>
+                                                    <Label color={beeperStatus === "enabled" ? "green" : "grey"} icon={beeperStatus === "enabled" ? <VolumeUpIcon /> : <VolumeMuteIcon />}>
                                                         {beeperStatus === "enabled" ? _("On") : _("Off")}
                                                     </Label>}
-                                                <Button variant="secondary" icon={<VolumeUpIcon />} isDisabled={busy !== null} isLoading={busy === "beeper.toggle"} onClick={() => run("beeper.toggle")}>
+                                                <Button
+                                                    variant="secondary"
+                                                    icon={beeperStatus === "enabled" ? <VolumeMuteIcon /> : <VolumeUpIcon />}
+                                                    isDisabled={busy !== null} isLoading={busy === "beeper.toggle"}
+                                                    onClick={() => run("beeper.toggle", undefined, () => { if (beeperKnown) setOptimisticBeeper(beeperStatus === "enabled" ? "disabled" : "enabled") })}
+                                                >
                                                     {_("Toggle beeper")}
                                                 </Button>
                                             </>
