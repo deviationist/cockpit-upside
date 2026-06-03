@@ -25,8 +25,10 @@ import { Card, CardBody, CardTitle } from "@patternfly/react-core/dist/esm/compo
 import { Content } from "@patternfly/react-core/dist/esm/components/Content/index.js";
 import { ExpandableSection } from "@patternfly/react-core/dist/esm/components/ExpandableSection/index.js";
 import { FormSelect, FormSelectOption } from "@patternfly/react-core/dist/esm/components/FormSelect/index.js";
+import { Label } from "@patternfly/react-core/dist/esm/components/Label/index.js";
 import { Modal, ModalBody, ModalFooter, ModalHeader } from "@patternfly/react-core/dist/esm/components/Modal/index.js";
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
+import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/index.js";
 import { ToggleGroup, ToggleGroupItem } from "@patternfly/react-core/dist/esm/components/ToggleGroup/index.js";
 import { BoltIcon } from "@patternfly/react-icons/dist/esm/icons/bolt-icon.js";
 import { LockIcon } from "@patternfly/react-icons/dist/esm/icons/lock-icon.js";
@@ -103,16 +105,18 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
     const [busy, setBusy] = useState<string | null>(null);
     const [feedback, setFeedback] = useState<{ ok: boolean, msg: string } | null>(null);
     const [confirm, setConfirm] = useState<{ cmd: string, label: string, consequence: string } | null>(null);
+    const [delay, setDelay] = useState("0");
     const [dangerOpen, setDangerOpen] = useState(false);
     const [testType, setTestType] = useState("");
 
     const has = (c: string) => commands.has(c);
 
-    // Run an instant command (needs NUT creds). The 2s poll refreshes state after.
-    const run = (cmd: string) => {
+    // Run an instant command (needs NUT creds). `value` is the seconds appended
+    // for a `.delay` command. The 2s poll refreshes state after.
+    const run = (cmd: string, value?: string) => {
         if (!creds) { onAuthNeeded(); return }
         setBusy(cmd); setFeedback(null); setConfirm(null);
-        runCommand(ups, cmd, creds.user, creds.pass)
+        runCommand(ups, cmd, creds.user, creds.pass, value)
                 .then(out => setFeedback({ ok: true, msg: out.trim() || _("Command sent.") }))
                 .catch(e => setFeedback({ ok: false, msg: msg(e) }))
                 .finally(() => setBusy(null));
@@ -132,14 +136,11 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
         : null;
 
     // --- beeper rendering decision (see file header caveat) ---
-    // When the on/off state IS readable, show an Enabled/Disabled ToggleGroup that
-    // makes the state obvious — driven by beeper.enable/disable if present, else by
-    // beeper.toggle. Only fall back to a plain Toggle button when the state can't
-    // be read (never show a stateful control whose state we can't trust).
-    const canChangeBeeper = (has("beeper.enable") && has("beeper.disable")) || has("beeper.toggle");
-    const beeperToggleGroup = beeperKnown && canChangeBeeper;
-    const beeperEnableCmd = has("beeper.enable") ? "beeper.enable" : "beeper.toggle";
-    const beeperDisableCmd = has("beeper.disable") ? "beeper.disable" : "beeper.toggle";
+    // Enabled/Disabled ToggleGroup ONLY when both beeper.enable AND beeper.disable
+    // exist — each segment then deterministically SETS that state. A toggle-only
+    // UPS can't be set to a chosen state (toggle just flips), so it gets a single
+    // Toggle button + a read-only On/Off badge reflecting ups.beeper.status.
+    const beeperToggleGroup = beeperKnown && has("beeper.enable") && has("beeper.disable");
     const beeperButtons = ["beeper.enable", "beeper.disable", "beeper.mute"].filter(has);
     const showBeeper = beeperToggleGroup || has("beeper.toggle") || beeperButtons.length > 0;
 
@@ -157,6 +158,15 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
     const resultTone = !testResult ? "muted" : /pass/i.test(testResult) ? "pass" : /(error|fail|abort)/i.test(testResult) ? "fail" : "muted";
 
     const supportedDestructive = DESTRUCTIVE.filter(d => has(d.cmd));
+
+    // The pending confirm may offer a delay if the UPS has a `<cmd>.delay` variant
+    // (e.g. load.off.delay). 0 = run now; >0 runs the .delay command with seconds.
+    const delayCapable = confirm !== null && has(`${confirm.cmd}.delay`);
+    const delayValid = /^\d+$/.test(delay);
+    const delaySecs = delayValid ? parseInt(delay, 10) : 0;
+    const effectiveCmd = confirm
+        ? (delayCapable && delaySecs > 0 ? `${confirm.cmd}.delay` : confirm.cmd)
+        : undefined;
 
     return (
         <Card>
@@ -188,20 +198,26 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                                             <ToggleGroupItem
                                                 icon={<VolumeUpIcon />} text={_("Enabled")}
                                                 isSelected={beeperStatus === "enabled"} isDisabled={busy !== null}
-                                                onChange={() => { if (beeperStatus !== "enabled") run(beeperEnableCmd) }}
+                                                onChange={() => { if (beeperStatus !== "enabled") run("beeper.enable") }}
                                             />
                                             <ToggleGroupItem
                                                 text={_("Disabled")}
                                                 isSelected={beeperStatus === "disabled"} isDisabled={busy !== null}
-                                                onChange={() => { if (beeperStatus !== "disabled") run(beeperDisableCmd) }}
+                                                onChange={() => { if (beeperStatus !== "disabled") run("beeper.disable") }}
                                             />
                                         </ToggleGroup>
                                     )
                                     : has("beeper.toggle")
                                         ? (
-                                            <Button variant="secondary" icon={<VolumeUpIcon />} isDisabled={busy !== null} isLoading={busy === "beeper.toggle"} onClick={() => run("beeper.toggle")}>
-                                                {_("Toggle beeper")}
-                                            </Button>
+                                            <>
+                                                {beeperKnown &&
+                                                    <Label color={beeperStatus === "enabled" ? "green" : "grey"}>
+                                                        {beeperStatus === "enabled" ? _("On") : _("Off")}
+                                                    </Label>}
+                                                <Button variant="secondary" icon={<VolumeUpIcon />} isDisabled={busy !== null} isLoading={busy === "beeper.toggle"} onClick={() => run("beeper.toggle")}>
+                                                    {_("Toggle beeper")}
+                                                </Button>
+                                            </>
                                         )
                                         : beeperButtons.map(c => (
                                             <Button key={c} variant="secondary" icon={<VolumeUpIcon />} isDisabled={busy !== null} isLoading={busy === c} onClick={() => run(c)}>
@@ -282,7 +298,7 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                         </Content>
                         <div className="upside-ctl-danger__actions">
                             {supportedDestructive.map(d => (
-                                <Button key={d.cmd} variant="danger" icon={<PowerOffIcon />} isDisabled={busy !== null} isLoading={busy === d.cmd} onClick={() => setConfirm(d)}>
+                                <Button key={d.cmd} variant="danger" icon={<PowerOffIcon />} isDisabled={busy !== null} isLoading={busy === d.cmd || busy === `${d.cmd}.delay`} onClick={() => { setDelay("0"); setConfirm(d) }}>
                                     {d.label}
                                 </Button>
                             ))}
@@ -306,10 +322,29 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
 
             <Modal variant="small" isOpen={confirm !== null} onClose={() => setConfirm(null)} aria-label={_("Confirm power action")}>
                 <ModalHeader title={confirm?.label || ""} titleIconVariant="warning" />
-                <ModalBody><Content component="p">{confirm?.consequence}</Content></ModalBody>
+                <ModalBody>
+                    <Content component="p">{confirm?.consequence}</Content>
+                    {delayCapable &&
+                        <div className="upside-field pf-v6-u-mt-md">
+                            <label htmlFor="ctl-delay">{_("Delay (seconds)")}</label>
+                            <TextInput
+                                id="ctl-delay" type="number" min={0} value={delay}
+                                onChange={(_ev, v) => setDelay(v)}
+                                validated={delayValid ? "default" : "error"}
+                                aria-label={_("Delay in seconds")}
+                            />
+                            <Content component="small" className="upside-ctl-row__desc">
+                                {_("0 runs it now; a higher value waits that many seconds first.")}
+                            </Content>
+                        </div>}
+                </ModalBody>
                 <ModalFooter>
-                    <Button variant="danger" isLoading={busy === confirm?.cmd} onClick={() => confirm && run(confirm.cmd)}>
-                        {confirm?.label}
+                    <Button
+                        variant="danger" isDisabled={!delayValid}
+                        isLoading={!!effectiveCmd && busy === effectiveCmd}
+                        onClick={() => effectiveCmd && run(effectiveCmd, delayCapable && delaySecs > 0 ? String(delaySecs) : undefined)}
+                    >
+                        {confirm?.label}{delayCapable && delaySecs > 0 ? cockpit.format(_(" in $0s"), delaySecs) : ""}
                     </Button>
                     <Button variant="link" onClick={() => setConfirm(null)}>{_("Cancel")}</Button>
                 </ModalFooter>
