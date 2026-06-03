@@ -25,7 +25,6 @@ import { Card, CardBody, CardTitle } from "@patternfly/react-core/dist/esm/compo
 import { Content } from "@patternfly/react-core/dist/esm/components/Content/index.js";
 import { ExpandableSection } from "@patternfly/react-core/dist/esm/components/ExpandableSection/index.js";
 import { FormSelect, FormSelectOption } from "@patternfly/react-core/dist/esm/components/FormSelect/index.js";
-import { Label } from "@patternfly/react-core/dist/esm/components/Label/index.js";
 import { Modal, ModalBody, ModalFooter, ModalHeader } from "@patternfly/react-core/dist/esm/components/Modal/index.js";
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
 import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/index.js";
@@ -222,20 +221,14 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                                     )
                                     : has("beeper.toggle")
                                         ? (
-                                            <>
-                                                {beeperKnown &&
-                                                    <Label color={beeperStatus === "enabled" ? "green" : "grey"} icon={beeperStatus === "enabled" ? <VolumeUpIcon /> : <VolumeMuteIcon />}>
-                                                        {beeperStatus === "enabled" ? _("On") : _("Off")}
-                                                    </Label>}
-                                                <Button
-                                                    variant="secondary"
-                                                    icon={beeperStatus === "enabled" ? <VolumeMuteIcon /> : <VolumeUpIcon />}
-                                                    isDisabled={busy !== null} isLoading={busy === "beeper.toggle"}
-                                                    onClick={() => run("beeper.toggle", undefined, () => { if (beeperKnown) setOptimisticBeeper(beeperStatus === "enabled" ? "disabled" : "enabled") })}
-                                                >
-                                                    {_("Toggle beeper")}
-                                                </Button>
-                                            </>
+                                            <Button
+                                                variant="secondary"
+                                                icon={beeperStatus === "enabled" ? <VolumeMuteIcon /> : <VolumeUpIcon />}
+                                                isDisabled={busy !== null} isLoading={busy === "beeper.toggle"}
+                                                onClick={() => run("beeper.toggle", undefined, () => { if (beeperKnown) setOptimisticBeeper(beeperStatus === "enabled" ? "disabled" : "enabled") })}
+                                            >
+                                                {beeperStatus === "enabled" ? _("Toggle beeper off") : beeperStatus === "disabled" ? _("Toggle beeper on") : _("Toggle beeper")}
+                                            </Button>
                                         )
                                         : beeperButtons.map(c => (
                                             <Button key={c} variant="secondary" icon={<VolumeUpIcon />} isDisabled={busy !== null} isLoading={busy === c} onClick={() => run(c)}>
