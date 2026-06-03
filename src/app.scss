@@ -215,18 +215,29 @@ $upside-amber: #f59e0b;
     color: var(--pf-t--global--text--color--subtle, #6a6e73);
 }
 
-// Beeper control as a grid tile — a pill matching the action buttons, with the
-// on/off Switch inside (it's a state, not a one-shot). Purple ties it to the
-// beeper grouping. Fills its grid cell and stretches to the row height.
+// Beeper control as a grid tile — a FILLED pill matching the action buttons
+// (purple = the beeper grouping), with the on/off Switch inside. White label +
+// a white-bordered slider so it reads on the fill.
 .upside-cmd-beeper {
     inline-size: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.4rem;
+    gap: 0.5rem;
     padding-inline: 0.75rem;
     border: 1px solid #6829c2;
     border-radius: 999px;
+    background: #6829c2;
+
+    .pf-v6-c-switch__label {
+        color: #fff;
+    }
+
+    // Outline the slider track in the same white as the label so it's defined
+    // against the filled tile.
+    .pf-v6-c-switch__toggle {
+        box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 75%);
+    }
 }
 
 // Give the notification toggles breathing room between the slider and its label.
