@@ -124,6 +124,27 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
         return () => window.clearTimeout(t);
     }, [optimisticBeeper]);
 
+    // After a test is started, watch ups.test.result for the outcome and toast it
+    // when it lands. Works on UPSes that report a result; ones that never update
+    // the var (some usbhid-ups models) just time out with no result.
+    const [testStartedAt, setTestStartedAt] = useState<number | null>(null);
+    const polledTestResult = vars["ups.test.result"];
+    useEffect(() => {
+        if (testStartedAt === null)
+            return;
+        // Terminal result reported → surface it and stop watching.
+        if (/done|pass|fail|error|abort|warning/i.test(polledTestResult || "")) {
+            setFeedback({ ok: /pass/i.test(polledTestResult || ""), msg: cockpit.format(_("Battery test: $0"), polledTestResult) });
+            setTestStartedAt(null);
+        }
+    }, [polledTestResult, testStartedAt]);
+    useEffect(() => {
+        if (testStartedAt === null)
+            return;
+        const t = window.setTimeout(() => setTestStartedAt(null), 180_000);
+        return () => window.clearTimeout(t);
+    }, [testStartedAt]);
+
     const has = (c: string) => commands.has(c);
 
     // Run an instant command (needs NUT creds). `value` is the seconds appended
@@ -143,7 +164,7 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
     const beeperStatus = optimisticBeeper ?? polledBeeper;
     const beeperKnown = beeperStatus === "enabled" || beeperStatus === "disabled";
     const testResult = vars["ups.test.result"];
-    const testRunning = /progress|running/i.test(testResult || "") || statusTokens.includes("TEST");
+    const testRunning = testStartedAt !== null || /progress|running/i.test(testResult || "") || statusTokens.includes("TEST");
     const charge = num(vars, "battery.charge");
     const shutdownSecs = num(vars, "ups.timer.shutdown");
     const shutdownIn = shutdownSecs !== undefined && shutdownSecs >= 0
@@ -256,8 +277,9 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                             <div className="upside-ctl-row__text">
                                 <div className="upside-ctl-row__name">{_("Battery test")}</div>
                                 <div className="upside-ctl-row__desc">
-                                    {_("Last test:")}{" "}
-                                    <span className={`upside-test--${resultTone}`}>{testResult || _("not run yet")}</span>
+                                    {testStartedAt !== null
+                                        ? <span className="upside-test--muted">{_("Test in progress…")}</span>
+                                        : <>{_("Last test:")}{" "}<span className={`upside-test--${resultTone}`}>{testResult || _("not run yet")}</span></>}
                                 </div>
                             </div>
                             <div className="upside-ctl-row__control">
@@ -277,7 +299,7 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                                         </Button>
                                     )
                                     : (
-                                        <Button variant="secondary" icon={<PlayIcon />} isDisabled={busy !== null || testRunning} isLoading={busy === selectedTest} onClick={() => run(selectedTest)}>
+                                        <Button variant="secondary" icon={<PlayIcon />} isDisabled={busy !== null || testRunning} isLoading={busy === selectedTest} onClick={() => run(selectedTest, undefined, () => setTestStartedAt(Date.now()))}>
                                             {testRunning ? _("Test running…") : _("Run test")}
                                         </Button>
                                     )}
