@@ -1443,6 +1443,12 @@ $upside-amber: #f59e0b;
     z-index: 1;
 }
 
+// PF packs the step number and its label with only a 4px gap — a touch tight.
+// Give them a bit more breathing room.
+.upside-wizard__steps .pf-v6-c-wizard__nav-link {
+    column-gap: 0.6rem;
+}
+
 // Role picker (step 1): space the radio cards out.
 .upside-wizard__roles {
     display: flex;
