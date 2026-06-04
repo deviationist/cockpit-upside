@@ -1,3 +1,13 @@
+cockpit-upside (1.0.5) noble; urgency=medium
+
+  * History charts: align samples to the whole minute so the hover crosshair
+    lines up with the time axis. Affected the remote-history (netclient) reader,
+    where points kept their raw sub-minute scrape time; both the local and remote
+    readers now snap to the minute, so a secondary host renders identically to
+    the primary.
+
+ -- Robert Sæther <robert4832@pm.me>  Thu, 04 Jun 2026 15:19:54 +0000
+
 cockpit-upside (1.0.4) noble; urgency=medium
 
   * Trends and Metrics charts now auto-refresh, so the pages work as a live
