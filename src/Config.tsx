@@ -15,7 +15,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert } from "@patternfly/react-core/dist/esm/components/Alert/index.js";
-import { Breadcrumb, BreadcrumbItem } from "@patternfly/react-core/dist/esm/components/Breadcrumb/index.js";
+import { CrumbTrail } from './Breadcrumbs';
 import { Button } from "@patternfly/react-core/dist/esm/components/Button/index.js";
 import { Card, CardBody } from "@patternfly/react-core/dist/esm/components/Card/index.js";
 import { Content } from "@patternfly/react-core/dist/esm/components/Content/index.js";
@@ -175,15 +175,14 @@ export const Config = ({ ups, title, mode }: { ups: string, title?: string, mode
     return (
         <div className="upside-config">
             <div className="upside-metrics__header">
-                <Breadcrumb className="upside-metrics__crumb">
-                    <BreadcrumbItem to="#" onClick={(e: React.MouseEvent) => { e.preventDefault(); cockpit.location.go([]) }}>
-                        {_("Overview")}
-                    </BreadcrumbItem>
-                    <BreadcrumbItem to="#" onClick={(e: React.MouseEvent) => { e.preventDefault(); cockpit.location.go(["ups", ups]) }}>
-                        {title || ups}
-                    </BreadcrumbItem>
-                    <BreadcrumbItem isActive>{_("Configuration")}</BreadcrumbItem>
-                </Breadcrumb>
+                <CrumbTrail
+                    className="upside-metrics__crumb"
+                    crumbs={[
+                        { label: _("Overview"), go: () => cockpit.location.go([]) },
+                        { label: title || ups, go: () => cockpit.location.go(["ups", ups]) },
+                        { label: _("Configuration") },
+                    ]}
+                />
                 <div className="upside-metrics__menu"><UpsMenu ups={ups} current="config" /></div>
             </div>
 

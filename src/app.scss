@@ -712,6 +712,41 @@ $upside-amber: #f59e0b;
     .upside-masthead__right { gap: 0.5rem; }
 }
 
+// On very narrow frames the logo tagline crowds the masthead and forces the
+// brand row to wrap. Drop it below 400px — the "UPSide" name carries the brand.
+@media (width < 400px) {
+    .upside-masthead__tagline { display: none; }
+}
+
+// On the smallest phones the masthead's 1.5rem inline padding eats too much of
+// the row; trim it so the brand + burger have room.
+@media (max-width: 320px) {
+    .upside-masthead { padding-inline: 0.6rem; }
+}
+
+// The monitor/control mode toggle lives inline in the bar. Below 300px the row
+// can't fit it, so hide the inline one and surface it inside the hamburger
+// dropdown instead (full-width tap target above the section tabs).
+.upside-masthead__menu-mode { display: none; }
+
+@media (max-width: 300px) {
+    .upside-masthead__right > .upside-mode-badge { display: none; }
+
+    .upside-masthead__menu-mode {
+        display: flex;
+        margin-block-end: 0.3rem;
+        padding-block-end: 0.5rem;
+        border-block-end: 1px solid rgb(255 255 255 / 10%);
+    }
+
+    .upside-masthead__menu-mode .upside-mode-badge {
+        inline-size: 100%;
+        padding-block: 0.4rem;
+        font-size: 0.8rem;
+        text-align: center;
+    }
+}
+
 // Status pills in a card title: give them room to breathe.
 .upside-status-labels {
     display: inline-flex;
@@ -876,6 +911,19 @@ $upside-amber: #f59e0b;
     padding-inline: 20px;
 }
 
+// Cockpit ships a mobile override that crams EVERY page section to 4px padding
+// at ≤428px (`.pf-v6-c-page__main > section…:not(.pf-m-padding)`, specificity
+// 0,3,1 — it beats the rule above, so our cards jam against the edge). Restore a
+// small gutter with a higher-specificity selector (adds `.upside-content` +
+// `:not(.pf-m-padding)` → 0,4,1) so it wins regardless of stylesheet order.
+@media (max-width: 428px) {
+    .pf-v6-c-page__main > section.pf-v6-c-page__main-section.upside-content:not(.pf-m-padding) {
+        padding-block-start: 0.75rem;
+        padding-block-end: 0.75rem;
+        padding-inline: 0.75rem;
+    }
+}
+
 // Detail page: stack the header, gauges, group cards and the full table.
 .upside-detail {
     display: flex;
@@ -1036,6 +1084,32 @@ $upside-amber: #f59e0b;
 
 .upside-metrics__crumb {
     margin-block-end: 0;
+}
+
+// Responsive breadcrumb (CrumbTrail). Both variants live in the DOM; CSS picks
+// one by width. Default (wide): show the full trail, hide the mobile dropdown's
+// toggle. The PF Dropdown's `className` lands on its menu (portaled, only shown
+// when open), so we toggle the *toggle button* — not the dropdown root.
+.upside-crumb {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0; // let the trail shrink inside the header grid/flex
+}
+
+.upside-crumb .upside-crumb-mobile__toggle {
+    display: none;
+}
+
+// Below 450px the full trail wraps onto multiple lines and loses its horizontal
+// readability; swap it for the single-line dropdown.
+@media (max-width: 450px) {
+    .upside-crumb .upside-crumb-full {
+        display: none;
+    }
+
+    .upside-crumb .upside-crumb-mobile__toggle {
+        display: inline-flex;
+    }
 }
 
 .upside-metrics__bar {
