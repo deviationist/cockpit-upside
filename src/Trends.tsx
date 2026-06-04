@@ -44,48 +44,66 @@ const SERIES: Series[] = [
 
 const WINDOW_MS = 6 * 3600_000; // last 6 hours
 
-export const Trends = ({ ups, archiveDir, historyUrl, locale }: { ups: string, archiveDir?: string, historyUrl?: string, locale?: string }) => {
+export const Trends = ({ ups, archiveDir, historyUrl, locale, autoRefresh = true }: { ups: string, archiveDir?: string, historyUrl?: string, locale?: string, autoRefresh?: boolean }) => {
     const [data, setData] = useState<Record<string, HistPoint[]> | null>(null);
     const [failed, setFailed] = useState(false);
     const [diag, setDiag] = useState<string | null>(null);
 
+    // Blank to the loading/empty state only when the SOURCE changes (UPS / local
+    // archive / remote URL), not on a live refresh — so refreshes swap in place
+    // instead of flashing a spinner every minute.
     useEffect(() => {
-        let cancelled = false;
         setData(null);
         setFailed(false);
         setDiag(null);
-
-        // Same data path as the metrics page (loadArchive): one window-aware,
-        // multi-archive read that honours the dedicated NUT-only archive when
-        // configured — so Trends is as fast as, and consistent with, /metrics.
-        const end = Date.now();
-        const start = end - WINDOW_MS;
-        const names = SERIES.map(s => `openmetrics.nut.${s.key}`);
-        const r = { startMs: start, endMs: end, intervalMs: 60_000, limit: 100000 };
-        const fetch = historyUrl
-            ? loadSeries(historyUrl, loadHistoryCreds(), names, ups, r)
-            : loadArchive(names, ups, r, archiveDir);
-        fetch
-                .then(r => {
-                    if (cancelled)
-                        return;
-                    const map = Object.fromEntries(SERIES.map(s => [s.key, r.points[`openmetrics.nut.${s.key}`] ?? []]));
-                    if (SERIES.every(s => (map[s.key]?.length ?? 0) === 0)) {
-                        setDiag(cockpit.format(_("PCP returned $0 samples for this UPS"), r.samples));
-                        setFailed(true);
-                    } else {
-                        setData(map);
-                    }
-                })
-                .catch((e: { message?: string }) => {
-                    if (!cancelled) {
-                        setDiag(e?.message || String(e));
-                        setFailed(true);
-                    }
-                });
-
-        return () => { cancelled = true };
     }, [ups, archiveDir, historyUrl]);
+
+    useEffect(() => {
+        let cancelled = false;
+        let timer: number | undefined;
+
+        // Self-scheduling refresh: fetch, then (when autoRefresh is on) arm the
+        // next run 60s AFTER this one settles — never on a fixed interval — so a
+        // slow read can't let requests stack on top of each other.
+        const run = () => {
+            // Same data path as the metrics page (loadArchive): one window-aware,
+            // multi-archive read honouring the dedicated NUT-only archive when
+            // configured — so Trends is as fast as, and consistent with, /metrics.
+            const end = Date.now();
+            const start = end - WINDOW_MS;
+            const names = SERIES.map(s => `openmetrics.nut.${s.key}`);
+            const r = { startMs: start, endMs: end, intervalMs: 60_000, limit: 100000 };
+            const fetch = historyUrl
+                ? loadSeries(historyUrl, loadHistoryCreds(), names, ups, r)
+                : loadArchive(names, ups, r, archiveDir);
+            fetch
+                    .then(r => {
+                        if (cancelled)
+                            return;
+                        const map = Object.fromEntries(SERIES.map(s => [s.key, r.points[`openmetrics.nut.${s.key}`] ?? []]));
+                        if (SERIES.every(s => (map[s.key]?.length ?? 0) === 0)) {
+                            setDiag(cockpit.format(_("PCP returned $0 samples for this UPS"), r.samples));
+                            setFailed(true);
+                        } else {
+                            setData(map);
+                            setFailed(false);
+                        }
+                    })
+                    .catch((e: { message?: string }) => {
+                        if (!cancelled) {
+                            setDiag(e?.message || String(e));
+                            setFailed(true);
+                        }
+                    })
+                    .finally(() => {
+                        if (!cancelled && autoRefresh)
+                            timer = window.setTimeout(run, 60_000);
+                    });
+        };
+        run();
+
+        return () => { cancelled = true; window.clearTimeout(timer) };
+    }, [ups, archiveDir, historyUrl, autoRefresh]);
 
     let body;
     if (failed) {

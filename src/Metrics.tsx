@@ -89,7 +89,7 @@ function intervalForSpan(ms: number): number {
 
 const FETCH_LIMIT = 100000; // pmrep is bounded by the window; this is just the API field
 
-export const Metrics = ({ ups, title, archiveDir, historyUrl, locale }: { ups: string, title?: string, archiveDir?: string, historyUrl?: string, locale?: string }) => {
+export const Metrics = ({ ups, title, archiveDir, historyUrl, locale, autoRefresh = true }: { ups: string, title?: string, archiveDir?: string, historyUrl?: string, locale?: string, autoRefresh?: boolean }) => {
     // Restore the last-used window from the per-browser pref if it still exists;
     // otherwise fall back to 6h.
     const [rangeId, setRangeId] = useState(() => {
@@ -181,30 +181,44 @@ export const Metrics = ({ ups, title, archiveDir, historyUrl, locale }: { ups: s
 
     useEffect(() => {
         let cancelled = false;
-        setLoading(true);
-        setError(null);
-        // Keep the previous charts on screen while loading; swap the data and the
-        // x-axis window together when the new data lands, so the page doesn't
-        // blank to a spinner on every range/zoom/nav interaction.
-        const intervalMs = zoom ? intervalForSpan(zoom.end - zoom.start) : range.intervalMs;
-        // For presets, snap the window edges to the sample interval (which the
-        // pmrep grid is aligned to, see lib/metrics -A). Otherwise the arbitrary-
-        // second edges clip the partial samples at each end — a 5-min view would
-        // show 4 points instead of 5 — and the edges wouldn't sit on round ticks.
-        const end = zoom ? zoom.end : Math.floor((Date.now() - offset) / intervalMs) * intervalMs;
-        const start = zoom ? zoom.start : end - range.ms;
-        const names = SERIES.map(s => metricName(s.key));
-        const r = { startMs: start, endMs: end, intervalMs, limit: FETCH_LIMIT };
-        // Remote source (netclient): read the primary's history over pmproxy
-        // REST; otherwise the local pmrep archive. Both yield an ArchiveResult.
-        const fetch = historyUrl
-            ? loadSeries(historyUrl, loadHistoryCreds(), names, ups, r)
-            : loadArchive(names, ups, r, archiveDir);
-        fetch
-                .then(res => { if (!cancelled) { setResult(res); setWin({ start, end }); setLoading(false) } })
-                .catch((e: { message?: string }) => { if (!cancelled) { setError(e?.message || String(e)); setLoading(false) } });
-        return () => { cancelled = true };
-    }, [ups, rangeId, offset, zoom, range.ms, range.intervalMs, archiveDir, historyUrl]);
+        let timer: number | undefined;
+
+        // One fetch run. Keeps the previous charts on screen while loading and
+        // swaps the data + x-axis window together when the new data lands, so the
+        // page doesn't blank to a spinner on every range/zoom/nav/refresh.
+        const run = () => {
+            setLoading(true);
+            setError(null);
+            const intervalMs = zoom ? intervalForSpan(zoom.end - zoom.start) : range.intervalMs;
+            // For presets, snap the window edges to the sample interval (which the
+            // pmrep grid is aligned to, see lib/metrics -A). Otherwise the arbitrary-
+            // second edges clip the partial samples at each end — a 5-min view would
+            // show 4 points instead of 5 — and the edges wouldn't sit on round ticks.
+            const end = zoom ? zoom.end : Math.floor((Date.now() - offset) / intervalMs) * intervalMs;
+            const start = zoom ? zoom.start : end - range.ms;
+            const names = SERIES.map(s => metricName(s.key));
+            const r = { startMs: start, endMs: end, intervalMs, limit: FETCH_LIMIT };
+            // Remote source (netclient): read the primary's history over pmproxy
+            // REST; otherwise the local pmrep archive. Both yield an ArchiveResult.
+            const fetch = historyUrl
+                ? loadSeries(historyUrl, loadHistoryCreds(), names, ups, r)
+                : loadArchive(names, ups, r, archiveDir);
+            fetch
+                    .then(res => { if (!cancelled) { setResult(res); setWin({ start, end }); setLoading(false) } })
+                    .catch((e: { message?: string }) => { if (!cancelled) { setError(e?.message || String(e)); setLoading(false) } })
+                    .finally(() => {
+                        // Live dashboard: re-pull every 60s, but ONLY while viewing the
+                        // latest window (not zoomed / stepped back) and with autoRefresh
+                        // on. Self-scheduled after the run settles, so requests can't
+                        // stack; a fixed interval would fire mid-flight on a slow read.
+                        if (!cancelled && autoRefresh && atNow)
+                            timer = window.setTimeout(run, 60_000);
+                    });
+        };
+        run();
+
+        return () => { cancelled = true; window.clearTimeout(timer) };
+    }, [ups, rangeId, offset, zoom, range.ms, range.intervalMs, archiveDir, historyUrl, autoRefresh, atNow]);
 
     const shown = result
         ? SERIES.filter(s => (result.points[metricName(s.key)]?.length ?? 0) >= 2)
