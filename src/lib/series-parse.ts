@@ -111,12 +111,17 @@ export function parseSeriesValues(json: unknown): SeriesSample[] {
  * hash to its UPS name; samples for other UPSes are dropped. On a duplicate
  * timestamp (overlapping series generations) the last value wins.
  */
-export function foldUpsPoints(samples: SeriesSample[], instanceUps: Record<string, string>, ups: string): { t: number, v: number }[] {
+export function foldUpsPoints(samples: SeriesSample[], instanceUps: Record<string, string>, ups: string, alignMs = 0): { t: number, v: number }[] {
+    // pmproxy returns raw scrape timestamps (a fixed sub-minute offset — the
+    // scraper fires at ~:01, not :00). Snap to the nearest `alignMs` grid so the
+    // remote (netclient) path lands on the same round-minute boundaries the local
+    // pmrep `-A` path does; without this the hover crosshair sits a tick off.
+    const snap = alignMs > 0 ? (t: number) => Math.round(t / alignMs) * alignMs : (t: number) => t;
     const byT = new Map<number, number>();
     for (const s of samples) {
         if (instanceUps[s.instance] !== ups)
             continue;
-        byT.set(s.t, s.v);
+        byT.set(snap(s.t), s.v);
     }
     return [...byT.entries()]
             .map(([t, v]) => ({ t, v }))
