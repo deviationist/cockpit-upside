@@ -28,6 +28,7 @@ import { PencilAltIcon } from "@patternfly/react-icons/dist/esm/icons/pencil-alt
 import cockpit from 'cockpit';
 import { page_status } from 'notifications';
 
+import { CrumbTrail } from './Breadcrumbs';
 import { Controls } from './Controls';
 import { listCommands, validateCreds } from './lib/control';
 import { ensureControlGrants } from './lib/control-user';
@@ -671,15 +672,14 @@ const Variables = ({ upses, name, title }: { upses: Ups[] | null, name: string, 
     return (
         <div className="upside-config">
             <div className="upside-metrics__header">
-                <Breadcrumb className="upside-metrics__crumb">
-                    <BreadcrumbItem to="#" onClick={(e: React.MouseEvent) => { e.preventDefault(); cockpit.location.go([]) }}>
-                        {_("Overview")}
-                    </BreadcrumbItem>
-                    <BreadcrumbItem to="#" onClick={(e: React.MouseEvent) => { e.preventDefault(); cockpit.location.go(["ups", name]) }}>
-                        {title || name}
-                    </BreadcrumbItem>
-                    <BreadcrumbItem isActive>{_("All variables")}</BreadcrumbItem>
-                </Breadcrumb>
+                <CrumbTrail
+                    className="upside-metrics__crumb"
+                    crumbs={[
+                        { label: _("Overview"), go: () => cockpit.location.go([]) },
+                        { label: title || name, go: () => cockpit.location.go(["ups", name]) },
+                        { label: _("All variables") },
+                    ]}
+                />
                 <div className="upside-metrics__menu"><UpsMenu ups={name} current="variables" /></div>
             </div>
             <Card>
