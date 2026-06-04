@@ -29,6 +29,16 @@ const queryableCache = new Map<string, string[]>();
 
 export interface HistPoint { t: number, v: number }
 
+// The scraper records once a minute, so a whole minute is our finest meaningful
+// resolution. Snap every sample's timestamp to the nearest minute so points land
+// on the chart's round-number axis ticks (and the hover crosshair lines up).
+// Both readers do this — the local pmrep path AND the remote pmseries path — so
+// master (xavi) and a netclient (quim) render identically aligned. (pmrep's `-A`
+// already grids the local path; this makes the alignment explicit and uniform,
+// and is the *only* thing aligning the remote path, which has no `-A`.)
+export const SNAP_MS = 60_000;
+export const snapToMinute = (t: number): number => Math.round(t / SNAP_MS) * SNAP_MS;
+
 export interface ArchiveRange {
     startMs: number; // window start (epoch ms) — older samples are dropped
     endMs: number; // window end (epoch ms) — newer samples are dropped
@@ -200,9 +210,10 @@ export async function loadArchive(metricNames: string[], ups: string, range: Arc
             if (!/^\d/.test(line))
                 continue; // data rows start with an epoch timestamp
             const f = line.split(",");
-            const t = Number(f[0]) * 1000;
-            if (Number.isNaN(t) || t < range.startMs || t > range.endMs)
+            const rawMs = Number(f[0]) * 1000;
+            if (Number.isNaN(rawMs) || rawMs < range.startMs || rawMs > range.endMs)
                 continue;
+            const t = snapToMinute(rawMs);
             samples++;
             for (const n of queryable) {
                 const ci = cols[n];

@@ -73,6 +73,19 @@ test("foldUpsPoints: filters to the UPS, sorts by time, dedupes timestamps", () 
     ]);
 });
 
+test("foldUpsPoints: snaps timestamps to the alignMs (whole-minute) grid", () => {
+    const M = 60_000;
+    const samples = [
+        { instance: "pw", t: 3 * M + 1000, v: 1 },   // :01 past 3m → snaps to 3m
+        { instance: "pw", t: 4 * M + 59_000, v: 2 },  // :59 past 4m → snaps to 5m
+        { instance: "pw", t: 5 * M + 1000, v: 3 },    // :01 past 5m → also 5m (dup, last wins)
+    ];
+    assert.deepEqual(foldUpsPoints(samples, { pw: "powerwalker" }, "powerwalker", M), [
+        { t: 3 * M, v: 1 },
+        { t: 5 * M, v: 3 },
+    ]);
+});
+
 test("foldUpsPoints: unknown UPS yields nothing", () => {
     const samples = [{ instance: "pw", t: 1, v: 1 }];
     assert.deepEqual(foldUpsPoints(samples, { pw: "powerwalker" }, "nope"), []);

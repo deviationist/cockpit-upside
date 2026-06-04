@@ -17,6 +17,7 @@
 import cockpit from 'cockpit';
 import type { HttpInstance, HttpOptions } from 'cockpit';
 
+import { SNAP_MS } from './metrics';
 import type { ArchiveRange, ArchiveResult, HistPoint } from './metrics';
 import {
     SeriesSample, basicAuth, foldUpsPoints, parseEndpoint,
@@ -100,7 +101,7 @@ export async function loadSeries(baseUrl: string, creds: HistoryCreds | null, me
 
             instances[metric] = [...new Set(Object.values(upsMap))];
             samples += all.length;
-            points[metric] = foldUpsPoints(all, upsMap, ups);
+            points[metric] = foldUpsPoints(all, upsMap, ups, SNAP_MS);
         }));
     } finally {
         http.close();
