@@ -110,7 +110,7 @@ function useLiveNow(active: boolean): number {
     return now;
 }
 
-export const Metrics = ({ ups, title, archiveDir, historyUrl, locale, autoRefresh = true, liveScroll = true }: { ups: string, title?: string, archiveDir?: string, historyUrl?: string, locale?: string, autoRefresh?: boolean, liveScroll?: boolean }) => {
+export const Metrics = ({ ups, title, archiveDir, historyUrl, locale, autoRefresh = true, liveScroll = true, lookaheadMs = 60_000 }: { ups: string, title?: string, archiveDir?: string, historyUrl?: string, locale?: string, autoRefresh?: boolean, liveScroll?: boolean, lookaheadMs?: number }) => {
     // Restore the last-used window from the per-browser pref if it still exists;
     // otherwise fall back to 6h.
     const [rangeId, setRangeId] = useState(() => {
@@ -215,8 +215,22 @@ export const Metrics = ({ ups, title, archiveDir, historyUrl, locale, autoRefres
             // pmrep grid is aligned to, see lib/metrics -A). Otherwise the arbitrary-
             // second edges clip the partial samples at each end — a 5-min view would
             // show 4 points instead of 5 — and the edges wouldn't sit on round ticks.
-            const end = zoom ? zoom.end : Math.floor((Date.now() - offset) / intervalMs) * intervalMs;
-            const start = zoom ? zoom.start : end - range.ms;
+            const live = liveScroll && atNow;
+            // Live: end at the real "now" (NOT floored to the minute) so the freshest
+            // partial-minute sample is included — flooring would drop the most recent
+            // reading and leave the line ~a minute stale. The per-sample minute-snap
+            // still aligns points to the grid. Stepped/zoom views keep the floored
+            // edge. Live also fetches an extra `lookaheadMs` on the older side so the
+            // view stays full of data once the right edge slides into the lookahead.
+            const end = zoom ? zoom.end : live ? Date.now() : Math.floor((Date.now() - offset) / intervalMs) * intervalMs;
+            // Past buffer when live: the lookahead room PLUS one extra sample interval.
+            // The view shows [now − range − lookahead, now]; we fetch a bit further
+            // back than its left edge because the oldest sample snaps up to ~one
+            // interval inward — without the extra interval the left edge shows an
+            // empty wedge right after each refetch. The extra is just off-screen
+            // buffer the window scrolls through.
+            const pastBuf = live ? lookaheadMs + intervalMs : 0;
+            const start = zoom ? zoom.start : end - range.ms - pastBuf;
             const names = SERIES.map(s => metricName(s.key));
             const r = { startMs: start, endMs: end, intervalMs, limit: FETCH_LIMIT };
             // Remote source (netclient): read the primary's history over pmproxy
@@ -239,7 +253,7 @@ export const Metrics = ({ ups, title, archiveDir, historyUrl, locale, autoRefres
         run();
 
         return () => { cancelled = true; window.clearTimeout(timer) };
-    }, [ups, rangeId, offset, zoom, range.ms, range.intervalMs, archiveDir, historyUrl, autoRefresh, atNow]);
+    }, [ups, rangeId, offset, zoom, range.ms, range.intervalMs, archiveDir, historyUrl, autoRefresh, atNow, liveScroll, lookaheadMs]);
 
     // Live-scroll: while viewing "now", slide the rendered window with wall-clock
     // time (advancing ~30fps) so the plot scrolls smoothly rather than jumping a
@@ -249,8 +263,15 @@ export const Metrics = ({ ups, title, archiveDir, historyUrl, locale, autoRefres
     // sample, leaving a small live gap at the right edge — expected for a feed.
     const scrolling = liveScroll && atNow;
     const liveNow = useLiveNow(scrolling);
-    const viewStart = scrolling ? liveNow - range.ms : win.start;
+    // Scroll the window continuously with wall-clock time (right edge = now). Span
+    // is range.ms + lookaheadMs: the data fills the left, and the rightmost
+    // lookaheadMs is the room the line scrolls into. The empty gap on the right
+    // breathes between ~0 and one sample interval — the newest reading ages until
+    // the next one pops in (normal for a 60s-cadence feed) — which the lookahead
+    // absorbs, keeping ~range.ms of data on screen. We intentionally do NOT clamp
+    // the right edge to the data: clamping freezes the scroll between samples.
     const viewEnd = scrolling ? liveNow : win.end;
+    const viewStart = scrolling ? liveNow - range.ms - lookaheadMs : win.start;
 
     const shown = result
         ? SERIES.filter(s => (result.points[metricName(s.key)]?.length ?? 0) >= 2)
