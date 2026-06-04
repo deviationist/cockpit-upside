@@ -947,7 +947,7 @@ export const Application = () => {
         const u = upses?.find(x => x.ref.name === path[1]);
         const title = config.names[path[1]] || descs[path[1]] ||
             (u ? displayName(u, descs, config.names) : path[1]);
-        view = <Metrics ups={path[1]} title={title} archiveDir={config.historyArchiveDir} historyUrl={config.historyUrl} locale={config.locale} autoRefresh={getPref("charts-live") !== "0"} />;
+        view = <Metrics ups={path[1]} title={title} archiveDir={config.historyArchiveDir} historyUrl={config.historyUrl} locale={config.locale} autoRefresh={getPref("charts-live") !== "0"} liveScroll={getPref("charts-scroll") !== "0"} />;
     } else if (path[0] === "ups" && path[1] && path[2] === "config") {
         const u = upses?.find(x => x.ref.name === path[1]);
         const title = config.names[path[1]] || descs[path[1]] ||
