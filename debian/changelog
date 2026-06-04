@@ -1,3 +1,14 @@
+cockpit-upside (1.0.6) noble; urgency=medium
+
+  * Metrics charts now scroll smoothly in live mode: while viewing the latest
+    window the time axis advances continuously (requestAnimationFrame) instead of
+    jumping a notch each minute, with a small lookahead margin on the right that
+    the line slides into. The data line is clipped to the plot area (no overflow
+    over the y-axis), and the window keeps a full range of data on screen as it
+    moves. Pauses when zoomed or stepped into the past; configurable.
+
+ -- Robert Sæther <robert4832@pm.me>  Thu, 04 Jun 2026 16:24:09 +0000
+
 cockpit-upside (1.0.5) noble; urgency=medium
 
   * History charts: align samples to the whole minute so the hover crosshair
