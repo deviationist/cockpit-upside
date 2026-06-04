@@ -89,7 +89,28 @@ function intervalForSpan(ms: number): number {
 
 const FETCH_LIMIT = 100000; // pmrep is bounded by the window; this is just the API field
 
-export const Metrics = ({ ups, title, archiveDir, historyUrl, locale, autoRefresh = true }: { ups: string, title?: string, archiveDir?: string, historyUrl?: string, locale?: string, autoRefresh?: boolean }) => {
+// A wall-clock "now" that advances while `active`, driving the live-scroll view
+// window. requestAnimationFrame keeps it smooth and auto-pauses when the tab is
+// hidden; we throttle to ~30fps so the charts don't re-render every single frame
+// (data still only changes once a minute — this is purely the view sliding left).
+function useLiveNow(active: boolean): number {
+    const [now, setNow] = useState(() => Date.now());
+    useEffect(() => {
+        if (!active)
+            return;
+        let raf = 0;
+        let last = 0;
+        const tick = (ts: number) => {
+            if (ts - last >= 33) { last = ts; setNow(Date.now()) }
+            raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(raf);
+    }, [active]);
+    return now;
+}
+
+export const Metrics = ({ ups, title, archiveDir, historyUrl, locale, autoRefresh = true, liveScroll = true }: { ups: string, title?: string, archiveDir?: string, historyUrl?: string, locale?: string, autoRefresh?: boolean, liveScroll?: boolean }) => {
     // Restore the last-used window from the per-browser pref if it still exists;
     // otherwise fall back to 6h.
     const [rangeId, setRangeId] = useState(() => {
@@ -220,6 +241,17 @@ export const Metrics = ({ ups, title, archiveDir, historyUrl, locale, autoRefres
         return () => { cancelled = true; window.clearTimeout(timer) };
     }, [ups, rangeId, offset, zoom, range.ms, range.intervalMs, archiveDir, historyUrl, autoRefresh, atNow]);
 
+    // Live-scroll: while viewing "now", slide the rendered window with wall-clock
+    // time (advancing ~30fps) so the plot scrolls smoothly rather than jumping a
+    // notch each minute. Data still only changes on the 60s fetch — this just
+    // moves the view window. Zoomed/stepped-back (or disabled) → the fetched
+    // window as-is. Note the view end (now) runs slightly ahead of the newest
+    // sample, leaving a small live gap at the right edge — expected for a feed.
+    const scrolling = liveScroll && atNow;
+    const liveNow = useLiveNow(scrolling);
+    const viewStart = scrolling ? liveNow - range.ms : win.start;
+    const viewEnd = scrolling ? liveNow : win.end;
+
     const shown = result
         ? SERIES.filter(s => (result.points[metricName(s.key)]?.length ?? 0) >= 2)
         : [];
@@ -308,8 +340,8 @@ export const Metrics = ({ ups, title, archiveDir, historyUrl, locale, autoRefres
                                     color={s.color}
                                     min={s.min}
                                     max={s.max}
-                                    startMs={win.start}
-                                    endMs={win.end}
+                                    startMs={viewStart}
+                                    endMs={viewEnd}
                                     height={180}
                                     onZoom={onZoom}
                                     locale={locale}
