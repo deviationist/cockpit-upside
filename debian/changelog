@@ -1,3 +1,17 @@
+cockpit-upside (1.0.4) noble; urgency=medium
+
+  * Trends and Metrics charts now auto-refresh, so the pages work as a live
+    dashboard. Trends rolls its 6h window; Metrics refreshes only while viewing
+    the latest window (paused when zoomed or stepped into the past). Refreshes
+    are self-scheduled (never stacking) and can be turned off.
+  * Mobile: the breadcrumb collapses to a dropdown on narrow screens instead of
+    wrapping; the logo tagline and masthead padding tighten on small phones; and
+    the Control/Monitor toggle moves into the menu on the narrowest screens.
+  * Setup wizard (mobile): the nav no longer paints over the masthead or its
+    open menu, and the step number/label spacing is less cramped.
+
+ -- Robert Sæther <robert4832@pm.me>  Thu, 04 Jun 2026 15:06:42 +0000
+
 cockpit-upside (1.0.3) noble; urgency=medium
 
   * Controls: redesigned panel. Capability-gated actions (only commands the UPS
