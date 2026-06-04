@@ -724,6 +724,27 @@ $upside-amber: #f59e0b;
     .upside-masthead { padding-inline: 0.6rem; }
 }
 
+// The monitor/control mode toggle lives inline in the bar. Below 300px the row
+// can't fit it, so hide the inline one and surface it inside the hamburger
+// dropdown instead (full-width tap target above the section tabs).
+.upside-masthead__menu-mode { display: none; }
+
+@media (max-width: 300px) {
+    .upside-masthead__right > .upside-mode-badge { display: none; }
+
+    .upside-masthead__menu-mode {
+        display: flex;
+        margin-block-end: 0.3rem;
+        padding-block-end: 0.5rem;
+        border-block-end: 1px solid rgb(255 255 255 / 10%);
+    }
+
+    .upside-masthead__menu-mode .upside-mode-badge {
+        inline-size: 100%;
+        text-align: center;
+    }
+}
+
 // Status pills in a card title: give them room to breathe.
 .upside-status-labels {
     display: inline-flex;
