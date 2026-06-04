@@ -10,7 +10,7 @@
  * text stays crisp. Data comes from lib/metrics (pmrep).
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 
 import { axisBands, formatFullTimestamp, formatTimeTick, formatValueTick, niceTicks, timeStep, timeTicks } from './lib/axis';
 
@@ -56,6 +56,11 @@ export const MetricChart = ({ points, unit, color, min, max, startMs, endMs, hei
     const [ref, width] = useWidth();
     const [hover, setHover] = useState<number | null>(null);
     const [drag, setDrag] = useState<{ x0: number, x1: number } | null>(null);
+    // Unique per chart instance — clips the data line/area to the plot rect so a
+    // scrolled-past point (t < startMs) doesn't paint over the y-axis. Points are
+    // kept (not dropped) so their line segment stays continuous up to the edge; the
+    // clip just hides the overshoot until the whole segment has scrolled off.
+    const clipId = useId();
 
     const innerW = Math.max(0, width - M.left - M.right);
     const innerH = height - M.top - M.bottom;
@@ -193,8 +198,13 @@ export const MetricChart = ({ points, unit, color, min, max, startMs, endMs, hei
                             <text key={t} className="upside-mchart__xlabel" x={sx(t)} y={height - 20}>{formatTimeTick(t, xStep, locale)}</text>
                         ))}
 
-                        <path d={area} fill={color} fillOpacity="0.15" stroke="none" />
-                        <path d={line} fill="none" stroke={color} strokeWidth="1.5" />
+                        <clipPath id={clipId}>
+                            <rect x={M.left} y={M.top} width={innerW} height={innerH} />
+                        </clipPath>
+                        <g clipPath={`url(#${clipId})`}>
+                            <path d={area} fill={color} fillOpacity="0.15" stroke="none" />
+                            <path d={line} fill="none" stroke={color} strokeWidth="1.5" />
+                        </g>
 
                         {/* hover crosshair + dot */}
                         {hp &&
