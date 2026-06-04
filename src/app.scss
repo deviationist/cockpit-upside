@@ -1433,10 +1433,13 @@ $upside-amber: #f59e0b;
     overflow: visible;
 }
 
-// PF positions the nav absolute with z-index 200, which paints over our sticky
-// masthead (z-index 100) when the page scrolls. Drop it below the masthead so it
-// slides under like the rest of the content.
-.upside-wizard__steps .pf-v6-c-wizard__nav {
+// PF gives the nav z-index 200 (desktop sidebar) and the mobile nav *toggle* bar
+// z-index 100 — both paint over our sticky masthead (z-index 100): the nav on
+// scroll, and the mobile toggle bar over the masthead AND its open dropdown menu
+// (which lives inside the masthead's own z-index:100 context, so an equal z-index
+// later in the DOM wins). Drop both below the masthead so they slide under it.
+.upside-wizard__steps .pf-v6-c-wizard__nav,
+.upside-wizard__steps .pf-v6-c-wizard__toggle {
     z-index: 1;
 }
 
