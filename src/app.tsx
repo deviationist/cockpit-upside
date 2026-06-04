@@ -48,7 +48,7 @@ import { UpsMenu } from './UpsMenu';
 import { VERSION } from './version';
 import { GithubMark } from './Github';
 import { Mode, UpsideConfig, loadModePref, resolveMode, saveConfig, saveModePref, useConfig } from './lib/config';
-import { NutCreds, clearNutCreds, loadNutCreds, saveNutCreds } from './lib/prefs';
+import { NutCreds, clearNutCreds, getPref, loadNutCreds, saveNutCreds } from './lib/prefs';
 import { formatElapsed, monthsBetween, parseNutDate } from './lib/derive';
 import { Ups, UpsState, UpsStatus, UpsVars, formatRuntime, listUps, num, readDescriptions, readUps, refId, stateLabel } from './lib/nut';
 
@@ -601,7 +601,8 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode, 
 
             {((!remote && config.history) || (remote && config.historyUrl)) &&
                 <Trends ups={ups.ref.name} archiveDir={config.historyArchiveDir}
-                        historyUrl={remote ? config.historyUrl : undefined} locale={config.locale} />}
+                        historyUrl={remote ? config.historyUrl : undefined} locale={config.locale}
+                        autoRefresh={getPref("charts-live") !== "0"} />}
 
             <Topology ups={upsId} />
 
@@ -946,7 +947,7 @@ export const Application = () => {
         const u = upses?.find(x => x.ref.name === path[1]);
         const title = config.names[path[1]] || descs[path[1]] ||
             (u ? displayName(u, descs, config.names) : path[1]);
-        view = <Metrics ups={path[1]} title={title} archiveDir={config.historyArchiveDir} historyUrl={config.historyUrl} locale={config.locale} />;
+        view = <Metrics ups={path[1]} title={title} archiveDir={config.historyArchiveDir} historyUrl={config.historyUrl} locale={config.locale} autoRefresh={getPref("charts-live") !== "0"} />;
     } else if (path[0] === "ups" && path[1] && path[2] === "config") {
         const u = upses?.find(x => x.ref.name === path[1]);
         const title = config.names[path[1]] || descs[path[1]] ||
