@@ -462,16 +462,16 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode, 
                 <div className="upside-detail__crumb">
                     <Flex spaceItems={{ default: "spaceItemsSm" }} alignItems={{ default: "alignItemsCenter" }}>
                         <FlexItem>
-                            <Breadcrumb>
-                                <BreadcrumbItem
-                                    to="#"
-                                    onClick={(e: React.MouseEvent) => { e.preventDefault(); cockpit.location.go([]) }}
-                                >
-                                    {_("Overview")}
-                                </BreadcrumbItem>
-                                <BreadcrumbItem isActive>
-                                    {upses.length > 1
-                                        ? (
+                            {upses.length > 1
+                                ? (
+                                    <Breadcrumb>
+                                        <BreadcrumbItem
+                                            to="#"
+                                            onClick={(e: React.MouseEvent) => { e.preventDefault(); cockpit.location.go([]) }}
+                                        >
+                                            {_("Overview")}
+                                        </BreadcrumbItem>
+                                        <BreadcrumbItem isActive>
                                             <Dropdown
                                                 isOpen={open}
                                                 onOpenChange={(o: boolean) => setOpen(o)}
@@ -503,10 +503,17 @@ const Detail = ({ upses, error, name, obSince, config, descs, lastUpdate, mode, 
                                                     })}
                                                 </DropdownList>
                                             </Dropdown>
-                                        )
-                                        : title}
-                                </BreadcrumbItem>
-                            </Breadcrumb>
+                                        </BreadcrumbItem>
+                                    </Breadcrumb>
+                                )
+                                : (
+                                    <CrumbTrail
+                                        crumbs={[
+                                            { label: _("Overview"), go: () => cockpit.location.go([]) },
+                                            { label: title },
+                                        ]}
+                                    />
+                                )}
                         </FlexItem>
                         <FlexItem>
                             {renaming
@@ -972,6 +979,32 @@ export const Application = () => {
     else
         view = <Overview upses={upses} error={error} descs={descs} names={config.names} lastUpdate={lastUpdate} />;
 
+    // Mode control (locked badge or monitor/control toggle). Rendered inline in
+    // the bar at ≥300px and inside the hamburger dropdown below 300px (CSS swaps
+    // which is visible). `inMenu` closes the dropdown after toggling there.
+    const modeControl = (inMenu: boolean) => modeLocked
+        ? (
+            <span
+                className={"upside-mode-badge upside-mode-badge--locked" + (mode === "control" ? " upside-mode-badge--control" : "")}
+                title={_("Mode is pinned in /etc/cockpit/upside.json — change it there.")}
+            >
+                {mode === "control" ? _("Control") : _("Monitor")}
+            </span>
+        )
+        : (
+            <button
+                type="button"
+                className={"upside-mode-badge upside-mode-badge--toggle" + (mode === "control" ? " upside-mode-badge--control" : "")}
+                aria-pressed={mode === "control"}
+                onClick={() => { setMode(mode === "control" ? "monitor" : "control"); if (inMenu) setMenuOpen(false); }}
+                title={mode === "control"
+                    ? _("Control mode — click to switch to monitor (read-only)")
+                    : _("Monitor mode (read-only) — click to switch to control")}
+            >
+                {mode === "control" ? _("Control") : _("Monitor")}
+            </button>
+        );
+
     return (
         <Page className="pf-m-no-sidebar">
             <header className="upside-masthead">
@@ -996,28 +1029,7 @@ export const Application = () => {
                             endsAt={countdown.endsAt}
                             onDone={() => setCountdown(null)}
                         />}
-                    {modeLocked
-                        ? (
-                            <span
-                                className={"upside-mode-badge upside-mode-badge--locked" + (mode === "control" ? " upside-mode-badge--control" : "")}
-                                title={_("Mode is pinned in /etc/cockpit/upside.json — change it there.")}
-                            >
-                                {mode === "control" ? _("Control") : _("Monitor")}
-                            </span>
-                        )
-                        : (
-                            <button
-                                type="button"
-                                className={"upside-mode-badge upside-mode-badge--toggle" + (mode === "control" ? " upside-mode-badge--control" : "")}
-                                aria-pressed={mode === "control"}
-                                onClick={() => setMode(mode === "control" ? "monitor" : "control")}
-                                title={mode === "control"
-                                    ? _("Control mode — click to switch to monitor (read-only)")
-                                    : _("Monitor mode (read-only) — click to switch to control")}
-                            >
-                                {mode === "control" ? _("Control") : _("Monitor")}
-                            </button>
-                        )}
+                    {modeControl(false)}
                     {/* Inline on desktop; hidden on mobile, where they move into
                         the hamburger dropdown below. */}
                     <div className="upside-masthead__meta-inline">
@@ -1037,6 +1049,9 @@ export const Application = () => {
                 </div>
                 {menuOpen &&
                     <div className="upside-masthead__menu">
+                        {/* Mode toggle — only shown here below 300px, where the bar
+                            is too tight for it (CSS hides the inline one). */}
+                        <div className="upside-masthead__menu-mode">{modeControl(true)}</div>
                         <nav className="upside-masthead__menu-nav" aria-label={_("Sections")}>
                             {NAV.map(item => (
                                 <button
