@@ -14,6 +14,13 @@
  * stateful Enabled/Disabled toggle whose state we can't read — it falls back to
  * a single "Toggle beeper" button.
  *
+ * Operating mode: `bypass.start` / `bypass.stop` switch the UPS between its
+ * normal mode and bypass. On Voltronic-protocol UPSes (`nutdrv_qx`, data
+ * "Voltronic …") those commands are ECO mode on/off (the UPS's PEE/PDE flag),
+ * so the row is labelled On-line / ECO there and Normal / Bypass elsewhere. The
+ * current mode is derived from `ups.status` plus the `ups.alarm` texts the
+ * Voltronic subdriver uses for its working mode ("UPS is in ECO Mode." etc.).
+ *
  * Running an instant command still authenticates with a NUT user (upsd.users),
  * captured in the header (NutAuthModal) — not OS superuser. Reads are anonymous.
  */
@@ -31,6 +38,8 @@ import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/inde
 import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/index.js";
 import { ToggleGroup, ToggleGroupItem } from "@patternfly/react-core/dist/esm/components/ToggleGroup/index.js";
 import { BoltIcon } from "@patternfly/react-icons/dist/esm/icons/bolt-icon.js";
+import { LeafIcon } from "@patternfly/react-icons/dist/esm/icons/leaf-icon.js";
+import { SyncAltIcon } from "@patternfly/react-icons/dist/esm/icons/sync-alt-icon.js";
 import { LockIcon } from "@patternfly/react-icons/dist/esm/icons/lock-icon.js";
 import { PlayIcon } from "@patternfly/react-icons/dist/esm/icons/play-icon.js";
 import { PowerOffIcon } from "@patternfly/react-icons/dist/esm/icons/power-off-icon.js";
@@ -43,6 +52,7 @@ import cockpit from 'cockpit';
 import { NutCreds, getPref, setPref } from './lib/prefs';
 import { UpsVars, formatRuntime, num, parseVars } from './lib/nut-parse';
 import { listCommands, runCommand } from './lib/control';
+import { deriveMode } from './lib/control-parse';
 
 const _ = cockpit.gettext;
 const msg = (e: unknown): string => (e instanceof Error ? e.message : (e as { message?: string })?.message || String(e));
@@ -107,7 +117,9 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
     const { commands, vars, listErr, loadingCmds } = useUpsControls(ups);
     const [busy, setBusy] = useState<string | null>(null);
     const [feedback, setFeedback] = useState<{ ok: boolean, msg: string } | null>(null);
-    const [confirm, setConfirm] = useState<{ cmd: string, label: string, consequence: string } | null>(null);
+    // `top`: route the result to the top feedback area (non-destructive sections)
+    // instead of the danger-zone one.
+    const [confirm, setConfirm] = useState<{ cmd: string, label: string, consequence: string, top?: boolean } | null>(null);
     const [delay, setDelay] = useState("0");
     // Danger-zone expand state persists per-browser so it survives reloads.
     const [dangerOpen, setDangerOpen] = useState(() => getPref("danger-open") === "1");
@@ -226,6 +238,47 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
 
     const supportedDestructive = DESTRUCTIVE.filter(d => has(d.cmd));
 
+    // --- operating mode (see file header; logic in lib/control-parse) ---
+    const { mode, ecoSemantics: isVoltronic, bypassSide, locked: modeLocked } =
+        deriveMode(vars["ups.status"], vars["ups.alarm"], vars["driver.version.data"]);
+    const converterActive = mode === "converter";
+    const showMode = has("bypass.start") && has("bypass.stop");
+    const modeName = {
+        battery: _("On battery"),
+        converter: _("Converter"),
+        eco: _("ECO (high efficiency)"),
+        bypass: _("Bypass"),
+        online: isVoltronic ? _("On-line (double conversion)") : _("Normal"),
+        unknown: _("Unknown"),
+    }[mode];
+    const modeColor = mode === "battery" ? "orange" : mode === "eco" || mode === "bypass" ? "blue" : mode === "converter" ? "purple" : mode === "online" ? "green" : "grey";
+    const MODE_NORMAL = isVoltronic
+        ? {
+            cmd: "bypass.stop",
+            label: _("Switch to on-line mode"),
+            consequence: _("The inverter powers the load all the time (double conversion): no transfer gap when mains fails and the output is regulated, at the cost of some efficiency (more heat). The UPS stores the setting."),
+            top: true,
+        }
+        : {
+            cmd: "bypass.stop",
+            label: _("Leave bypass"),
+            consequence: _("The UPS goes back to its normal mode and protects the load again."),
+            top: true,
+        };
+    const MODE_BYPASS = isVoltronic
+        ? {
+            cmd: "bypass.start",
+            label: _("Switch to ECO mode"),
+            consequence: _("The load runs from mains through the bypass and the UPS only switches to the inverter when mains fails: saves power, but with a short transfer time and no output conditioning. The UPS stores the setting."),
+            top: true,
+        }
+        : {
+            cmd: "bypass.start",
+            label: _("Enter bypass"),
+            consequence: _("The load runs straight from mains with NO battery protection until you leave bypass."),
+            top: true,
+        };
+
     // The pending confirm may offer a delay if the UPS has a `<cmd>.delay` variant
     // (e.g. load.off.delay). Empty or 0 = run now; >0 runs the .delay command with
     // seconds. Empty is allowed and treated as "now" so the user needn't type 0.
@@ -297,6 +350,43 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                                                 {beeperLabel(c)}
                                             </Button>
                                         ))}
+                            </div>
+                        </div>
+                    </section>}
+
+                {/* --- Operating mode (bypass.start / bypass.stop) --- */}
+                {showMode &&
+                    <section className="upside-ctl-section">
+                        <div className="upside-ctl-section__label">{_("Operating mode")}</div>
+                        <div className="upside-ctl-row">
+                            <div className="upside-ctl-row__text">
+                                <div className="upside-ctl-row__name">
+                                    {_("Mode")}
+                                    <Label isCompact color={modeColor} className="pf-v6-u-ml-sm">{modeName}</Label>
+                                </div>
+                                <div className="upside-ctl-row__desc">
+                                    {converterActive
+                                        ? _("Converter mode is set in the driver configuration (converter_mode) and can't be switched here.")
+                                        : isVoltronic
+                                            ? _("On-line: inverter always on. ECO: load on mains, inverter on standby.")
+                                            : _("Bypass feeds the load straight from mains, unprotected.")}
+                                </div>
+                            </div>
+                            <div className="upside-ctl-row__control">
+                                <ToggleGroup aria-label={_("Operating mode")}>
+                                    <ToggleGroupItem
+                                        icon={<SyncAltIcon />} text={isVoltronic ? _("On-line") : _("Normal")}
+                                        isSelected={!bypassSide && !converterActive}
+                                        isDisabled={busy !== null || modeLocked}
+                                        onChange={() => { if (bypassSide) setConfirm(MODE_NORMAL); }}
+                                    />
+                                    <ToggleGroupItem
+                                        icon={<LeafIcon />} text={isVoltronic ? _("ECO") : _("Bypass")}
+                                        isSelected={bypassSide && !converterActive}
+                                        isDisabled={busy !== null || modeLocked}
+                                        onChange={() => { if (!bypassSide) setConfirm(MODE_BYPASS); }}
+                                    />
+                                </ToggleGroup>
                             </div>
                         </div>
                     </section>}
@@ -441,7 +531,7 @@ export const Controls = ({ ups, creds, onAuthNeeded }: {
                     <Button
                         variant="danger" isDisabled={!delayValid}
                         isLoading={!!effectiveCmd && busy === effectiveCmd}
-                        onClick={() => effectiveCmd && run(effectiveCmd, delayCapable && delaySecs > 0 ? String(delaySecs) : undefined)}
+                        onClick={() => effectiveCmd && run(effectiveCmd, delayCapable && delaySecs > 0 ? String(delaySecs) : undefined, undefined, confirm?.top ? setTopFeedback : setFeedback)}
                     >
                         {/* eslint-disable-next-line no-template-curly-in-string -- cockpit.format placeholder, not a JS template literal; ${0} delimits the index from the trailing "s" */}
                         {confirm?.label}{delayCapable ? (delaySecs > 0 ? cockpit.format(_(" in ${0}s"), delaySecs) : _(" immediately")) : ""}
