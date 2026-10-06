@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { actionableCommands, parseCommandList, takesDelaySeconds, tierOf } from './control-parse.ts';
+import { actionableCommands, deriveMode, parseCommandList, takesDelaySeconds, tierOf } from './control-parse.ts';
 
 // Real-ish `upscmd -l` output (from a PowerWalker), incl. dangerous commands.
 const LIST = `Instant commands supported on UPS [powerwalker]:
@@ -65,4 +65,42 @@ test("actionableCommands: everything but hidden driver internals", () => {
     const names = actionableCommands(parseCommandList(LIST)).map(c => c.name)
             .sort();
     assert.deepEqual(names, ["beeper.toggle", "load.off", "load.on", "shutdown.return", "test.battery.start", "test.battery.stop"]);
+});
+
+const VOLTRONIC = "Voltronic 0.08";
+
+test("deriveMode: Voltronic in ECO reads OL BYPASS + the ECO alarm", () => {
+    const m = deriveMode("ALARM OL BYPASS", "UPS is in ECO Mode.", VOLTRONIC);
+    assert.equal(m.mode, "eco");
+    assert.equal(m.ecoSemantics, true);
+    assert.equal(m.bypassSide, true);
+    assert.equal(m.locked, false);
+});
+
+test("deriveMode: Voltronic on-line (ECO off)", () => {
+    const m = deriveMode("OL", undefined, VOLTRONIC);
+    assert.equal(m.mode, "online");
+    assert.equal(m.bypassSide, false);
+});
+
+test("deriveMode: Voltronic real bypass without ECO is not the ECO side", () => {
+    const m = deriveMode("OL BYPASS", "", VOLTRONIC);
+    assert.equal(m.mode, "bypass");
+    assert.equal(m.bypassSide, false);
+});
+
+test("deriveMode: converter mode and on-battery lock the toggle", () => {
+    assert.deepEqual(deriveMode("ALARM OL", "UPS is in Converter Mode.", VOLTRONIC),
+                     { mode: "converter", ecoSemantics: true, bypassSide: false, locked: true });
+    const ob = deriveMode("ALARM OB", "UPS is in ECO Mode.", VOLTRONIC);
+    assert.equal(ob.mode, "battery");
+    assert.equal(ob.locked, true);
+});
+
+test("deriveMode: non-Voltronic bypass is plain bypass", () => {
+    const m = deriveMode("OL BYPASS", undefined, "Megatec 0.06");
+    assert.equal(m.mode, "bypass");
+    assert.equal(m.ecoSemantics, false);
+    assert.equal(m.bypassSide, true);
+    assert.equal(deriveMode(undefined, undefined, undefined).mode, "unknown");
 });
