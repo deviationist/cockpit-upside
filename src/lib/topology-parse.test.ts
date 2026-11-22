@@ -12,45 +12,45 @@ import { test } from 'node:test';
 import { buildHosts, parseClientIps, parseUpsmonConf } from './topology-parse.ts';
 
 test("parseClientIps: keeps IPs, drops banners and blank lines", () => {
-    const out = "Init SSL without certificate database\n10.99.0.2\n127.0.0.1\n\n";
-    assert.deepEqual(parseClientIps(out), ["10.99.0.2", "127.0.0.1"]);
+    const out = "Init SSL without certificate database\n10.0.0.2\n127.0.0.1\n\n";
+    assert.deepEqual(parseClientIps(out), ["10.0.0.2", "127.0.0.1"]);
     assert.deepEqual(parseClientIps(""), []);
     assert.deepEqual(parseClientIps(undefined), []);
 });
 
 test("buildHosts: roles, local hostname, primary-first sort", () => {
-    const hosts = buildHosts(["10.99.0.2", "127.0.0.1"], "xavi", { "10.99.0.2": "quim-wg" });
+    const hosts = buildHosts(["10.0.0.2", "127.0.0.1"], "alpha", { "10.0.0.2": "beta-vpn" });
     assert.equal(hosts.length, 2);
     assert.equal(hosts[0].role, "primary");
     assert.equal(hosts[0].local, true);
-    assert.equal(hosts[0].name, "xavi"); // loopback shows the real hostname, not 127.0.0.1
+    assert.equal(hosts[0].name, "alpha"); // loopback shows the real hostname, not 127.0.0.1
     assert.equal(hosts[1].role, "secondary");
-    assert.equal(hosts[1].name, "quim-wg"); // resolved via rdns
+    assert.equal(hosts[1].name, "beta-vpn"); // resolved via rdns
 });
 
 test("buildHosts: netclient — loopback is the REMOTE primary, our own IP is the local secondary", () => {
-    // As seen on quim reading xavi's upsd: xavi's upsmon is the loopback client,
-    // quim connects from its trunk IP 10.99.0.2 (which is one of our localIps).
+    // As seen on beta reading alpha's upsd: alpha's upsmon is the loopback client,
+    // beta connects from its tunnel IP 10.0.0.2 (which is one of our localIps).
     const hosts = buildHosts(
-        ["127.0.0.1", "10.99.0.2"], "quim", { "10.99.0.2": "quim-wg" },
-        { remoteHost: "10.99.0.1", remoteName: "xavi", localIps: ["192.168.3.8", "10.99.0.2"] });
+        ["127.0.0.1", "10.0.0.2"], "beta", { "10.0.0.2": "beta-vpn" },
+        { remoteHost: "10.0.0.1", remoteName: "alpha", localIps: ["192.168.1.8", "10.0.0.2"] });
     assert.equal(hosts.length, 2);
-    // The remote primary: named xavi, shown by its host address — NOT "this host".
+    // The remote primary: named alpha, shown by its host address — NOT "this host".
     assert.equal(hosts[0].role, "primary");
     assert.equal(hosts[0].local, false);
-    assert.equal(hosts[0].name, "xavi");
-    assert.equal(hosts[0].ip, "10.99.0.1");
+    assert.equal(hosts[0].name, "alpha");
+    assert.equal(hosts[0].ip, "10.0.0.1");
     // Our own row: the secondary matching a local IP, flagged as this host.
     assert.equal(hosts[1].role, "secondary");
     assert.equal(hosts[1].local, true);
-    assert.equal(hosts[1].name, "quim");
-    assert.equal(hosts[1].ip, "10.99.0.2");
+    assert.equal(hosts[1].name, "beta");
+    assert.equal(hosts[1].ip, "10.0.0.2");
 });
 
 test("buildHosts: netclient — no local IP match means no row claims to be this host", () => {
     const hosts = buildHosts(
-        ["127.0.0.1", "10.99.0.2"], "quim", {},
-        { remoteHost: "10.99.0.1", remoteName: "xavi", localIps: ["172.16.0.9"] });
+        ["127.0.0.1", "10.0.0.2"], "beta", {},
+        { remoteHost: "10.0.0.1", remoteName: "alpha", localIps: ["172.16.0.9"] });
     assert.ok(hosts.every(h => !h.local)); // can't self-identify → nobody gets the badge
     assert.equal(hosts.filter(h => h.role === "primary").length, 1);
 });

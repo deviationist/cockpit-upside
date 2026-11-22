@@ -10,8 +10,8 @@ import { test } from 'node:test';
 import { basicAuth, foldUpsPoints, parseEndpoint, parseInstanceUps, parseSeriesIds, parseSeriesValues } from './series-parse.ts';
 
 test("parseEndpoint: derives address/port/tls, defaulting the port from scheme", () => {
-    assert.deepEqual(parseEndpoint("https://pcp.ichiva.no"), { address: "pcp.ichiva.no", port: 443, tls: true });
-    assert.deepEqual(parseEndpoint("http://10.99.0.1:44322"), { address: "10.99.0.1", port: 44322, tls: false });
+    assert.deepEqual(parseEndpoint("https://pcp.example.com"), { address: "pcp.example.com", port: 443, tls: true });
+    assert.deepEqual(parseEndpoint("http://10.0.0.1:44322"), { address: "10.0.0.1", port: 44322, tls: false });
     assert.deepEqual(parseEndpoint("https://host:8443/"), { address: "host", port: 8443, tls: true });
 });
 

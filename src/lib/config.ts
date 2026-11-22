@@ -31,8 +31,8 @@ export interface UpsideConfig {
     /**
      * Remote NUT source: the upsd host (`host` or `host:port`) to read/control
      * over the network, instead of the local upsd. This is what lets UPSide run
-     * on a *secondary* host pointed at the primary's upsd (e.g. quim → xavi over
-     * wg-trunk0). Unset → local upsd (the default). Reads (upsc) need no auth;
+     * on a *secondary* host pointed at the primary's upsd (e.g. beta → alpha over
+     * a WireGuard tunnel). Unset → local upsd (the default). Reads (upsc) need no auth;
      * control still authenticates with a upsd.users credential on the remote.
      * History is local to *this* host; a secondary has no local archive of the
      * remote UPS — so on a netclient, local history (Trends toggle, retention,
