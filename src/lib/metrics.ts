@@ -33,7 +33,7 @@ export interface HistPoint { t: number, v: number }
 // resolution. Snap every sample's timestamp to the nearest minute so points land
 // on the chart's round-number axis ticks (and the hover crosshair lines up).
 // Both readers do this — the local pmrep path AND the remote pmseries path — so
-// master (xavi) and a netclient (quim) render identically aligned. (pmrep's `-A`
+// master (alpha) and a netclient (beta) render identically aligned. (pmrep's `-A`
 // already grids the local path; this makes the alignment explicit and uniform,
 // and is the *only* thing aligning the remote path, which has no `-A`.)
 export const SNAP_MS = 60_000;

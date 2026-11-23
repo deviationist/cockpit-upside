@@ -347,7 +347,7 @@ export function isValidCidr(s: string | null | undefined): boolean {
     return !!m && Number(m[5]) <= 32 && m.slice(1, 5).every(o => Number(o) <= 255);
 }
 
-/** Suggest a /24 scan range from a host address (192.168.3.9 → 192.168.3.0/24). */
+/** Suggest a /24 scan range from a host address (192.168.1.9 → 192.168.1.0/24). */
 export function suggestCidr(addr: string | null | undefined): string {
     const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.\d{1,3}$/.exec(addr ?? "");
     return m ? `${m[1]}.${m[2]}.${m[3]}.0/24` : "";

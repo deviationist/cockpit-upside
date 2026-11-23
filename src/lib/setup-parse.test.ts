@@ -141,10 +141,10 @@ test("parseLsusb: id + name, flags UPS-looking devices", () => {
 });
 
 test("parseListen: reads LISTEN addr + optional port", () => {
-    const conf = "# upsd.conf\nLISTEN 127.0.0.1 3493\nLISTEN 10.99.0.1 3493\nLISTEN ::1\n";
+    const conf = "# upsd.conf\nLISTEN 127.0.0.1 3493\nLISTEN 10.0.0.1 3493\nLISTEN ::1\n";
     assert.deepEqual(parseListen(conf), [
         { addr: "127.0.0.1", port: 3493 },
-        { addr: "10.99.0.1", port: 3493 },
+        { addr: "10.0.0.1", port: 3493 },
         { addr: "::1", port: null },
     ]);
     assert.deepEqual(parseListen(""), []);
@@ -152,7 +152,7 @@ test("parseListen: reads LISTEN addr + optional port", () => {
 
 test("addListen: appends only when the address isn't already listened on", () => {
     const conf = "LISTEN 127.0.0.1 3493\n";
-    assert.equal(addListen(conf, "10.99.0.1", 3493), "LISTEN 127.0.0.1 3493\nLISTEN 10.99.0.1 3493\n");
+    assert.equal(addListen(conf, "10.0.0.1", 3493), "LISTEN 127.0.0.1 3493\nLISTEN 10.0.0.1 3493\n");
     assert.equal(addListen(conf, "127.0.0.1", 3493), conf); // already present → unchanged
     assert.equal(addListen("", "0.0.0.0", 3493), "LISTEN 0.0.0.0 3493\n");
 });
@@ -205,10 +205,10 @@ test("host / CIDR / serial-port validators", () => {
     assert.equal(isValidHost("ups.example.com"), true);
     assert.equal(isValidHost("bad host"), false);
     assert.equal(isValidHost('a";rm -rf'), false);
-    assert.equal(isValidCidr("192.168.3.0/24"), true);
-    assert.equal(isValidCidr("192.168.3.0/33"), false);
+    assert.equal(isValidCidr("192.168.1.0/24"), true);
+    assert.equal(isValidCidr("192.168.1.0/33"), false);
     assert.equal(isValidCidr("10.0.0.0"), false);
-    assert.equal(suggestCidr("192.168.3.9"), "192.168.3.0/24");
+    assert.equal(suggestCidr("192.168.1.9"), "192.168.1.0/24");
     assert.equal(suggestCidr("not-an-ip"), "");
     assert.equal(isValidSerialPort("/dev/ttyUSB0"), true);
     assert.equal(isValidSerialPort("/etc/passwd"), false);
